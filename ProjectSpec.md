@@ -6,4 +6,3 @@ OpnLaaS is an open-source platform designed to facilitate the deployment and man
 
 ## Components
 
-> Bottom-up description
