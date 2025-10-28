@@ -7,7 +7,7 @@
         "tailwindcss": "^4.1.13"
     },
     "scripts": {
-        "watch": "npx @tailwindcss/cli -i ./public/static/main.css -o ./public/static/tailwind.css --watch",
-        "build": "npx @tailwindcss/cli -i ./public/static/main.css -o ./public/static/tailwind.css --minify"
+        "watch": "npx @tailwindcss/cli -i ./public/static/styles/main.css -o ./public/static/styles/tailwind.css --watch",
+        "build": "npx @tailwindcss/cli -i ./public/static/styles/main.css -o ./public/static/styles/tailwind.css --minify"
     }
 }
