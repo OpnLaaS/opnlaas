@@ -8,10 +8,10 @@ type (
 	BootMode       int
 
 	HostCPUSpecs struct {
-		Sku          string  `json:"sku"`
-		Count        int     `json:"count"`
-		Cores        int     `json:"cores"`
-		Threads      int     `json:"threads"`
+		Sku     string `json:"sku"`
+		Count   int    `json:"count"`
+		Cores   int    `json:"cores"`
+		Threads int    `json:"threads"`
 	}
 
 	HostMemorySpecs struct {
@@ -20,20 +20,26 @@ type (
 		SpeedMHz int `json:"speed_mhz"`
 	}
 
+	HostStorageSpecs struct {
+		CapacityGB int    `json:"capacity_gb"`
+		MediaType  string `json:"media_type"`
+	}
+
 	HostSpecs struct {
-		Processor HostCPUSpecs    `json:"processor"`
-		Memory    HostMemorySpecs `json:"memory"`
+		Processor HostCPUSpecs       `json:"processor"`
+		Memory    HostMemorySpecs    `json:"memory"`
+		Storage   []HostStorageSpecs `json:"storage"`
 	}
 
 	Host struct {
-		ManagementIP        string         `gomysql:"management_ip,primary,unique"`
-		Vendor              VendorID       `gomysql:"vendor"`
-		FormFactor          FormFactor     `gomysql:"form_factor"`
-		ManagementType      ManagementType `gomysql:"management_type"`
-		Model               string         `gomysql:"model"`
-		LastKnownPowerState PowerState     `gomysql:"last_known_power_state"`
-		Specs               HostSpecs      `gomysql:"specs"`
-		Management          *HostManagementClient
+		ManagementIP        string                `gomysql:"management_ip,primary,unique" json:"management_ip"`
+		Vendor              VendorID              `gomysql:"vendor" json:"vendor"`
+		FormFactor          FormFactor            `gomysql:"form_factor" json:"form_factor"`
+		ManagementType      ManagementType        `gomysql:"management_type" json:"management_type"`
+		Model               string                `gomysql:"model" json:"model"`
+		LastKnownPowerState PowerState            `gomysql:"last_known_power_state" json:"last_known_power_state"`
+		Specs               HostSpecs             `gomysql:"specs" json:"specs"`
+		Management          *HostManagementClient `json:"-"`
 	}
 )
 
@@ -79,6 +85,8 @@ var (
 		VendorIntel:      "Intel",
 	}
 
+	VendorNameReverses = map[string]VendorID{}
+
 	FormFactorNames = map[FormFactor]string{
 		FormFactorOther:       "Other",
 		FormFactorRackmount:   "Rackmount",
@@ -87,11 +95,15 @@ var (
 		FormFactorMicroserver: "Microserver",
 	}
 
+	FormFactorNameReverses = map[string]FormFactor{}
+
 	ManagementTypeNames = map[ManagementType]string{
 		ManagementTypeNotSupported: "Not Supported",
 		ManagementTypeIPMI:         "IPMI",
 		ManagementTypeRedfish:      "Redfish",
 	}
+
+	ManagementTypeNameReverses = map[string]ManagementType{}
 
 	PowerStateNames = map[PowerState]string{
 		PowerStateUnknown: "Unknown",
@@ -99,10 +111,14 @@ var (
 		PowerStateOff:     "Off",
 	}
 
+	PowerStateNameReverses = map[string]PowerState{}
+
 	BootModeNames = map[BootMode]string{
 		BootModeUEFI:   "UEFI",
 		BootModeLegacy: "Legacy",
 	}
+
+	BootModeNameReverses = map[string]BootMode{}
 )
 
 func (v VendorID) String() string {
@@ -143,4 +159,26 @@ func (b BootMode) String() string {
 	}
 
 	return "Legacy"
+}
+
+func init() {
+	for k, v := range VendorNames {
+		VendorNameReverses[v] = k
+	}
+
+	for k, v := range FormFactorNames {
+		FormFactorNameReverses[v] = k
+	}
+
+	for k, v := range ManagementTypeNames {
+		ManagementTypeNameReverses[v] = k
+	}
+
+	for k, v := range PowerStateNames {
+		PowerStateNameReverses[v] = k
+	}
+
+	for k, v := range BootModeNames {
+		BootModeNameReverses[v] = k
+	}
 }

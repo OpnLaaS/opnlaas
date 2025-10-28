@@ -336,6 +336,20 @@ func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
 		SizeGB: int(c.redfishPrimarySystem.MemorySummary.TotalSystemMemoryGiB),
 	}
 
+	c.Host.Model = c.redfishPrimarySystem.Model
+
+	services, _ := c.redfishPrimarySystem.Storage()
+	
+	for _, service := range services {
+		volumes, _ := service.Volumes()
+		for _, volume := range volumes {
+			c.Host.Specs.Storage = append(c.Host.Specs.Storage, HostStorageSpecs{
+				CapacityGB: int(volume.CapacityBytes / (1024 * 1024 * 1024)),
+				MediaType:  string(volume.VolumeType),
+			})
+		}
+	}
+
 	return
 }
 

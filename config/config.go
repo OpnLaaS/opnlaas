@@ -48,6 +48,10 @@ type Configuration struct {
 		DefaultIPMIUser string `env:"MGMT_DEFAULT_IPMI_USER,default=ipmi-user"`
 		DefaultIPMIPass string `env:"MGMT_DEFAULT_IPMI_PASS,default=ipmiUserPassword"`
 	}
+
+	JWT struct {
+		Secret string `env:"JWT_SECRET,required=true"`
+	}
 }
 
 var Config Configuration

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/opnlaas/laas/app"
 	"github.com/opnlaas/laas/config"
 	"github.com/opnlaas/laas/hosts"
 	"github.com/z46-dev/go-logger"
@@ -19,34 +20,15 @@ func init() {
 }
 
 func main() {
-	var (
-		err  error
-		host *hosts.Host = &hosts.Host{
-			ManagementIP:   "10.0.2.4",
-			Vendor:         hosts.VendorDELL,
-			FormFactor:     hosts.FormFactorRackmount,
-			ManagementType: hosts.ManagementTypeRedfish,
-			Model:          "PowerEdge R740xd",
-		}
-	)
+	var err error
 
-	if host.Management, err = hosts.NewHostManagementClient(host); err != nil {
-		log.Errorf("Failed to create host management client: %v\n", err)
-		return
+	if err = hosts.InitDB(); err != nil {
+		log.Errorf("Failed to initialize database: %v\n", err)
+		panic(err)
 	}
 
-	defer host.Management.Close()
-
-	var value hosts.PowerState
-	if value, err = host.Management.PowerState(); err != nil {
-		log.Errorf("Failed to get power state: %v\n", err)
-	} else {
-		log.Statusf("Power State: %s\n", value)
+	if err = app.StartApp(); err != nil {
+		log.Errorf("Failed to run web server: %v\n", err)
+		panic(err)
 	}
-
-	if err = host.Management.UpdateSystemInfo(); err != nil {
-		log.Errorf("Failed to update system info: %v\n", err)
-	}
-
-	log.Statusf("Host Specs: %+v\n", host.Specs)
 }

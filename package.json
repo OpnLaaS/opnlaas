@@ -1,0 +1,13 @@
+{
+    "name": "opnlaas",
+    "version": "0.0.1",
+    "description": "OpnLaaS Frontend Tailwind Builder",
+    "dependencies": {
+        "@tailwindcss/cli": "^4.1.13",
+        "tailwindcss": "^4.1.13"
+    },
+    "scripts": {
+        "watch": "npx @tailwindcss/cli -i ./public/static/main.css -o ./public/static/tailwind.css --watch",
+        "build": "npx @tailwindcss/cli -i ./public/static/main.css -o ./public/static/tailwind.css --minify"
+    }
+}
