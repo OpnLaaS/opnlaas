@@ -7,8 +7,11 @@ import (
 )
 
 func StartApp() error {
+	var templateEngine = html.New("./public/views", ".html")
+	templateEngine.Reload(config.Config.WebServer.ReloadTemplatesOnEachRender)
+
 	var app = fiber.New(fiber.Config{
-		Views: html.New("./public/views", ".html"),
+		Views: templateEngine,
 	})
 
 	// Pages

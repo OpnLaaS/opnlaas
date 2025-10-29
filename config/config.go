@@ -40,8 +40,9 @@ type Configuration struct {
 	}
 
 	WebServer struct {
-		Address string `env:"WEB_ADDRESS,default=:8080"`
-		TlsDir  string `env:"WEB_TLS_DIR"`
+		Address                     string `env:"WEB_ADDRESS,default=:8080"`
+		TlsDir                      string `env:"WEB_TLS_DIR"`
+		ReloadTemplatesOnEachRender bool   `env:"WEB_RELOAD_TEMPLATES_ON_EACH_RENDER,default=false"`
 	}
 
 	Management struct {

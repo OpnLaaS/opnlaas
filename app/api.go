@@ -24,7 +24,7 @@ func apiLogin(c *fiber.Ctx) (err error) {
 	}
 
 	return c.Render("login", fiber.Map{
-		"Title":      "Login",
+		"Title": "Login",
 		"LoginError": err.Error(),
 	}, "layout")
 }

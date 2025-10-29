@@ -16,7 +16,9 @@ func showLanding(c *fiber.Ctx) error {
 }
 
 func showLogin(c *fiber.Ctx) error {
-	return c.Render("login", bindWithLocals(c, fiber.Map{"Title": "Login"}), "layout")
+	return c.Render("login", fiber.Map{
+		"Title": "Login",
+	}, "layout")
 }
 
 func showLogout(c *fiber.Ctx) error {
@@ -57,4 +59,12 @@ func showUnauthorized(c *fiber.Ctx) error {
 		"Title": "Unauthorized",
 		"User":  user.LDAPConn.Username,
 	}), "layout")
+}
+
+func redirectWithMap(c *fiber.Ctx, path string, data fiber.Map) error {
+	for k, v := range bindWithLocals(c, data) {
+		c.Locals(k, v)
+	}
+
+	return c.Redirect(path)
 }
