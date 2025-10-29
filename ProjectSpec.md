@@ -92,12 +92,26 @@ Due to the complexity of this project, we will be working on it over multiple se
 
 ### During the CS518 Project Timeframe
 
-- Set up the project repository and initial structure.
 - Implement the Web App with basic frontend and backend functionality.
+  - Frontend
+    - Home Page
+    - Login Page
+    - Dashboard Page (view resources, *request new virtual resources if time provides*)
+    - Admin Page (view/manage physical resources)
+    - Basic styling with Tailwind CSS
+  - Backend
+    - User authentication (LDAP)
+    - Resource management (view physical resources)
+    - Basic API endpoints for future integration with other components
+    - Permission scheme for users and admins
 - Set up the Database schema and integrate it with the Web App.
+  - Hosts, Virtual Machines, Containers only for now
 - Implement the Auth Manager to support LDAP authentication.
+  - This will run off of the FreeIPA domain in the Cyber Lab
 - Implement the BMC Management System with IPMI & Redfish interfaces.
+  - Our servers support this
 - Implement the Proxmox VE API integration for VM management.
+  - We have a Proxmox instance available for testing
 
 ### Future Work
 
@@ -108,3 +122,9 @@ Due to the complexity of this project, we will be working on it over multiple se
 # Larger Group Request
 
 Due to the complexity of this project, and the various components involved, we are requesting to work as a larger group of 5 members for this project. Each member will take on specific components and responsibilities, allowing us to leverage our collective skills and expertise to successfully complete the project. Additionally, we would like to to ensure that our work is of high quality and meets our goals. By working as a larger group, we can divide the workload effectively and ensure that each component is developed thoroughly.
+
+## Hardware for this
+
+As you can expect, this requires some hardware to test on. See photo. Evan and Dan run these, and the blade enclosure at the bottom and the R730s are available for this project. The servers in the top are the infra and that includes the domain controllers and proxmox.
+
+![](IMG_9970.jpg)
