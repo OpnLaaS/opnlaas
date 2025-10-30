@@ -50,7 +50,8 @@ type Configuration struct {
 		DefaultIPMIPass string `env:"MGMT_DEFAULT_IPMI_PASS,default=ipmiUserPassword"`
 
 		// Array values are separated with "|" in the .env file (e.g. LDAP_ADMIN_GROUPS=admins|laasAdmins)
-		ManagementIPs []string `env:"MGMT_TESTING_IPS",default=""`
+		TestingManagementIPs []string `env:"MGMT_TESTING_IPS,default="`
+		TestingRunManagement bool     `env:"MGMT_TESTING_RUN_MGMT,default=false"`
 	}
 
 	JWT struct {

@@ -1,0 +1,133 @@
+name: Go + Tailwind CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CSS_INPUT: public/static/styles/main.css
+      CSS_OUTPUT: public/static/styles/tailwind.css
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (for Tailwind v4 CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Create .test.env from secret
+        run: |
+          printf '%s\n' "${TEST_ENV_FILE}" > .test.env
+          echo "Wrote .test.env with $(wc -l < .test.env) lines"
+        env:
+          TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Build Tailwind CSS
+        run: |
+          npm run build
+          test -s "$CSS_OUTPUT" || (echo "ERROR: $CSS_OUTPUT not generated" && exit 1)
+
+      - name: Go mod download
+        run: go mod download
+
+      - name: Run Go tests (export .test.env)
+        shell: bash
+        run: |
+          set -a
+          source ./.test.env
+          set +a
+          go test ./... -v
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Build Tailwind CSS
+        run: npm run build
+
+      - name: Build Go binary (linux/amd64)
+        run: |
+          mkdir -p dist/linux-amd64
+          GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w -X main.version=${{ github.sha }}" -o dist/linux-amd64/opnlaas .
+
+      - name: Bundle runtime assets
+        run: |
+          mkdir -p dist/linux-amd64/public/static/styles
+          mkdir -p dist/linux-amd64/public/views
+          cp -r public/static dist/linux-amd64/public/
+          cp -r public/views  dist/linux-amd64/public/
+
+      - name: Create tarball
+        run: |
+          tar -czf opnlaas-linux-amd64.tar.gz -C dist/linux-amd64 .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: opnlaas-linux-amd64.tar.gz
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: ./release
+
+      - name: Create tag
+        run: |
+          TAG="ci-${{ github.run_number }}"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          git tag "$TAG" || true
+          git push origin "$TAG" || true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: "CI Release ${{ env.TAG }}"
+          files: release/**
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

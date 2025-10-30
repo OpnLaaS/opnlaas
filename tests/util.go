@@ -18,10 +18,12 @@ func setup(t *testing.T) {
 		t.Fatalf("Failed to load .env: %v", err)
 	}
 
-	if len(config.Config.Management.ManagementIPs) == 0 {
-		t.Fatalf("No management IPs configured in test.env")
-	} else if strings.TrimSpace(config.Config.Management.ManagementIPs[0]) == "" {
-		t.Fatalf("First management IP is empty in test.env")
+	if config.Config.Management.TestingRunManagement {
+		if len(config.Config.Management.TestingManagementIPs) == 0 {
+			t.Fatalf("No management IPs configured in test.env")
+		} else if strings.TrimSpace(config.Config.Management.TestingManagementIPs[0]) == "" {
+			t.Fatalf("First management IP is empty in test.env")
+		}
 	}
 
 	// Randomize the database file name to avoid conflicts

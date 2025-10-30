@@ -9,6 +9,10 @@ import (
 )
 
 func TestRedfishManagementHosts(t *testing.T) {
+	if !config.Config.Management.TestingRunManagement {
+		t.Skip("Skipping Redfish management host tests as MGMT_TESTING_RUN_MGMT is not set to true.")
+	}
+
 	setup(t)
 	defer cleanup(t)
 
@@ -18,7 +22,7 @@ func TestRedfishManagementHosts(t *testing.T) {
 		wg                                                                  sync.WaitGroup
 		totalHosts, totalMemoryGB, totalCores, totalThreads, totalStorageGB int
 	)
-	for _, managementIP := range config.Config.Management.ManagementIPs {
+	for _, managementIP := range config.Config.Management.TestingManagementIPs {
 		wg.Add(1)
 
 		go func(ip string) {
