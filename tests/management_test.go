@@ -14,7 +14,10 @@ func TestRedfishManagementHosts(t *testing.T) {
 
 	t.Log("Testing Redfish management host functionality in parallel.")
 
-	var wg sync.WaitGroup
+	var (
+		wg                                                                  sync.WaitGroup
+		totalHosts, totalMemoryGB, totalCores, totalThreads, totalStorageGB int
+	)
 	for _, managementIP := range config.Config.Management.ManagementIPs {
 		wg.Add(1)
 
@@ -46,10 +49,21 @@ func TestRedfishManagementHosts(t *testing.T) {
 				return
 			}
 
-			t.Logf("Host %s - Power State: %s, System Model: %s, Specs JSON: %s\n", ip, host.LastKnownPowerState.String(), host.Model, host.Specs)
+			t.Logf("Host %s - Power State: %s, System Model: %s\n", ip, host.LastKnownPowerState.String(), host.Model)
+			totalHosts++
+			totalMemoryGB += host.Specs.Memory.SizeGB
+			totalCores += host.Specs.Processor.Cores
+			totalThreads += host.Specs.Processor.Threads
+			for _, disk := range host.Specs.Storage {
+				totalStorageGB += disk.CapacityGB
+			}
+
 		}(managementIP)
 	}
 
 	wg.Wait()
 	t.Log("Completed Redfish management host tests.")
+	t.Logf("Total Hosts Tested: %d", totalHosts)
+	t.Logf("Aggregate Specs - Memory: %d GB, CPU Cores: %d, CPU Threads: %d, Storage: %d GB",
+		totalMemoryGB, totalCores, totalThreads, totalStorageGB)
 }
