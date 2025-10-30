@@ -1,0 +1,85 @@
+name: PR Tests
+on:
+  pull_request:
+    branches: [ "main" ]
+permissions:
+  contents: read
+jobs:
+  test-internal:
+    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Write .test.env from secret
+        run: printf '%s\n' "${TEST_ENV_FILE}" > .test.env
+        env:
+          TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
+      - name: Install Node deps
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
+      - name: Build Tailwind
+        run: npm run build
+      - name: Go mod download
+        run: go mod download
+      - name: Run Go tests (with real env)
+        shell: bash
+        run: |
+          set -a; source ./.test.env; set +a
+          go test ./... -v
+  test-fork:
+    if: ${{ github.event.pull_request.head.repo.fork == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install Node deps
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
+      - name: Build Tailwind
+        run: npm run build
+      - name: Go mod download
+        run: go mod download
+      - name: Write dummy .test.env
+        run: |
+          cat > .test.env <<'EOF'
+          DB_FILE=laas.db
+          TFTP_ROOT_DIR=/var/lib/tftpboot
+          TFTP_ADDRESS=:69
+          TFTP_SERVE_HTTP_FALLBACK=true
+          TFTP_HTTP_ROOT_DIR=/var/www/tftpboot
+          TFTP_HTTP_ADDRESS=:8069
+          LDAP_ADDRESS=ldaps://localhost:636
+          LDAP_DOMAIN_SLD=example
+          LDAP_DOMAIN_TLD=com
+          LDAP_ACCOUNTS_CN=accounts
+          LDAP_USERS_CN=users
+          LDAP_GROUPS_CN=groups
+          LDAP_ADMIN_GROUPS=
+          LDAP_CREATE_BOOKING_GROUPS=
+          LDAP_USER_GROUPS=
+          ISOS_SEARCH_DIR=./isos
+          WEB_ADDRESS=:8080
+          WEB_TLS_DIR=
+          WEB_RELOAD_TEMPLATES_ON_EACH_RENDER=true
+          MGMT_DEFAULT_IPMI_USER=asdf
+          MGMT_DEFAULT_IPMI_PASS=asdf
+          MGMT_TESTING_IPS=
+          MGMT_TESTING_RUN_MGMT=false
+          JWT_SECRET=asdf
+          EOF
+      - name: Run Go unit tests only
+        shell: bash
+        run: |
+          set -a; source ./.test.env; set +a
+          go test ./... -v -short
