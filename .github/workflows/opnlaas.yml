@@ -85,6 +85,8 @@ jobs:
           mkdir -p dist/linux-amd64/public/views
           cp -r public/static dist/linux-amd64/public/
           cp -r public/views  dist/linux-amd64/public/
+          cp README.md dist/linux-amd64/
+          cp LICENSE   dist/linux-amd64/
       - name: Create tarball
         run: |
           tar -czf opnlaas-linux-amd64.tar.gz -C dist/linux-amd64 .
