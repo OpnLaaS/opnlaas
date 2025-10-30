@@ -3,6 +3,7 @@ package tests
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,8 @@ func setup(t *testing.T) {
 
 	if len(config.Config.Management.ManagementIPs) == 0 {
 		t.Fatalf("No management IPs configured in test.env")
+	} else if strings.TrimSpace(config.Config.Management.ManagementIPs[0]) == "" {
+		t.Fatalf("First management IP is empty in test.env")
 	}
 
 	// Randomize the database file name to avoid conflicts
