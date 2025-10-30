@@ -339,7 +339,7 @@ func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
 	c.Host.Model = c.redfishPrimarySystem.Model
 
 	services, _ := c.redfishPrimarySystem.Storage()
-	
+
 	for _, service := range services {
 		volumes, _ := service.Volumes()
 		for _, volume := range volumes {

@@ -17,8 +17,8 @@ type Configuration struct {
 		TFTP_RootDir      string `env:"TFTP_ROOT_DIR,default=/var/lib/tftpboot"`
 		TFTP_Address      string `env:"TFTP_ADDRESS,default=:69"`
 		ServeHTTPFallback bool   `env:"TFTP_SERVE_HTTP_FALLBACK,default=true"`
-		HTTP_RootDir      string `env:"HTTP_ROOT_DIR,default=/var/www/tftpboot"`
-		HTTP_Address      string `env:"HTTP_ADDRESS,default=:8069"`
+		HTTP_RootDir      string `env:"TFTP_HTTP_ROOT_DIR,default=/var/www/tftpboot"`
+		HTTP_Address      string `env:"TFTP_HTTP_ADDRESS,default=:8069"`
 	}
 
 	LDAP struct {
@@ -48,6 +48,9 @@ type Configuration struct {
 	Management struct {
 		DefaultIPMIUser string `env:"MGMT_DEFAULT_IPMI_USER,default=ipmi-user"`
 		DefaultIPMIPass string `env:"MGMT_DEFAULT_IPMI_PASS,default=ipmiUserPassword"`
+
+		// Array values are separated with "|" in the .env file (e.g. LDAP_ADMIN_GROUPS=admins|laasAdmins)
+		ManagementIPs []string `env:"MGMT_TESTING_IPS",default=""`
 	}
 
 	JWT struct {

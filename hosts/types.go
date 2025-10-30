@@ -1,5 +1,10 @@
 package hosts
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type (
 	VendorID       int
 	FormFactor     int
@@ -159,6 +164,19 @@ func (b BootMode) String() string {
 	}
 
 	return "Legacy"
+}
+
+func (specs HostSpecs) String() string {
+	var (
+		specsBytes []byte
+		err        error
+	)
+
+	if specsBytes, err = json.MarshalIndent(specs, "", "  "); err != nil {
+		return fmt.Sprintf("{\"error\": \"failed to marshal specs: %v\"}", err)
+	}
+
+	return string(specsBytes)
 }
 
 func init() {

@@ -24,3 +24,11 @@ func InitDB() (err error) {
 	dbLog.Success("Database initialized!")
 	return
 }
+
+func CloseDB() (err error) {
+	return gomysql.Close()
+}
+
+func DatabaseFilePath() string {
+	return config.Config.Database.File
+}
