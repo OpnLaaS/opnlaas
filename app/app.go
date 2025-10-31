@@ -6,11 +6,11 @@ import (
 	"github.com/opnlaas/laas/config"
 )
 
-func StartApp() error {
+func CreateApp() (app *fiber.App) {
 	var templateEngine = html.New("./public/views", ".html")
 	templateEngine.Reload(config.Config.WebServer.ReloadTemplatesOnEachRender)
 
-	var app = fiber.New(fiber.Config{
+	app = fiber.New(fiber.Config{
 		Views: templateEngine,
 	})
 
@@ -22,13 +22,26 @@ func StartApp() error {
 	app.Get("/logout", showLogout)
 	app.Get("/dashboard", mustBeLoggedIn, showDashboard)
 
-	// API
+	// Auth API
 	app.Post("/api/auth/login", apiLogin)
 	app.Post("/api/auth/logout", mustBeLoggedIn, apiLogout)
 
+	// Enums API
+	app.Get("/api/enums/vendors", apiEnumsVendorNames)
+	app.Get("/api/enums/form-factors", apiEnumsFormFactorNames)
+	app.Get("/api/enums/management-types", apiEnumsManagementTypeNames)
+	app.Get("/api/enums/power-states", apiEnumsPowerStateNames)
+	app.Get("/api/enums/boot-modes", apiEnumsBootModeNames)
+	return
+}
+
+func StartApp() (err error) {
+	var app *fiber.App = CreateApp()
 	if config.Config.WebServer.TlsDir != "" {
-		return app.ListenTLS(config.Config.WebServer.Address, config.Config.WebServer.TlsDir+"/fullchain.pem", config.Config.WebServer.TlsDir+"/privkey.pem")
+		err = app.ListenTLS(config.Config.WebServer.Address, config.Config.WebServer.TlsDir+"/fullchain.pem", config.Config.WebServer.TlsDir+"/privkey.pem")
+		return
 	}
 
-	return app.Listen(config.Config.WebServer.Address)
+	err = app.Listen(config.Config.WebServer.Address)
+	return
 }

@@ -19,20 +19,6 @@ var (
 	ErrNoSystemFound                     = fmt.Errorf("no system found for host")
 )
 
-type HostManagementClient struct {
-	Host      *Host
-	connected bool
-
-	// Redfish stuff
-	redfishClient         *gofish.APIClient
-	redfishService        *gofish.Service
-	redfishPrimaryChassis *redfish.Chassis
-	redfishPrimarySystem  *redfish.ComputerSystem
-
-	// IPMI stuff
-	ipmiClient *ipmi.Client
-}
-
 func NewHostManagementClient(host *Host) (client *HostManagementClient, err error) {
 	client = &HostManagementClient{
 		Host: host,

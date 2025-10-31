@@ -3,6 +3,10 @@ package hosts
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/bougou/go-ipmi"
+	"github.com/stmcginnis/gofish"
+	"github.com/stmcginnis/gofish/redfish"
 )
 
 type (
@@ -34,6 +38,20 @@ type (
 		Processor HostCPUSpecs       `json:"processor"`
 		Memory    HostMemorySpecs    `json:"memory"`
 		Storage   []HostStorageSpecs `json:"storage"`
+	}
+
+	HostManagementClient struct {
+		Host      *Host
+		connected bool
+
+		// Redfish stuff
+		redfishClient         *gofish.APIClient
+		redfishService        *gofish.Service
+		redfishPrimaryChassis *redfish.Chassis
+		redfishPrimarySystem  *redfish.ComputerSystem
+
+		// IPMI stuff
+		ipmiClient *ipmi.Client
 	}
 
 	Host struct {

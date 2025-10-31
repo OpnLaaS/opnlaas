@@ -2,11 +2,15 @@ package tests
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/opnlaas/laas/app"
 	"github.com/opnlaas/laas/config"
 	"github.com/opnlaas/laas/hosts"
 )
@@ -44,4 +48,48 @@ func cleanup(t *testing.T) {
 	if err = os.Remove(hosts.DatabaseFilePath()); err != nil {
 		t.Fatalf("Failed to remove test database file: %v", err)
 	}
+}
+
+func setupAppServer(t *testing.T) (fiberApp *fiber.App) {
+	fiberApp = app.CreateApp()
+
+	go func(t *testing.T) {
+		if err := fiberApp.Listen(config.Config.WebServer.Address); err != nil {
+			t.Errorf("Failed to start app: %v", err)
+			panic(err)
+		}
+	}(t)
+
+	time.Sleep(255 * time.Millisecond) // Give the server a little time to start
+	return
+}
+
+func cleanupAppServer(t *testing.T, fiberApp *fiber.App) {
+	if err := fiberApp.Shutdown(); err != nil {
+		t.Fatalf("Failed to shutdown app: %v", err)
+	}
+}
+
+func makeHTTPGetRequest(t *testing.T, url string) (statusCode int, body string, err error) {
+	var request *http.Request
+	if request, err = http.NewRequest("GET", url, nil); err != nil {
+		return
+	}
+
+	var client http.Client
+	var response *http.Response
+	if response, err = client.Do(request); err != nil {
+		return
+	}
+	defer response.Body.Close()
+
+	statusCode = response.StatusCode
+
+	var bodyBytes []byte
+	if bodyBytes, err = io.ReadAll(response.Body); err != nil {
+		return
+	}
+	body = string(bodyBytes)
+
+	return
 }
