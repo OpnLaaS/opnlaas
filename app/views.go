@@ -51,20 +51,3 @@ func showDashboard(c *fiber.Ctx) (err error) {
 		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
 	}), "layout")
 }
-
-func showUnauthorized(c *fiber.Ctx) error {
-	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
-
-	return c.Render("unauthorized", bindWithLocals(c, fiber.Map{
-		"Title": "Unauthorized",
-		"User":  user.LDAPConn.Username,
-	}), "layout")
-}
-
-func redirectWithMap(c *fiber.Ctx, path string, data fiber.Map) error {
-	for k, v := range bindWithLocals(c, data) {
-		c.Locals(k, v)
-	}
-
-	return c.Redirect(path)
-}

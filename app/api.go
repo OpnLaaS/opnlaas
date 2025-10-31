@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/opnlaas/laas/auth"
+	"github.com/opnlaas/laas/hosts"
 )
 
 func apiLogin(c *fiber.Ctx) (err error) {
@@ -24,7 +25,7 @@ func apiLogin(c *fiber.Ctx) (err error) {
 	}
 
 	return c.Render("login", fiber.Map{
-		"Title": "Login",
+		"Title":      "Login",
 		"LoginError": err.Error(),
 	}, "layout")
 }
@@ -32,4 +33,26 @@ func apiLogin(c *fiber.Ctx) (err error) {
 func apiLogout(c *fiber.Ctx) (err error) {
 	c.ClearCookie("Authorization")
 	return
+}
+
+// Enums API
+
+func apiEnumsVendorNames(c *fiber.Ctx) (err error) {
+	return c.JSON(hosts.VendorNameReverses)
+}
+
+func apiEnumsFormFactorNames(c *fiber.Ctx) (err error) {
+	return c.JSON(hosts.FormFactorNameReverses)
+}
+
+func apiEnumsManagementTypeNames(c *fiber.Ctx) (err error) {
+	return c.JSON(hosts.ManagementTypeNameReverses)
+}
+
+func apiEnumsPowerStateNames(c *fiber.Ctx) (err error) {
+	return c.JSON(hosts.PowerStateNameReverses)
+}
+
+func apiEnumsBootModeNames(c *fiber.Ctx) (err error) {
+	return c.JSON(hosts.BootModeNameReverses)
 }
