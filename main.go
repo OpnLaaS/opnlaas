@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/opnlaas/laas/app"
-	"github.com/opnlaas/laas/config"
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/app"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/hosts"
 	"github.com/z46-dev/go-logger"
 )
 

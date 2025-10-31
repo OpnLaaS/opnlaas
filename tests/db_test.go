@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/hosts"
 )
 
 func TestDB_CRUD_Basic(t *testing.T) {

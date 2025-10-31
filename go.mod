@@ -1,4 +1,4 @@
-module github.com/opnlaas/laas
+module github.com/opnlaas/opnlaas
 
 go 1.24.0
 

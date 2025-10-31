@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 )
 
 type authPerms uint8
@@ -158,6 +158,20 @@ func IsAuthenticated(r *fiber.Ctx, jwtSecret []byte) *AuthUser {
 }
 
 func Authenticate(username, password string) (*AuthUser, error) {
+	if injection := GetUserInjection(username, password); injection != nil {
+		user := &AuthUser{
+			LDAPConn: nil,
+			Token:    jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"username": username}),
+			Expiry:   time.Now().Add(time.Hour),
+			perms:    injection.Permissions,
+		}
+
+		usersLock.Lock()
+		defer usersLock.Unlock()
+		activeUsers[username] = user
+		return user, nil
+	}
+
 	ldapConn, err := NewLDAPConn(username, password)
 	if err != nil {
 		return nil, err

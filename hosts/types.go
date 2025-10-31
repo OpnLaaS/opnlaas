@@ -15,6 +15,7 @@ type (
 	ManagementType int
 	PowerState     int
 	BootMode       int
+	PowerAction    int
 
 	HostCPUSpecs struct {
 		Sku     string `json:"sku"`
@@ -93,6 +94,12 @@ const (
 
 	BootModeUEFI BootMode = iota
 	BootModeLegacy
+
+	PowerActionPowerOn PowerAction = iota
+	PowerActionPowerOff
+	PowerActionGracefulShutdown
+	PowerActionGracefulRestart
+	PowerActionForceRestart
 )
 
 var (
@@ -142,6 +149,16 @@ var (
 	}
 
 	BootModeNameReverses = map[string]BootMode{}
+
+	PowerActionNames = map[PowerAction]string{
+		PowerActionPowerOn:          "Power On",
+		PowerActionPowerOff:         "Power Off",
+		PowerActionGracefulShutdown: "Graceful Shutdown",
+		PowerActionGracefulRestart:  "Graceful Restart",
+		PowerActionForceRestart:     "Force Restart",
+	}
+
+	PowerActionNameReverses = map[string]PowerAction{}
 )
 
 func (v VendorID) String() string {
@@ -184,6 +201,14 @@ func (b BootMode) String() string {
 	return "Legacy"
 }
 
+func (p PowerAction) String() string {
+	if name, exists := PowerActionNames[p]; exists {
+		return name
+	}
+
+	return "Unknown Action"
+}
+
 func (specs HostSpecs) String() string {
 	var (
 		specsBytes []byte
@@ -216,5 +241,9 @@ func init() {
 
 	for k, v := range BootModeNames {
 		BootModeNameReverses[v] = k
+	}
+
+	for k, v := range PowerActionNames {
+		PowerActionNameReverses[v] = k
 	}
 }
