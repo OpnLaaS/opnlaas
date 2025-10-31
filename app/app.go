@@ -3,7 +3,7 @@ package app
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/template/html/v2"
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 )
 
 func CreateApp() (app *fiber.App) {
@@ -32,6 +32,13 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/api/enums/management-types", apiEnumsManagementTypeNames)
 	app.Get("/api/enums/power-states", apiEnumsPowerStateNames)
 	app.Get("/api/enums/boot-modes", apiEnumsBootModeNames)
+
+	// Hosts API
+	app.Get("/api/hosts", apiHostsAll)
+	app.Get("/api/hosts/:management_ip", apiHostByManagementIP)
+	app.Post("/api/hosts", mustBeLoggedIn, mustBeAdmin, apiHostCreate)
+	app.Delete("/api/hosts/:management_ip", mustBeLoggedIn, mustBeAdmin, apiHostDelete)
+	app.Post("/api/hosts/:management_ip/power/:action", mustBeLoggedIn, mustBeAdmin, apiHostPowerControl)
 	return
 }
 

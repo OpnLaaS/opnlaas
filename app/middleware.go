@@ -5,7 +5,7 @@ import (
 	"maps"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/opnlaas/laas/auth"
+	"github.com/opnlaas/opnlaas/auth"
 	"github.com/z46-dev/go-logger"
 )
 

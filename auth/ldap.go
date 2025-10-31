@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 )
 
 const LDAP_USER = "uid=%s,cn=%s,cn=accounts,dc=%s,dc=%s"

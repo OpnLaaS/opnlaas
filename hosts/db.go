@@ -1,7 +1,7 @@
 package hosts
 
 import (
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 	"github.com/z46-dev/go-logger"
 	"github.com/z46-dev/gomysql"
 )

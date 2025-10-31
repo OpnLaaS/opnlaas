@@ -4,8 +4,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opnlaas/laas/config"
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/hosts"
 )
 
 func TestRedfishManagementHosts(t *testing.T) {
