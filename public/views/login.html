@@ -1,38 +1,48 @@
-<div class="flex items-center justify-center p-4">
-    <div class="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800">
-        <div class="flex flex-col items-center">
-            <h1 class="text-2xl font-bold mb-2 text-center">Sign in</h1>
-            <p class="text-sm text-gray-500 mb-4 text-center">Access your dashboard</p>
-        </div>
+<div class="flex flex-column items-center justify-center  h-screen w-screen  gap-8 pb-25 overflow-hidden">
+    <!-- Image -->
+    <div class="w-100 h-auto rounded-full overflow-hidden m-10">
+        <img id="logo-image" alt="Logo" class="object-contain w-full h-full logo-image">
+    </div>
 
-        {{if .LoginError}}
-        <div class="bg-red-50 text-red-700 p-3 rounded-md border border-red-200 mb-4 dark:bg-red-900 dark:text-red-300 dark:border-red-700">
-            {{.LoginError}}
-        </div>
-        {{end}}
-
-        <form method="post" action="/api/auth/login" class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-                <input type="text" name="username"
-                    class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
-                    placeholder="" autocomplete="username" required>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-                <input type="password" name="password"
-                    class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
-                    placeholder="" autocomplete="current-password" required>
+    <!-- Login Card -->
+    <div class="flex items-center justify-center h-150 w-100">
+        <div
+            class="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800">
+            <div class="flex flex-col items-center">
+                <h1 class="text-4xl font-bold mb-2 text-center">Log in</h1>
+                <p class="text-sm text-gray-500 mb-4 text-center">Access your dashboard</p>
             </div>
 
-            <button type="submit"
-                class="focus-ring w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition dark:bg-blue-500 dark:hover:bg-blue-600">
-                Sign In
-            </button>
-        </form>
+            {{if .LoginError}}
+            <div
+                class="bg-red-50 text-red-700 p-3 rounded-md border border-red-200 mb-4 dark:bg-red-900 dark:text-red-300 dark:border-red-700">
+                {{.LoginError}}
+            </div>
+            {{end}}
 
-        <p class="mt-4 text-xs text-gray-500 text-center">
-            Having trouble? Contact an admin.
-        </p>
+            <form method="post" action="/api/auth/login" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+                    <input type="text" name="username"
+                        class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+                        autocomplete="username" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                    <input type="password" name="password"
+                        class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+                        autocomplete="current-password" required>
+                </div>
+
+                <button type="submit"
+                    class="focus-ring w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition dark:bg-blue-500 dark:hover:bg-blue-600">
+                    Sign In
+                </button>
+            </form>
+
+            <p class="mt-4 text-xs text-gray-500 text-center">
+                Having trouble? Contact an admin.
+            </p>
+        </div>
     </div>
 </div>
