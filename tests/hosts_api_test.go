@@ -127,4 +127,41 @@ func TestHostsAPI(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Delete host", func(t *testing.T) {
+		if !config.Config.Management.TestingRunManagement {
+			t.Skip("Host management is disabled; skipping host deletion test")
+		}
+
+		var (
+			user string = "alice"
+		)
+
+		if cookies, err := loginAndGetCookies(t, user, user); err != nil {
+			t.Fatalf("Failed to login as %s: %v", user, err)
+		} else {
+			if status, resp, err := makeHTTPDeleteRequest(t, fmt.Sprintf("http://%s/api/hosts/%s", config.Config.WebServer.Address, config.Config.Management.TestingManagementIPs[0]), cookies); err != nil {
+				t.Fatalf("Failed to delete host: %v", err)
+			} else if status != fiber.StatusOK {
+				t.Fatalf("Expected status %d, got %d: %s", fiber.StatusOK, status, resp)
+			}
+		}
+	})
+
+	t.Run("Hosts list is empty again", func(t *testing.T) {
+		var (
+			hostsObject any
+			err         error
+		)
+
+		if hostsObject, err = makeHTTPGetRequestJSON(t, fmt.Sprintf("http://%s/api/hosts", config.Config.WebServer.Address)); err != nil {
+			t.Fatalf("Failed to get hosts: %v", err)
+		} else if hostsObject != nil {
+			if hostsSlice, ok := hostsObject.([]*hosts.Host); !ok {
+				t.Fatalf("Expected hosts list to be a slice, got %T", hostsObject)
+			} else if len(hostsSlice) != 0 {
+				t.Fatalf("Expected hosts list to be empty, got %d hosts", len(hostsSlice))
+			}
+		}
+	})
 }

@@ -41,6 +41,8 @@ func TestRedfishManagementHosts(t *testing.T) {
 			if host.Management, err = hosts.NewHostManagementClient(host); err != nil {
 				t.Errorf("Failed to create HostManagementClient for IP %s: %v", ip, err)
 				return
+			} else {
+				defer host.Management.Close()
 			}
 
 			if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {

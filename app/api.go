@@ -111,6 +111,8 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 
 	if newHost.Management, err = hosts.NewHostManagementClient(newHost); err != nil {
 		return
+	} else {
+		defer newHost.Management.Close()
 	}
 
 	if err = newHost.Management.UpdateSystemInfo(); err != nil {
@@ -158,6 +160,8 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	if host.Management == nil {
 		if host.Management, err = hosts.NewHostManagementClient(host); err != nil {
 			return
+		} else {
+			defer host.Management.Close()
 		}
 	}
 

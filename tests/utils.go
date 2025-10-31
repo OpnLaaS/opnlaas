@@ -173,3 +173,31 @@ func makeHTTPPostRequest(t *testing.T, url, jsonData string, cookies []*http.Coo
 
 	return
 }
+
+func makeHTTPDeleteRequest(t *testing.T, url string, cookies []*http.Cookie) (statusCode int, body string, err error) {
+	var request *http.Request
+	if request, err = http.NewRequest("DELETE", url, nil); err != nil {
+		return
+	}
+
+	for _, cookie := range cookies {
+		request.AddCookie(cookie)
+	}
+
+	var client http.Client
+	var response *http.Response
+	if response, err = client.Do(request); err != nil {
+		return
+	}
+	defer response.Body.Close()
+
+	statusCode = response.StatusCode
+
+	var bodyBytes []byte
+	if bodyBytes, err = io.ReadAll(response.Body); err != nil {
+		return
+	}
+	body = string(bodyBytes)
+
+	return
+}
