@@ -1,9 +1,13 @@
 package app
 
 import (
+	"mime/multipart"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/opnlaas/opnlaas/auth"
-	"github.com/opnlaas/opnlaas/hosts"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/db"
+	"github.com/opnlaas/opnlaas/iso"
 )
 
 func apiLogin(c *fiber.Ctx) (err error) {
@@ -42,31 +46,47 @@ func apiLogout(c *fiber.Ctx) (err error) {
 // Enums API
 
 func apiEnumsVendorNames(c *fiber.Ctx) (err error) {
-	return c.JSON(hosts.VendorNameReverses)
+	return c.JSON(db.VendorNameReverses)
 }
 
 func apiEnumsFormFactorNames(c *fiber.Ctx) (err error) {
-	return c.JSON(hosts.FormFactorNameReverses)
+	return c.JSON(db.FormFactorNameReverses)
 }
 
 func apiEnumsManagementTypeNames(c *fiber.Ctx) (err error) {
-	return c.JSON(hosts.ManagementTypeNameReverses)
+	return c.JSON(db.ManagementTypeNameReverses)
 }
 
 func apiEnumsPowerStateNames(c *fiber.Ctx) (err error) {
-	return c.JSON(hosts.PowerStateNameReverses)
+	return c.JSON(db.PowerStateNameReverses)
 }
 
 func apiEnumsBootModeNames(c *fiber.Ctx) (err error) {
-	return c.JSON(hosts.BootModeNameReverses)
+	return c.JSON(db.BootModeNameReverses)
+}
+
+func apiEnumsPowerActionNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.PowerActionNameReverses)
+}
+
+func apiEnumsArchitectureNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.ArchitectureNameReverses)
+}
+
+func apiEnumsDistroTypeNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.DistroTypeNameReverses)
+}
+
+func apiEnumsPreConfigureTypeNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.PreConfigureTypeNameReverses)
 }
 
 // Hosts API
 
 func apiHostsAll(c *fiber.Ctx) (err error) {
-	var hostList []*hosts.Host = make([]*hosts.Host, 0)
+	var hostList []*db.Host = make([]*db.Host, 0)
 
-	if hostList, err = hosts.Hosts.SelectAll(); err == nil {
+	if hostList, err = db.Hosts.SelectAll(); err == nil {
 		err = c.JSON(hostList)
 	}
 
@@ -76,10 +96,10 @@ func apiHostsAll(c *fiber.Ctx) (err error) {
 func apiHostByManagementIP(c *fiber.Ctx) (err error) {
 	var (
 		hostID string = c.Params("management_ip")
-		host   *hosts.Host
+		host   *db.Host
 	)
 
-	if host, err = hosts.Hosts.Select(hostID); err == nil {
+	if host, err = db.Hosts.Select(hostID); err == nil {
 		err = c.JSON(host)
 	}
 
@@ -88,10 +108,10 @@ func apiHostByManagementIP(c *fiber.Ctx) (err error) {
 
 func apiHostCreate(c *fiber.Ctx) (err error) {
 	var (
-		newHost *hosts.Host
+		newHost *db.Host
 		body    struct {
-			ManagementIP   string               `json:"management_ip"`
-			ManagementType hosts.ManagementType `json:"management_type"`
+			ManagementIP   string            `json:"management_ip"`
+			ManagementType db.ManagementType `json:"management_type"`
 		}
 	)
 
@@ -99,17 +119,17 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	if existingHost, _ := hosts.Hosts.Select(body.ManagementIP); existingHost != nil {
+	if existingHost, _ := db.Hosts.Select(body.ManagementIP); existingHost != nil {
 		err = fiber.NewError(fiber.StatusConflict, "host with the same management IP already exists")
 		return
 	}
 
-	newHost = &hosts.Host{
+	newHost = &db.Host{
 		ManagementIP:   body.ManagementIP,
 		ManagementType: body.ManagementType,
 	}
 
-	if newHost.Management, err = hosts.NewHostManagementClient(newHost); err != nil {
+	if newHost.Management, err = db.NewHostManagementClient(newHost); err != nil {
 		return
 	} else {
 		defer newHost.Management.Close()
@@ -119,7 +139,7 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	if err = hosts.Hosts.Insert(newHost); err == nil {
+	if err = db.Hosts.Insert(newHost); err == nil {
 		err = c.JSON(newHost)
 	}
 
@@ -131,7 +151,7 @@ func apiHostDelete(c *fiber.Ctx) (err error) {
 		hostID string = c.Params("management_ip")
 	)
 
-	err = hosts.Hosts.Delete(hostID)
+	err = db.Hosts.Delete(hostID)
 	return
 }
 
@@ -139,12 +159,12 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	var (
 		hostID         string = c.Params("management_ip")
 		powerActionStr string = c.Params("action")
-		powerAction    hosts.PowerAction
+		powerAction    db.PowerAction
 		ok             bool
-		host           *hosts.Host
+		host           *db.Host
 	)
 
-	if host, err = hosts.Hosts.Select(hostID); err != nil {
+	if host, err = db.Hosts.Select(hostID); err != nil {
 		err = fiber.NewError(fiber.StatusInternalServerError, "failed to retrieve host")
 		return
 	} else if host == nil {
@@ -152,13 +172,13 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	if powerAction, ok = hosts.PowerActionNameReverses[powerActionStr]; !ok {
+	if powerAction, ok = db.PowerActionNameReverses[powerActionStr]; !ok {
 		err = fiber.NewError(fiber.StatusBadRequest, "invalid power action")
 		return
 	}
 
 	if host.Management == nil {
-		if host.Management, err = hosts.NewHostManagementClient(host); err != nil {
+		if host.Management, err = db.NewHostManagementClient(host); err != nil {
 			return
 		} else {
 			defer host.Management.Close()
@@ -166,19 +186,45 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	}
 
 	switch powerAction {
-	case hosts.PowerActionPowerOn:
-		err = host.Management.SetPowerState(hosts.PowerStateOn, false)
-	case hosts.PowerActionGracefulShutdown:
-		err = host.Management.SetPowerState(hosts.PowerStateOff, false)
-	case hosts.PowerActionPowerOff:
-		err = host.Management.SetPowerState(hosts.PowerStateOff, true)
-	case hosts.PowerActionGracefulRestart:
+	case db.PowerActionPowerOn:
+		err = host.Management.SetPowerState(db.PowerStateOn, false)
+	case db.PowerActionGracefulShutdown:
+		err = host.Management.SetPowerState(db.PowerStateOff, false)
+	case db.PowerActionPowerOff:
+		err = host.Management.SetPowerState(db.PowerStateOff, true)
+	case db.PowerActionGracefulRestart:
 		err = host.Management.ResetPowerState(false)
-	case hosts.PowerActionForceRestart:
+	case db.PowerActionForceRestart:
 		err = host.Management.ResetPowerState(true)
 	default:
 		err = fiber.NewError(fiber.StatusBadRequest, "unsupported power action")
 	}
 
 	return
+}
+
+// ISO Images API
+
+func apiISOImagesCreate(c *fiber.Ctx) (err error) {
+	var (
+		fileHeader *multipart.FileHeader
+	)
+
+	if fileHeader, err = c.FormFile("iso_image"); err != nil {
+		return
+	}
+
+	// Save file to temp location
+	tempFilePath := "/tmp/" + fileHeader.Filename
+	if err = c.SaveFile(fileHeader, tempFilePath); err != nil {
+		return
+	}
+
+	// Extract ISO
+	var isoFS *db.StoredISOImage
+	if isoFS, err = iso.ExtractISO(tempFilePath, config.Config.ISOs.SearchDir); err != nil {
+		return
+	}
+
+	return c.JSON(isoFS)
 }

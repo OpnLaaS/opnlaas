@@ -2,5 +2,9 @@
 *.env
 *.db
 
+tailwind.css
+
+isos
+
 package-lock.json
 node_modules/
