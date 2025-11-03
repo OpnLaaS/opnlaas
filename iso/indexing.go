@@ -488,7 +488,7 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 	}
 	blob := strings.ToLower(blobBuilder.String())
 
-	// tiny helpers
+	// tiny helpers (style-matched)
 	hasAny := func(s string, subs ...string) bool {
 		for _, sub := range subs {
 			if strings.Contains(s, strings.ToLower(sub)) {
@@ -506,31 +506,58 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 		}
 		return false
 	}
+	firstLineOrEmpty := func(lines []string) string {
+		if len(lines) == 0 {
+			return ""
+		}
+		return strings.TrimSpace(lines[0])
+	}
+	readIf := func(p string) ([]string, bool) {
+		if indexContains(index, p) {
+			if ls, e := readFileLines(image, p); e == nil {
+				return ls, true
+			}
+		}
+		return nil, false
+	}
+	archTag := func(a db.Architecture) string {
+		switch a {
+		case db.ArchitectureX86_64:
+			return "(x86_64)"
+		case db.ArchitectureARM64:
+			return "(aarch64)"
+		default:
+			return ""
+		}
+	}
+	title := func(s string) string {
+		if s == "" {
+			return s
+		}
+		r := []rune(s)
+		r[0] = []rune(strings.ToUpper(string(r[0])))[0]
+		return string(r)
+	}
 
 	// 2) Distro detection (order matters!)
 	switch {
-	// SUSE / openSUSE — if the SUSE loader dirs exist, that’s definitive.
 	case indexHasPrefix("/boot/x86_64/loader") || indexHasPrefix("/boot/aarch64/loader") ||
 		indexHasPrefix("/boot/i586/loader") || indexHasPrefix("/boot/i386/loader") ||
 		indexHasPrefix("/suse/") ||
 		hasAny(blob, "autoyast", "opensuse", "control.xml", "yast"):
 		extracted.DistroType = db.DistroTypeSUSEBased
 
-	// RHEL family: very strong markers (only if SUSE didn’t already match)
 	case indexHasPrefix("/repodata/") || indexHasPrefix("/images/pxeboot/") ||
 		hasAny(blob, ".treeinfo", "anaconda", "fedora", "rhel", "rocky", "alma", "centos", "red hat", "amazon linux"):
 		extracted.DistroType = db.DistroTypeRedHatBased
 
-	// Debian/Ubuntu/Mint/Kali
 	case indexHasPrefix("/dists/") || indexHasPrefix("/pool/") ||
 		indexHasPrefix("/install.") || hasAny(blob, "debian", "ubuntu", "mint", "kali", "pop!_os", "elementary os", "preseed"):
 		extracted.DistroType = db.DistroTypeDebianBased
 
-	// Arch / derivatives
 	case indexHasPrefix("/arch/") || hasAny(blob, "archiso", "arch linux", "manjaro"):
 		extracted.DistroType = db.DistroTypeArchBased
 
-	// Alpine
 	case indexHasPrefix("/apks/") || hasAny(blob, "alpine "):
 		extracted.DistroType = db.DistroTypeAlpineBased
 
@@ -539,7 +566,7 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 	}
 
 	// 3) Architecture detection (first match wins)
-	extracted.Architecture = db.Architecture("") // clear first
+	extracted.Architecture = db.Architecture("")
 	for _, p := range index {
 		if strings.Contains(p, "x86_64") || strings.Contains(p, "amd64") {
 			extracted.Architecture = db.ArchitectureX86_64
@@ -552,130 +579,212 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 	}
 
 	// 4) Preconfigure detection
-	//
-	// Kickstart (RHEL family / Anaconda)
 	switch {
-	case hasAny(blob,
-		" inst.ks=", " ks=", "/ks.cfg", "anaconda", "ksdevice=",
-		// common cfg spots found in configs:
-		"append initrd=initrd.img inst.ks", "append initrd=initrd.img ks="):
+	case hasAny(blob, " inst.ks=", " ks=", "/ks.cfg", "anaconda", "ksdevice=", "append initrd=initrd.img inst.ks", "append initrd=initrd.img ks="):
 		extracted.PreConfigure = db.PreConfigureTypeKickstart
-
-	// AutoYaST (SUSE)
-	case hasAny(blob,
-		" autoyast=", "autoyast=", "autoyast.xml", "autoinst.xml", "y2update="):
+	case hasAny(blob, " autoyast=", "autoyast=", "autoyast.xml", "autoinst.xml", "y2update="):
 		extracted.PreConfigure = db.PreConfigureTypeAutoYaST
-
-	// Debian Preseed
-	case hasAny(blob,
-		" preseed/", "preseed/file=", "file=/cdrom/preseed", "preseed/url=", "auto=true",
-		"priority=critical", "debian-installer", "preseed.cfg"):
+	case hasAny(blob, " preseed/", "preseed/file=", "file=/cdrom/preseed", "preseed/url=", "auto=true", "priority=critical", "debian-installer", "preseed.cfg"):
 		extracted.PreConfigure = db.PreConfigureTypePreseed
-
-	// Ubuntu autoinstall (subiquity) => Cloud-Init backed
-	case hasAny(blob,
-		" autoinstall", " ds=nocloud", " nocloud-net", "/nocloud/",
-		"user-data", "meta-data", "cidata"):
-		// You don’t have a separate Autoinstall enum; map to Cloud-Init
+	case hasAny(blob, " autoinstall", " ds=nocloud", " nocloud-net", "/nocloud/", "user-data", "meta-data", "cidata"):
 		extracted.PreConfigure = db.PreConfigureTypeCloudInit
-
-	// Generic Cloud-Init seed present
-	case hasAny(blob,
-		"/user-data", "/meta-data", "cloud-init", "seedfrom=", "datasource="):
+	case hasAny(blob, "/user-data", "/meta-data", "cloud-init", "seedfrom=", "datasource="):
 		extracted.PreConfigure = db.PreConfigureTypeCloudInit
-
-	// Arch’s scripted installer
 	case hasAny(blob, "archinstall", "/usr/lib/archinstall", "archinstall-guided"):
 		extracted.PreConfigure = db.PreConfigureTypeArchInstallAuto
-
 	default:
 		extracted.PreConfigure = db.PreConfigureTypeNone
 	}
-
-	// --- Fallback capability heuristics (run only if still None) ---
 	if extracted.PreConfigure == db.PreConfigureTypeNone {
-		// Ubuntu live-server / Subiquity implies Cloud-Init capability
-		if extracted.DistroType == db.DistroTypeDebianBased &&
-			(indexHasPrefix("/casper/") || hasAny(blob, "subiquity")) {
+		if extracted.DistroType == db.DistroTypeDebianBased && (indexHasPrefix("/casper/") || hasAny(blob, "subiquity")) {
 			extracted.PreConfigure = db.PreConfigureTypeCloudInit
 		}
-
 		if extracted.DistroType == db.DistroTypeRedHatBased {
 			extracted.PreConfigure = db.PreConfigureTypeKickstart
 		}
-
 		if extracted.DistroType == db.DistroTypeSUSEBased {
 			extracted.PreConfigure = db.PreConfigureTypeAutoYaST
 		}
 	}
 
-	// 5) Extract Name, DistroName, Version from ISO metadata files (with filename fallback)
-	// existing base/clean setup keeps working now that FullISOPath is set
+	// 5) Extract Name, DistroName, Version (with cleaner rules)
 	base := strings.ToLower(filepath.Base(extracted.FullISOPath))
 	clean := strings.TrimSuffix(base, filepath.Ext(base))
 
-	// Defaults
 	if extracted.Name == "" {
 		extracted.Name = clean
 	}
 	if extracted.DistroName == "" {
 		extracted.DistroName = "Unknown"
 	}
-	// extracted.Version already set earlier if found
 
-	readIf := func(p string) ([]string, bool) {
-		if indexContains(index, p) {
-			if ls, e := readFileLines(image, p); e == nil {
-				return ls, true
-			}
+	// version fallback helper that avoids arch tokens
+	versionFromName := func(s string) string {
+		// remove arch tokens before searching for digits
+		s = strings.ReplaceAll(s, "x86_64", "")
+		s = strings.ReplaceAll(s, "aarch64", "")
+		s = strings.ReplaceAll(s, "arm64", "")
+		s = strings.ReplaceAll(s, "i386", "")
+		s = strings.ReplaceAll(s, "i686", "")
+		s = strings.ReplaceAll(s, "i586", "")
+		s = strings.ReplaceAll(s, "_", "-")
+		// prefer date-like or dotted semantic versions
+		if m := regexp.MustCompile(`\d{4}\.\d{2}\.\d{2}`).FindString(s); m != "" {
+			return m
 		}
-		return nil, false
+		if m := regexp.MustCompile(`\d+\.\d+(\.\d+)?`).FindString(s); m != "" {
+			return m
+		}
+		// Tumbleweed snapshot/build handled elsewhere
+		return ""
 	}
 
 	switch extracted.DistroType {
+
 	case db.DistroTypeSUSEBased:
-		// Prefer /content; otherwise /media.1/media
+		// /content preferred
 		if ls, ok := readIf("/content"); ok {
 			if prod, ver := parseSUSEContent(ls); prod != "" || ver != "" {
-				extracted.DistroName = prod
-				if ver != "" {
+				// prod is often "openSUSE Tumbleweed" or "openSUSE Leap"
+				if prod != "" {
+					extracted.DistroName = prod
+				}
+				// ignore arch-leakage into version (VERSION(arch) filtered in parseSUSEContent)
+				if ver != "" && ver != "x86_64" && ver != "aarch64" && ver != "arm64" && ver != "i386" && ver != "i586" && ver != "i686" {
 					extracted.Version = ver
 				}
-				if extracted.Name == "" || extracted.Name == clean {
-					extracted.Name = strings.TrimSpace(prod + "-" + ver)
-				}
 			}
 		}
-		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
-			if ls, ok := readIf("/media.1/media"); ok {
-				if label := parseSUSEMedia(ls); label != "" {
-					extracted.Name = label
-					// heuristics to tidy DistroName from label
-					l := strings.ToLower(label)
-					switch {
-					case strings.Contains(l, "tumbleweed"):
-						extracted.DistroName = "openSUSE Tumbleweed"
-					case strings.Contains(l, "leap"):
-						extracted.DistroName = "openSUSE Leap"
-					default:
-						extracted.DistroName = "SUSE-Based"
-					}
+		// Label: /media.1/media (clean, human)
+		var mediaLabel string
+		if ls, ok := readIf("/media.1/media"); ok {
+			mediaLabel = firstLineOrEmpty(ls)
+		}
+		lcLabel := strings.ToLower(mediaLabel)
+		lcClean := strings.ToLower(clean)
+
+		// Normalize Tumbleweed media labels: "openSUSE - openSUSE-Tumbleweed-DVD-x86_64-Build4545.1-Media"
+		if strings.Contains(lcLabel, "tumbleweed") || strings.Contains(lcClean, "tumbleweed") {
+			extracted.DistroName = "openSUSE Tumbleweed"
+
+			// find snapshot/build
+			var snap, build string
+			if m := regexp.MustCompile(`snapshot(\d{8})`).FindStringSubmatch(lcClean); len(m) == 2 {
+				snap = m[1]
+			}
+			if snap == "" {
+				if m := regexp.MustCompile(`snapshot(\d{8})`).FindStringSubmatch(lcLabel); len(m) == 2 {
+					snap = m[1]
 				}
 			}
+			if m := regexp.MustCompile(`build(\d+(?:\.\d+)*)`).FindStringSubmatch(lcLabel); len(m) == 2 {
+				build = m[1]
+			}
+			if build == "" {
+				if m := regexp.MustCompile(`build(\d+(?:\.\d+)*)`).FindStringSubmatch(lcClean); len(m) == 2 {
+					build = m[1]
+				}
+			}
+
+			// disc type
+			disc := ""
+			switch {
+			case strings.Contains(lcLabel, "dvd") || strings.Contains(lcClean, "dvd"):
+				disc = "DVD"
+			case strings.Contains(lcLabel, "net") || strings.Contains(lcClean, "net"):
+				disc = "NET"
+			}
+
+			// version preference: snapshot > build > keep as-is (but never arch)
+			if extracted.Version == "" || extracted.Version == "x86_64" || extracted.Version == "aarch64" {
+				if snap != "" {
+					extracted.Version = "Snapshot" + snap
+				} else if build != "" {
+					extracted.Version = "Build" + build
+				}
+			}
+
+			// friendly name
+			var parts []string
+			parts = append(parts, "openSUSE Tumbleweed")
+			if extracted.Version != "" {
+				parts = append(parts, extracted.Version)
+			}
+			if disc != "" {
+				parts = append(parts, disc)
+			}
+			if at := archTag(extracted.Architecture); at != "" {
+				parts = append(parts, at)
+			}
+			extracted.Name = strings.TrimSpace(strings.Join(parts, " "))
 		}
+
+		// Normalize Leap installers (online/offline)
+		if strings.Contains(strings.ToLower(extracted.DistroName), "leap") {
+			kind := ""
+			if strings.Contains(lcClean, "offline") || strings.Contains(lcLabel, "offline") {
+				kind = "Offline Installer"
+			} else if strings.Contains(lcClean, "online") || strings.Contains(lcLabel, "online") {
+				kind = "Online Installer"
+			}
+			if kind != "" {
+				var parts []string
+				parts = append(parts, "openSUSE Leap")
+				if extracted.Version != "" {
+					parts = append(parts, extracted.Version)
+				}
+				parts = append(parts, kind)
+				if at := archTag(extracted.Architecture); at != "" {
+					parts = append(parts, at)
+				}
+				extracted.Name = strings.TrimSpace(strings.Join(parts, " "))
+				extracted.DistroName = "openSUSE Leap"
+			}
+		}
+
+		// If still Unknown, use filename hints
 		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
 			switch {
-			case strings.Contains(clean, "opensuse") && strings.Contains(clean, "tumbleweed"):
+			case strings.Contains(lcClean, "tumbleweed"):
 				extracted.DistroName = "openSUSE Tumbleweed"
-			case strings.Contains(clean, "leap"):
+			case strings.Contains(lcClean, "leap"):
 				extracted.DistroName = "openSUSE Leap"
 			default:
 				extracted.DistroName = "SUSE-Based"
 			}
 		}
 
+		if strings.Contains(strings.ToLower(extracted.DistroName), "leap") {
+			nl := strings.ToLower(extracted.Name)
+			if nl == strings.ToLower(clean) || strings.Contains(nl, "installer") {
+				kind := ""
+				lcLabel := ""
+				if ls, ok := readIf("/media.1/media"); ok {
+					lcLabel = strings.ToLower(firstLineOrEmpty(ls))
+				}
+				if strings.Contains(strings.ToLower(clean), "offline") || strings.Contains(lcLabel, "offline") {
+					kind = "Offline Installer"
+				} else if strings.Contains(strings.ToLower(clean), "online") || strings.Contains(lcLabel, "online") {
+					kind = "Online Installer"
+				}
+				if kind != "" {
+					var parts []string
+					parts = append(parts, "openSUSE Leap")
+					if extracted.Version != "" {
+						parts = append(parts, extracted.Version)
+					}
+					parts = append(parts, kind)
+					if at := archTag(extracted.Architecture); at != "" {
+						parts = append(parts, at)
+					}
+					extracted.Name = strings.TrimSpace(strings.Join(parts, " "))
+					extracted.DistroName = "openSUSE Leap"
+				}
+			}
+		}
+
 	case db.DistroTypeRedHatBased:
-		// First choice: .treeinfo
+		// .treeinfo
 		if ls, ok := readIf("/.treeinfo"); ok {
 			if name, fam, ver := parseTreeinfo(ls); name != "" || fam != "" || ver != "" {
 				if name != "" {
@@ -683,13 +792,13 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 				}
 				if fam != "" {
 					extracted.DistroName = fam
-				} // Fedora/RHEL/Rocky/Alma
+				}
 				if ver != "" {
 					extracted.Version = ver
 				}
 			}
 		}
-		// Fallback: .discinfo often ends with product string
+		// .discinfo fallback (guarded)
 		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
 			if ls, ok := readIf("/.discinfo"); ok {
 				if prod := parseDiscInfo(ls); prod != "" {
@@ -712,29 +821,36 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 				}
 			}
 		}
-		if extracted.DistroName == "Unknown" {
-			switch {
-			case strings.Contains(clean, "fedora"):
-				extracted.DistroName = "Fedora"
-			case strings.Contains(clean, "rocky"):
-				extracted.DistroName = "Rocky Linux"
-			case strings.Contains(clean, "alma"):
-				extracted.DistroName = "AlmaLinux"
-			case strings.Contains(clean, "centos"):
-				extracted.DistroName = "CentOS"
-			case strings.Contains(clean, "amazon"):
-				extracted.DistroName = "Amazon Linux"
-			default:
-				extracted.DistroName = "RHEL-Based"
+		// Friendly names for variants
+		if extracted.DistroName != "" && extracted.DistroName != "Unknown" {
+			ln := strings.ToLower(strings.TrimSpace(extracted.Name))
+			if ln == "baseos" || ln == "server" || ln == "minimal" || ln == "appstream" {
+				var parts []string
+				parts = append(parts, extracted.DistroName)
+				v := title(ln)
+				if strings.EqualFold(v, "Baseos") {
+					v = "BaseOS"
+				}
+				if strings.EqualFold(v, "Appstream") {
+					v = "AppStream"
+				}
+				parts = append(parts, v)
+				if extracted.Version != "" {
+					parts = append(parts, extracted.Version)
+				}
+				if at := archTag(extracted.Architecture); at != "" {
+					parts = append(parts, at)
+				}
+				extracted.Name = strings.TrimSpace(strings.Join(parts, " "))
 			}
 		}
 
 	case db.DistroTypeDebianBased:
-		// Primary: .disk/info
+		// .disk/info (e.g., "ubuntu-server 24.04.3 lts")
 		if ls, ok := readIf("/.disk/info"); ok {
 			line := strings.TrimSpace(firstLineOrEmpty(ls))
 			if line != "" {
-				low := strings.ToLower(line) // "ubuntu-server 24.04.3 lts"
+				low := strings.ToLower(line)
 				i := strings.IndexFunc(low, func(r rune) bool { return r >= '0' && r <= '9' })
 				if i > 0 {
 					name := strings.TrimSpace(line[:i])
@@ -742,7 +858,6 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 					if sp := strings.Fields(ver); len(sp) > 0 {
 						ver = sp[0]
 					}
-					// normalize Kali naming
 					nl := strings.ToLower(name)
 					switch {
 					case strings.HasPrefix(nl, "kali"):
@@ -758,7 +873,7 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 				}
 			}
 		}
-		// Helpful: .disk/cd_label (sometimes more human)
+		// .disk/cd_label fallback
 		if extracted.Name == clean || extracted.DistroName == "Unknown" {
 			if ls, ok := readIf("/.disk/cd_label"); ok {
 				if lbl := strings.TrimSpace(firstLineOrEmpty(ls)); lbl != "" {
@@ -786,29 +901,73 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 
 	case db.DistroTypeArchBased:
 		extracted.DistroName = "Arch Linux"
+		// Arch puts a date in /arch/version or filename
 		if ls, ok := readIf("/arch/version"); ok {
 			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
 				extracted.Version = v
 			}
 		}
+		if extracted.Version == "" {
+			extracted.Version = versionFromName(clean) // e.g., 2025.11.01
+		}
+		// Friendly name
+		var parts []string
+		parts = append(parts, "Arch Linux")
+		if extracted.Version != "" {
+			parts = append(parts, extracted.Version)
+		}
+		if at := archTag(extracted.Architecture); at != "" {
+			parts = append(parts, at)
+		}
+		extracted.Name = strings.TrimSpace(strings.Join(parts, " "))
 
 	case db.DistroTypeAlpineBased:
 		extracted.DistroName = "Alpine Linux"
+
+		// Prefer on-media release files (pure "x.y.z")
+		gotVer := false
 		if ls, ok := readIf("/.alpine-release"); ok {
 			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
 				extracted.Version = v
+				gotVer = true
 			}
 		} else if ls, ok := readIf("/alpine-release"); ok {
 			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
 				extracted.Version = v
+				gotVer = true
 			}
 		}
+
+		// Fallback: semver from basename; ignore 6-digit build tags (e.g. 250513)
+		if !gotVer {
+			// Pick a clean x.y or x.y.z (prefer x.y.z when present)
+			if m := regexp.MustCompile(`\b\d+\.\d+\.\d+\b`).FindString(clean); m != "" {
+				extracted.Version = m
+			} else if m := regexp.MustCompile(`\b\d+\.\d+\b`).FindString(clean); m != "" {
+				extracted.Version = m
+			} else {
+				extracted.Version = "" // leave blank rather than polluting
+			}
+		}
+
+		// Friendly name: "Alpine Linux 3.22.2 (x86_64)"
+		{
+			var parts []string
+			parts = append(parts, "Alpine Linux")
+			if extracted.Version != "" {
+				parts = append(parts, extracted.Version)
+			}
+			if at := archTag(extracted.Architecture); at != "" {
+				parts = append(parts, at)
+			}
+			extracted.Name = strings.TrimSpace(strings.Join(parts, " "))
+		}
+
 	}
 
-	// Filename/label fallback for version
+	// 6) Final fallback for version (safe; avoids arch tokens)
 	if extracted.Version == "" {
-		versionRe := regexp.MustCompile(`\d{2,4}(\.\d+)*(-\d+)?`)
-		if v := versionRe.FindString(clean); v != "" {
+		if v := versionFromName(clean); v != "" {
 			extracted.Version = v
 		}
 	}
@@ -817,24 +976,21 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 }
 
 // --- metadata helpers ---
-func firstLineOrEmpty(lines []string) string {
-	if len(lines) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(lines[0])
-}
-
 func parseTreeinfo(lines []string) (name, family, version string) {
 	for _, ln := range lines {
-		l := strings.TrimSpace(strings.ToLower(ln))
-		if strings.HasPrefix(l, "name=") {
-			name = strings.TrimSpace(ln[len("name="):])
+		kv := strings.SplitN(ln, "=", 2)
+		if len(kv) != 2 {
+			continue
 		}
-		if strings.HasPrefix(l, "family=") {
-			family = strings.TrimSpace(ln[len("family="):])
-		}
-		if strings.HasPrefix(l, "version=") {
-			version = strings.TrimSpace(ln[len("version="):])
+		k := strings.ToLower(strings.TrimSpace(kv[0]))
+		v := strings.TrimSpace(kv[1])
+		switch k {
+		case "name":
+			name = v
+		case "family":
+			family = v
+		case "version":
+			version = v
 		}
 	}
 	return
@@ -843,24 +999,33 @@ func parseTreeinfo(lines []string) (name, family, version string) {
 func parseSUSEContent(lines []string) (prod, ver string) {
 	for _, ln := range lines {
 		l := strings.TrimSpace(ln)
-		if strings.HasPrefix(strings.ToUpper(l), "PRODUCT") && prod == "" {
-			// PRODUCT, PRODUCT(x86_64)=openSUSE-Tumbleweed, etc. Grab rhs after '=' if present, else token after space.
+		u := strings.ToUpper(l)
+
+		// PRODUCT or PRODUCT(arch) is fine; value RHS is the same string
+		if strings.HasPrefix(u, "PRODUCT") && prod == "" {
 			if i := strings.Index(l, "="); i >= 0 {
-				prod = strings.TrimSpace(l[i+1:])
+				prod = strings.Trim(strings.TrimSpace(l[i+1:]), `"'`)
 			} else {
 				fs := strings.Fields(l)
 				if len(fs) > 1 {
-					prod = fs[1]
+					prod = strings.Trim(fs[1], `"'`)
 				}
 			}
 		}
-		if strings.HasPrefix(strings.ToUpper(l), "VERSION") && ver == "" {
+
+		// VERSION must be the bare key; ignore VERSION(arch)=...
+		if strings.HasPrefix(u, "VERSION") && ver == "" {
+			// reject VERSION( ... ) by checking the next rune
+			after := strings.TrimSpace(l[len("VERSION"):])
+			if strings.HasPrefix(after, "(") {
+				continue
+			}
 			if i := strings.Index(l, "="); i >= 0 {
-				ver = strings.TrimSpace(l[i+1:])
+				ver = strings.Trim(strings.TrimSpace(l[i+1:]), `"'`)
 			} else {
 				fs := strings.Fields(l)
 				if len(fs) > 1 {
-					ver = fs[1]
+					ver = strings.Trim(fs[1], `"'`)
 				}
 			}
 		}
@@ -868,17 +1033,19 @@ func parseSUSEContent(lines []string) (prod, ver string) {
 	return
 }
 
+var discInfoTextRe = regexp.MustCompile(`[A-Za-z]`)
+
 func parseDiscInfo(lines []string) (prod string) {
-	// .discinfo format is loose; last non-empty line is often product label on RHEL-family media
+	// Prefer the last non-empty line that contains alphabetic characters
+	// (skip purely numeric tokens like "1", "ALL", timestamps, etc.)
 	for i := len(lines) - 1; i >= 0; i-- {
-		if s := strings.TrimSpace(lines[i]); s != "" {
+		s := strings.TrimSpace(lines[i])
+		if s == "" {
+			continue
+		}
+		if discInfoTextRe.MatchString(s) && len(s) > 2 {
 			return s
 		}
 	}
 	return ""
-}
-
-func parseSUSEMedia(lines []string) string {
-	// /media.1/media usually contains the human-friendly media label on the first line
-	return firstLineOrEmpty(lines)
 }

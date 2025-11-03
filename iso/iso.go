@@ -23,7 +23,8 @@ func ExtractISO(sourceImage, outputStorageDirectory string) (extracted *db.Store
 	}
 
 	extracted = &db.StoredISOImage{
-		Size: stat.Size(),
+		Size:        stat.Size(),
+		FullISOPath: sourceImage,
 	}
 
 	if file, err = os.Open(sourceImage); err != nil {

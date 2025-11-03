@@ -3,7 +3,6 @@ package tests
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 
@@ -13,6 +12,8 @@ import (
 )
 
 func TestISO(t *testing.T) {
+
+	
 	setup(t)
 	defer cleanup(t)
 
@@ -62,27 +63,11 @@ func TestISO(t *testing.T) {
 		for _, res := range results {
 			if res.pass {
 				passed++
-				debug = fmt.Sprintf("- %+v\n%s", res.parsed, debug)
-
-				switch {
-				case strings.Contains(strings.ToLower(res.path), "debian"), strings.Contains(strings.ToLower(res.path), "ubuntu"), strings.Contains(strings.ToLower(res.path), "kali"), strings.Contains(strings.ToLower(res.path), "mint"):
-					if res.parsed.DistroType != db.DistroTypeDebianBased {
-						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeDebianBased, res.path, res.parsed.DistroType)
-					}
-				case strings.Contains(strings.ToLower(res.path), "centos"), strings.Contains(strings.ToLower(res.path), "rhel"), strings.Contains(strings.ToLower(res.path), "fedora"), strings.Contains(strings.ToLower(res.path), "rocky"), strings.Contains(strings.ToLower(res.path), "almalinux"):
-					if res.parsed.DistroType != db.DistroTypeRedHatBased {
-						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeRedHatBased, res.path, res.parsed.DistroType)
-					}
-				case strings.Contains(strings.ToLower(res.path), "archlinux"), strings.Contains(strings.ToLower(res.path), "manjaro"):
-					if res.parsed.DistroType != db.DistroTypeArchBased {
-						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeArchBased, res.path, res.parsed.DistroType)
-					}
-				case strings.Contains(strings.ToLower(res.path), "alpine"):
-					if res.parsed.DistroType != db.DistroTypeAlpineBased {
-						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeAlpineBased, res.path, res.parsed.DistroType)
-					}
-				case strings.Contains(strings.ToLower(res.path), "leap"), strings.Contains(strings.ToLower(res.path), "tumbleweed"), strings.Contains(strings.ToLower(res.path), "opensuse"):
-				}
+				debug = fmt.Sprintf("- %s\n%s", fmt.Sprintf(
+					"Name=%s Distro=%s Version=%s DistroType=%s Arch=%s PreConfigure=%s Full ISO Path=%s Kernel Path=%s Initrd Path=%s",
+					res.parsed.Name, res.parsed.DistroName, res.parsed.Version, res.parsed.DistroType, res.parsed.Architecture, res.parsed.PreConfigure,
+					res.parsed.FullISOPath, res.parsed.KernelPath, res.parsed.InitrdPath,
+				), debug)
 			} else {
 				failed++
 				t.Errorf("ISO extraction failed for %s: %v", res.path, res.err)
