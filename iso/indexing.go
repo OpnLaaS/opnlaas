@@ -7,6 +7,8 @@ import (
 	"io"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -460,80 +462,6 @@ func readConfigs(image *iso9660.Image, configs []string) (allLines map[string][]
 	return
 }
 
-// func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []string) (err error) {
-// 	var (
-// 		configLines map[string][]string
-// 		configPaths []string
-// 	)
-
-// 	if configPaths, err = loadConfigs(index); err != nil {
-// 		return
-// 	}
-
-// 	if configLines, err = readConfigs(image, configPaths); err != nil {
-// 		return
-// 	}
-
-// 	var blob string = strings.Join(configPaths, " ") + "\n"
-
-// 	for _, lines := range configLines {
-// 		blob += strings.Join(lines, "\n") + "\n"
-// 	}
-
-// 	for _, idx := range index {
-// 		blob += idx + "\n"
-// 	}
-
-// 	blob = strings.ToLower(blob)
-
-// 	// Guess distro type
-// 	switch {
-// 	case strings.Contains(blob, "arch linux"), strings.Contains(blob, "manjaro"):
-// 		extracted.DistroType = db.DistroTypeArchBased
-// 	case strings.Contains(blob, "suse"), strings.Contains(blob, "opensuse"):
-// 		extracted.DistroType = db.DistroTypeSUSEBased
-// 	case strings.Contains(blob, "rhel"), strings.Contains(blob, "rocky"), strings.Contains(blob, "alma"), strings.Contains(blob, "centos"), strings.Contains(blob, "fedora"), strings.Contains(blob, "amazon linux"):
-// 		extracted.DistroType = db.DistroTypeRedHatBased
-// 	case strings.Contains(blob, "ubuntu"), strings.Contains(blob, "mint"), strings.Contains(blob, "debian"), strings.Contains(blob, "deb"), strings.Contains(blob, "kali"), strings.Contains(blob, "pop!_os"), strings.Contains(blob, "elementary os"):
-// 		extracted.DistroType = db.DistroTypeDebianBased
-// 	case strings.Contains(blob, "alpine"), strings.Contains(blob, "apk add"):
-// 		extracted.DistroType = db.DistroTypeAlpineBased
-// 	default:
-// 		extracted.DistroType = db.DistroTypeOther
-// 	}
-
-// 	// Guess architecture
-// loop:
-// 	for _, idx := range index {
-// 		switch {
-// 		case strings.Contains(idx, "x86_64"), strings.Contains(idx, "amd64"):
-// 			extracted.Architecture = db.ArchitectureX86_64
-// 			break loop
-// 		case strings.Contains(idx, "aarch64"), strings.Contains(idx, "arm64"):
-// 			extracted.Architecture = db.ArchitectureARM64
-// 			break loop
-// 		}
-// 	}
-
-// 	// Guess preconfigure
-// 	switch {
-// 	case strings.Contains(blob, "preseed"):
-// 		extracted.PreConfigure = db.PreConfigureTypePreseed
-// 	case strings.Contains(blob, "kickstart") || strings.Contains(blob, "ks.cfg"):
-// 		extracted.PreConfigure = db.PreConfigureTypeKickstart
-// 	case strings.Contains(blob, "autoyast") || strings.Contains(blob, "autoinstall"):
-// 		extracted.PreConfigure = db.PreConfigureTypeAutoYaST
-// 	case strings.Contains(blob, "cloud-init"):
-// 		extracted.PreConfigure = db.PreConfigureTypeCloudInit
-// 	case strings.Contains(blob, "archinstall"):
-// 		extracted.PreConfigure = db.PreConfigureTypeArchInstallAuto
-// 	default:
-// 		extracted.PreConfigure = db.PreConfigureTypeNone
-// 	}
-
-// 	return
-// }
-
 func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []string) (err error) {
 	// 1) Gather content from bootloader configs + the index itself
 	configPaths, err := loadConfigs(index)
@@ -681,5 +609,276 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 		}
 	}
 
-	return nil
+	// 5) Extract Name, DistroName, Version from ISO metadata files (with filename fallback)
+	// existing base/clean setup keeps working now that FullISOPath is set
+	base := strings.ToLower(filepath.Base(extracted.FullISOPath))
+	clean := strings.TrimSuffix(base, filepath.Ext(base))
+
+	// Defaults
+	if extracted.Name == "" {
+		extracted.Name = clean
+	}
+	if extracted.DistroName == "" {
+		extracted.DistroName = "Unknown"
+	}
+	// extracted.Version already set earlier if found
+
+	readIf := func(p string) ([]string, bool) {
+		if indexContains(index, p) {
+			if ls, e := readFileLines(image, p); e == nil {
+				return ls, true
+			}
+		}
+		return nil, false
+	}
+
+	switch extracted.DistroType {
+	case db.DistroTypeSUSEBased:
+		// Prefer /content; otherwise /media.1/media
+		if ls, ok := readIf("/content"); ok {
+			if prod, ver := parseSUSEContent(ls); prod != "" || ver != "" {
+				extracted.DistroName = prod
+				if ver != "" {
+					extracted.Version = ver
+				}
+				if extracted.Name == "" || extracted.Name == clean {
+					extracted.Name = strings.TrimSpace(prod + "-" + ver)
+				}
+			}
+		}
+		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
+			if ls, ok := readIf("/media.1/media"); ok {
+				if label := parseSUSEMedia(ls); label != "" {
+					extracted.Name = label
+					// heuristics to tidy DistroName from label
+					l := strings.ToLower(label)
+					switch {
+					case strings.Contains(l, "tumbleweed"):
+						extracted.DistroName = "openSUSE Tumbleweed"
+					case strings.Contains(l, "leap"):
+						extracted.DistroName = "openSUSE Leap"
+					default:
+						extracted.DistroName = "SUSE-Based"
+					}
+				}
+			}
+		}
+		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
+			switch {
+			case strings.Contains(clean, "opensuse") && strings.Contains(clean, "tumbleweed"):
+				extracted.DistroName = "openSUSE Tumbleweed"
+			case strings.Contains(clean, "leap"):
+				extracted.DistroName = "openSUSE Leap"
+			default:
+				extracted.DistroName = "SUSE-Based"
+			}
+		}
+
+	case db.DistroTypeRedHatBased:
+		// First choice: .treeinfo
+		if ls, ok := readIf("/.treeinfo"); ok {
+			if name, fam, ver := parseTreeinfo(ls); name != "" || fam != "" || ver != "" {
+				if name != "" {
+					extracted.Name = name
+				}
+				if fam != "" {
+					extracted.DistroName = fam
+				} // Fedora/RHEL/Rocky/Alma
+				if ver != "" {
+					extracted.Version = ver
+				}
+			}
+		}
+		// Fallback: .discinfo often ends with product string
+		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
+			if ls, ok := readIf("/.discinfo"); ok {
+				if prod := parseDiscInfo(ls); prod != "" {
+					extracted.Name = prod
+					l := strings.ToLower(prod)
+					switch {
+					case strings.Contains(l, "fedora"):
+						extracted.DistroName = "Fedora"
+					case strings.Contains(l, "rocky"):
+						extracted.DistroName = "Rocky Linux"
+					case strings.Contains(l, "alma"):
+						extracted.DistroName = "AlmaLinux"
+					case strings.Contains(l, "centos"):
+						extracted.DistroName = "CentOS"
+					case strings.Contains(l, "amazon linux"):
+						extracted.DistroName = "Amazon Linux"
+					default:
+						extracted.DistroName = "RHEL-Based"
+					}
+				}
+			}
+		}
+		if extracted.DistroName == "Unknown" {
+			switch {
+			case strings.Contains(clean, "fedora"):
+				extracted.DistroName = "Fedora"
+			case strings.Contains(clean, "rocky"):
+				extracted.DistroName = "Rocky Linux"
+			case strings.Contains(clean, "alma"):
+				extracted.DistroName = "AlmaLinux"
+			case strings.Contains(clean, "centos"):
+				extracted.DistroName = "CentOS"
+			case strings.Contains(clean, "amazon"):
+				extracted.DistroName = "Amazon Linux"
+			default:
+				extracted.DistroName = "RHEL-Based"
+			}
+		}
+
+	case db.DistroTypeDebianBased:
+		// Primary: .disk/info
+		if ls, ok := readIf("/.disk/info"); ok {
+			line := strings.TrimSpace(firstLineOrEmpty(ls))
+			if line != "" {
+				low := strings.ToLower(line) // "ubuntu-server 24.04.3 lts"
+				i := strings.IndexFunc(low, func(r rune) bool { return r >= '0' && r <= '9' })
+				if i > 0 {
+					name := strings.TrimSpace(line[:i])
+					ver := strings.TrimSpace(line[i:])
+					if sp := strings.Fields(ver); len(sp) > 0 {
+						ver = sp[0]
+					}
+					// normalize Kali naming
+					nl := strings.ToLower(name)
+					switch {
+					case strings.HasPrefix(nl, "kali"):
+						name = "Kali Linux"
+					case strings.HasPrefix(nl, "ubuntu-server"):
+						name = "Ubuntu-Server"
+					}
+					extracted.DistroName = name
+					extracted.Version = ver
+					if extracted.Name == "" || extracted.Name == clean {
+						extracted.Name = strings.ReplaceAll(name, " ", "-") + "-" + ver
+					}
+				}
+			}
+		}
+		// Helpful: .disk/cd_label (sometimes more human)
+		if extracted.Name == clean || extracted.DistroName == "Unknown" {
+			if ls, ok := readIf("/.disk/cd_label"); ok {
+				if lbl := strings.TrimSpace(firstLineOrEmpty(ls)); lbl != "" {
+					extracted.Name = lbl
+					if strings.Contains(strings.ToLower(lbl), "ubuntu") && extracted.DistroName == "Unknown" {
+						extracted.DistroName = "Ubuntu"
+					}
+				}
+			}
+		}
+		if extracted.DistroName == "Unknown" || extracted.DistroName == "" {
+			switch {
+			case strings.Contains(clean, "ubuntu"):
+				extracted.DistroName = "Ubuntu"
+			case strings.Contains(clean, "debian"):
+				extracted.DistroName = "Debian"
+			case strings.Contains(clean, "kali"):
+				extracted.DistroName = "Kali Linux"
+			case strings.Contains(clean, "mint"):
+				extracted.DistroName = "Linux Mint"
+			default:
+				extracted.DistroName = "Debian-Based"
+			}
+		}
+
+	case db.DistroTypeArchBased:
+		extracted.DistroName = "Arch Linux"
+		if ls, ok := readIf("/arch/version"); ok {
+			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
+				extracted.Version = v
+			}
+		}
+
+	case db.DistroTypeAlpineBased:
+		extracted.DistroName = "Alpine Linux"
+		if ls, ok := readIf("/.alpine-release"); ok {
+			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
+				extracted.Version = v
+			}
+		} else if ls, ok := readIf("/alpine-release"); ok {
+			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
+				extracted.Version = v
+			}
+		}
+	}
+
+	// Filename/label fallback for version
+	if extracted.Version == "" {
+		versionRe := regexp.MustCompile(`\d{2,4}(\.\d+)*(-\d+)?`)
+		if v := versionRe.FindString(clean); v != "" {
+			extracted.Version = v
+		}
+	}
+
+	return
+}
+
+// --- metadata helpers ---
+func firstLineOrEmpty(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(lines[0])
+}
+
+func parseTreeinfo(lines []string) (name, family, version string) {
+	for _, ln := range lines {
+		l := strings.TrimSpace(strings.ToLower(ln))
+		if strings.HasPrefix(l, "name=") {
+			name = strings.TrimSpace(ln[len("name="):])
+		}
+		if strings.HasPrefix(l, "family=") {
+			family = strings.TrimSpace(ln[len("family="):])
+		}
+		if strings.HasPrefix(l, "version=") {
+			version = strings.TrimSpace(ln[len("version="):])
+		}
+	}
+	return
+}
+
+func parseSUSEContent(lines []string) (prod, ver string) {
+	for _, ln := range lines {
+		l := strings.TrimSpace(ln)
+		if strings.HasPrefix(strings.ToUpper(l), "PRODUCT") && prod == "" {
+			// PRODUCT, PRODUCT(x86_64)=openSUSE-Tumbleweed, etc. Grab rhs after '=' if present, else token after space.
+			if i := strings.Index(l, "="); i >= 0 {
+				prod = strings.TrimSpace(l[i+1:])
+			} else {
+				fs := strings.Fields(l)
+				if len(fs) > 1 {
+					prod = fs[1]
+				}
+			}
+		}
+		if strings.HasPrefix(strings.ToUpper(l), "VERSION") && ver == "" {
+			if i := strings.Index(l, "="); i >= 0 {
+				ver = strings.TrimSpace(l[i+1:])
+			} else {
+				fs := strings.Fields(l)
+				if len(fs) > 1 {
+					ver = fs[1]
+				}
+			}
+		}
+	}
+	return
+}
+
+func parseDiscInfo(lines []string) (prod string) {
+	// .discinfo format is loose; last non-empty line is often product label on RHEL-family media
+	for i := len(lines) - 1; i >= 0; i-- {
+		if s := strings.TrimSpace(lines[i]); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+func parseSUSEMedia(lines []string) string {
+	// /media.1/media usually contains the human-friendly media label on the first line
+	return firstLineOrEmpty(lines)
 }

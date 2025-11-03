@@ -16,7 +16,7 @@ func TestISO(t *testing.T) {
 	setup(t)
 	defer cleanup(t)
 
-	// for all /home/egp1042/Documents/ISOS/*.iso files, extract them to ./<name>
+	// for all ISOs in the test ISO directory, attempt to extract them and verify expected results
 	if things, err := os.ReadDir(config.Config.ISOs.SearchDir); err != nil {
 		t.Fatalf("ReadDir failed: %v", err)
 	} else {
@@ -62,7 +62,7 @@ func TestISO(t *testing.T) {
 		for _, res := range results {
 			if res.pass {
 				passed++
-				debug = fmt.Sprintf("- %s\n%s", fmt.Sprintf("%s: kernel=%s initrd=%s distro=%s arch=%s preconfigure=%s size=%d", res.path, res.parsed.KernelPath, res.parsed.InitrdPath, res.parsed.DistroType, res.parsed.Architecture, res.parsed.PreConfigure, res.parsed.Size), debug)
+				debug = fmt.Sprintf("- %+v\n%s", res.parsed, debug)
 
 				switch {
 				case strings.Contains(strings.ToLower(res.path), "debian"), strings.Contains(strings.ToLower(res.path), "ubuntu"), strings.Contains(strings.ToLower(res.path), "kali"), strings.Contains(strings.ToLower(res.path), "mint"):

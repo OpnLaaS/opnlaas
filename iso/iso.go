@@ -8,6 +8,8 @@ import (
 	"github.com/opnlaas/opnlaas/db"
 )
 
+// Need: Name, DistroName, Version
+
 func ExtractISO(sourceImage, outputStorageDirectory string) (extracted *db.StoredISOImage, err error) {
 	var (
 		stat  os.FileInfo
@@ -44,7 +46,14 @@ func ExtractISO(sourceImage, outputStorageDirectory string) (extracted *db.Store
 		}
 	}
 
-	extracted.KernelPath, extracted.InitrdPath, err = findKernelAndInitrd(index)
-	err = detectMetaData(extracted, img, index)
+	if extracted.KernelPath, extracted.InitrdPath, err = findKernelAndInitrd(index); err != nil {
+		return
+	}
+
+	if err = detectMetaData(extracted, img, index); err != nil {
+		return
+	}
+
+	err = createOutputs(extracted, img, sourceImage, outputStorageDirectory)
 	return
 }
