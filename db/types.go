@@ -114,20 +114,26 @@ const (
 	PowerStateOn
 	PowerStateOff
 )
+
 const (
 	BootModeUEFI BootMode = iota
 	BootModeLegacy
 )
+
 const (
 	PowerActionPowerOn PowerAction = iota
 	PowerActionPowerOff
 	PowerActionGracefulShutdown
 	PowerActionGracefulRestart
 	PowerActionForceRestart
+)
 
+const (
 	ArchitectureX86_64 Architecture = "x86_64"
 	ArchitectureARM64  Architecture = "aarch64"
+)
 
+const (
 	DistroTypeOther DistroType = iota
 	DistroTypeDebianBased
 	DistroTypeRedHatBased
@@ -135,7 +141,9 @@ const (
 	DistroTypeSUSEBased
 	DistroTypeAlpineBased
 	DistroTypeWindowsBased
+)
 
+const (
 	PreConfigureTypeNone PreConfigureType = iota
 	PreConfigureTypeCloudInit
 	PreConfigureTypeKickstart
