@@ -18,3 +18,7 @@ export function isExternalURL(url) {
         return false;
     }
 }
+
+export function reverseObject(obj) {
+    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [v, k]))
+}

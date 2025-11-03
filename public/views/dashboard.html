@@ -56,8 +56,8 @@
         <tbody id="host-table" class="text-sm text-gray-700 dark:text-gray-200">
           <template id="host-row-template">
             <tr class="bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700">
-              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 font-medium" data-field="name">Thingy</td>
-              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700" data-field="power">Powered On</td>
+              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 font-medium" data-field="name"></td>
+              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700" data-field="power"></td>
               <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-center">
                 <button
                   class="inline-flex items-center justify-center px-2 py-1 text-blue-500 hover:text-blue-400 focus:outline-none"
@@ -81,26 +81,20 @@
                     <p><strong class="text-gray-800 dark:text-gray-100">Management Type:</strong> <span data-field="mgmt-type"></span></p>
                     <!-- specs: probably displayed differently -->
                      <!-- memory: -->
-                    <p><strong class="text-gray-800 dark:text-gray-100">num_dimms:</strong> <span data-field="num_dimms"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Num Dimms:</strong> <span data-field="num_dimms"></span></p>
                     <p><strong class="text-gray-800 dark:text-gray-100">RAM:</strong> <span data-field="size_gb"></span></p>
-                    <p><strong class="text-gray-800 dark:text-gray-100">speed:</strong> <span data-field="speed_mhz"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Speed:</strong> <span data-field="speed_mhz"></span></p>
                     <!-- processor: -->
                     <p><strong class="text-gray-800 dark:text-gray-100">Cores:</strong> <span data-field="cores"></span></p>
                     <p><strong class="text-gray-800 dark:text-gray-100">Count:</strong> <span data-field="count"></span></p>
-                    <p><strong class="text-gray-800 dark:text-gray-100">sku:</strong> <span data-field="sku"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">SKU:</strong> <span data-field="sku"></span></p>
                     <p><strong class="text-gray-800 dark:text-gray-100">Threads:</strong> <span data-field="threads"></span></p>
                     <!-- storage: another forEach needed-->
                      <!-- TODO: forEach -->
                     <p><strong class="text-gray-800 dark:text-gray-100">Capacity:</strong> <span data-field="capacity_gb"></span></p>
                     <p><strong class="text-gray-800 dark:text-gray-100">Media Type:</strong> <span data-field="media_type"></span></p>
 
-
-
                     <p><strong class="text-gray-800 dark:text-gray-100">Vendor:</strong> <span data-field="vendor"></span></p>
-
-                    
-
-
                   </div>
                 </div>
               </td>
