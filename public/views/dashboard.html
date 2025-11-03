@@ -44,14 +44,69 @@
 
     <div id="empty" class="hidden text-gray-600 mt-2">No hosts yet.</div>
 
-    <ul id="hosts" class="mt-4 space-y-3">
-        <template>
-            <div class="host">
-                <div class="flex items-center justify-between">
-                    <!-- Template for easy cloning, fill this in with generic HTML once, then use DOM templating in JS to make it template -->
-                    <!-- https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/template -->
+ <table id="hosts" class="w-full table-auto border-collapse">
+        <thead class="bg-gray-50 dark:bg-slate-700">
+          <tr>
+            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-200">Name</th>
+            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-200">Status</th>
+            <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-200">Details</th>
+          </tr>
+        </thead>
+
+        <tbody id="host-table" class="text-sm text-gray-700 dark:text-gray-200">
+          <template id="host-row-template">
+            <tr class="bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700">
+              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 font-medium" data-field="name">Thingy</td>
+              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700" data-field="power">Powered On</td>
+              <td class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-center">
+                <button
+                  class="inline-flex items-center justify-center px-2 py-1 text-blue-500 hover:text-blue-400 focus:outline-none"
+                  onclick="toggleRow(this)"
+                  aria-label="Toggle details"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+
+            <!-- hidden row -->
+            <tr class="bg-gray-50 dark:bg-slate-900">
+              <td colspan="3" class="p-0">
+                <div class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden px-4">
+                  <div class="py-3 text-sm text-gray-600 dark:text-gray-300">
+                    <p><strong class="text-gray-800 dark:text-gray-100">Form Factor:</strong> <span data-field="form_factor"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Address:</strong> <span data-field="ip"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Management Type:</strong> <span data-field="mgmt-type"></span></p>
+                    <!-- specs: probably displayed differently -->
+                     <!-- memory: -->
+                    <p><strong class="text-gray-800 dark:text-gray-100">num_dimms:</strong> <span data-field="num_dimms"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">RAM:</strong> <span data-field="size_gb"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">speed:</strong> <span data-field="speed_mhz"></span></p>
+                    <!-- processor: -->
+                    <p><strong class="text-gray-800 dark:text-gray-100">Cores:</strong> <span data-field="cores"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Count:</strong> <span data-field="count"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">sku:</strong> <span data-field="sku"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Threads:</strong> <span data-field="threads"></span></p>
+                    <!-- storage: another forEach needed-->
+                     <!-- TODO: forEach -->
+                    <p><strong class="text-gray-800 dark:text-gray-100">Capacity:</strong> <span data-field="capacity_gb"></span></p>
+                    <p><strong class="text-gray-800 dark:text-gray-100">Media Type:</strong> <span data-field="media_type"></span></p>
+
+
+
+                    <p><strong class="text-gray-800 dark:text-gray-100">Vendor:</strong> <span data-field="vendor"></span></p>
+
+                    
+
+
+                  </div>
                 </div>
-        </template>
-    </ul>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
 </div>
-<script src="/static/dashboard.js" type="module" defer></script>
+<script src="/static/scripts/dashboard.js" type="module" defer></script>
