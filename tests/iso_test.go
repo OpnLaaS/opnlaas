@@ -69,3 +69,22 @@ func TestISO(t *testing.T) {
 		}
 	}
 }
+
+// If this is in my PR please tell me to delete it.
+func TestISODebug(t *testing.T) {
+	setup(t)
+	defer cleanup(t)
+
+	var path string = "/home/egp1042/Documents/ISOS/Leap-16.0-online-installer-x86_64.install.iso"
+	destPath := fmt.Sprintf("%s/%s", config.Config.ISOs.StorageDir, "Leap-16.0-online-installer-x86_64.install")
+	if k, err := iso.ExtractISO(path, destPath); err != nil {
+		t.Fatalf("ISO extraction failed for %s: %v", path, err)
+	} else {
+		var marshalled []byte
+		if marshalled, err = json.Marshal(k); err != nil {
+			t.Fatalf("ISO extraction returned unparsable data for %s: %v", path, err)
+		} else {
+			t.Logf("ISO extraction succeeded for %s: %s", path, string(marshalled))
+		}
+	}
+}

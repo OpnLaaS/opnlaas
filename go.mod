@@ -11,6 +11,7 @@ require (
 	github.com/gofiber/template/html/v2 v2.1.3
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/joho/godotenv v1.5.1
+	github.com/kdomanski/iso9660 v0.4.0
 	github.com/stmcginnis/gofish v0.20.0
 	github.com/z46-dev/go-logger v0.0.0-20250326164502-928461111cea
 	github.com/z46-dev/gomysql v0.0.0-20250730173740-0092accd5936
