@@ -36,7 +36,8 @@ type Configuration struct {
 	}
 
 	ISOs struct {
-		SearchDir string `env:"ISOS_SEARCH_DIR,default=./isos"`
+		SearchDir  string `env:"ISOS_SEARCH_DIR,default=./iso_search"`
+		StorageDir string `env:"ISOS_STORAGE_DIR,default=./isos"`
 	}
 
 	WebServer struct {
