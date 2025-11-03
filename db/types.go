@@ -93,24 +93,32 @@ const (
 	VendorGigabyte
 	VendorAsus
 	VendorIntel
+)
 
+const (
 	FormFactorOther FormFactor = iota
 	FormFactorRackmount
 	FormFactorTower
 	FormFactorBlade
 	FormFactorMicroserver
+)
 
+const (
 	ManagementTypeNotSupported ManagementType = iota
 	ManagementTypeIPMI
 	ManagementTypeRedfish
+)
 
+const (
 	PowerStateUnknown PowerState = iota
 	PowerStateOn
 	PowerStateOff
-
+)
+const (
 	BootModeUEFI BootMode = iota
 	BootModeLegacy
-
+)
+const (
 	PowerActionPowerOn PowerAction = iota
 	PowerActionPowerOff
 	PowerActionGracefulShutdown
