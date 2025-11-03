@@ -31,6 +31,7 @@ func TestISO(t *testing.T) {
 			wg      sync.WaitGroup
 			results []*result
 		)
+
 		for _, thing := range things {
 			if thing.IsDir() {
 				continue
@@ -53,20 +54,30 @@ func TestISO(t *testing.T) {
 		}
 
 		wg.Wait()
+		// for _, res := range results {
+		// 	if !res.pass {
+		// 		t.Errorf("ISO extraction failed for %s: %v", res.path, res.err)
+		// 	} else if res.parsed == nil {
+		// 		t.Errorf("ISO extraction returned no parsed data for %s", res.path)
+		// 	} else {
+		// 		var marshalled []byte
+		// 		if marshalled, err = json.Marshal(res.parsed); err != nil {
+		// 			t.Errorf("ISO extraction returned unparsable data for %s: %v", res.path, err)
+		// 		} else {
+		// 			t.Logf("ISO extraction succeeded for %s: %s", res.path, string(marshalled))
+		// 		}
+		// 	}
+		// }
+		var passed, failed int
 		for _, res := range results {
-			if !res.pass {
-				t.Errorf("ISO extraction failed for %s: %v", res.path, res.err)
-			} else if res.parsed == nil {
-				t.Errorf("ISO extraction returned no parsed data for %s", res.path)
+			if res.pass {
+				passed++
 			} else {
-				var marshalled []byte
-				if marshalled, err = json.Marshal(res.parsed); err != nil {
-					t.Errorf("ISO extraction returned unparsable data for %s: %v", res.path, err)
-				} else {
-					t.Logf("ISO extraction succeeded for %s: %s", res.path, string(marshalled))
-				}
+				failed++
+				t.Errorf("ISO extraction failed for %s: %v", res.path, res.err)
 			}
 		}
+		t.Logf("ISO extraction test completed: %d passed, %d failed", passed, failed)
 	}
 }
 

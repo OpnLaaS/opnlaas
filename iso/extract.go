@@ -1,38 +1,48 @@
 package iso
 
 import (
+	"errors"
 	"os"
 
 	"github.com/kdomanski/iso9660"
 	"github.com/opnlaas/opnlaas/db"
 )
 
-func ExtractISO(sourceImage, outputStorageDirectory string) (extracted *db.StoredISOImage, err error) {
-	var (
-		stat  os.FileInfo
-		file  *os.File
-		image *iso9660.Image
-	)
-
-	if stat, err = os.Stat(sourceImage); err != nil {
-		return
+// extract.go
+func ExtractISO(sourceImage, outputStorageDirectory string) (*db.StoredISOImage, error) {
+	stat, err := os.Stat(sourceImage)
+	if err != nil {
+		return nil, err
 	}
 
-	extracted = &db.StoredISOImage{
-		Size: stat.Size(),
+	out := &db.StoredISOImage{Size: stat.Size()}
+
+	f, err := os.Open(sourceImage)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	img, err := iso9660.OpenImage(f)
+	if err != nil {
+		return nil, err
 	}
 
-	if file, err = os.Open(sourceImage); err != nil {
-		return
+	index, err := buildIndex(img)
+	if err != nil {
+		if errors.Is(err, ErrUDFHybrid) {
+			// try external fallback (no root required)
+			index, err = buildIndexExternal(sourceImage)
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	defer file.Close()
-
-	if image, err = iso9660.OpenImage(file); err != nil {
-		return
+	k, i, err := findKernelAndInitrd(index)
+	if err != nil {
+		return nil, err
 	}
-
-	
-
-	return
+	out.KernelPath, out.InitrdPath = k, i
+	return out, nil
 }
