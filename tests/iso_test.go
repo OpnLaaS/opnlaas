@@ -1,9 +1,9 @@
 package tests
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -54,48 +54,42 @@ func TestISO(t *testing.T) {
 		}
 
 		wg.Wait()
-		// for _, res := range results {
-		// 	if !res.pass {
-		// 		t.Errorf("ISO extraction failed for %s: %v", res.path, res.err)
-		// 	} else if res.parsed == nil {
-		// 		t.Errorf("ISO extraction returned no parsed data for %s", res.path)
-		// 	} else {
-		// 		var marshalled []byte
-		// 		if marshalled, err = json.Marshal(res.parsed); err != nil {
-		// 			t.Errorf("ISO extraction returned unparsable data for %s: %v", res.path, err)
-		// 		} else {
-		// 			t.Logf("ISO extraction succeeded for %s: %s", res.path, string(marshalled))
-		// 		}
-		// 	}
-		// }
-		var passed, failed int
+		var (
+			passed, failed int
+			debug          string
+		)
+
 		for _, res := range results {
 			if res.pass {
 				passed++
+				debug = fmt.Sprintf("- %s\n%s", fmt.Sprintf("%s: kernel=%s initrd=%s distro=%s arch=%s preconfigure=%s size=%d", res.path, res.parsed.KernelPath, res.parsed.InitrdPath, res.parsed.DistroType, res.parsed.Architecture, res.parsed.PreConfigure, res.parsed.Size), debug)
+
+				switch {
+				case strings.Contains(strings.ToLower(res.path), "debian"), strings.Contains(strings.ToLower(res.path), "ubuntu"), strings.Contains(strings.ToLower(res.path), "kali"), strings.Contains(strings.ToLower(res.path), "mint"):
+					if res.parsed.DistroType != db.DistroTypeDebianBased {
+						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeDebianBased, res.path, res.parsed.DistroType)
+					}
+				case strings.Contains(strings.ToLower(res.path), "centos"), strings.Contains(strings.ToLower(res.path), "rhel"), strings.Contains(strings.ToLower(res.path), "fedora"), strings.Contains(strings.ToLower(res.path), "rocky"), strings.Contains(strings.ToLower(res.path), "almalinux"):
+					if res.parsed.DistroType != db.DistroTypeRedHatBased {
+						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeRedHatBased, res.path, res.parsed.DistroType)
+					}
+				case strings.Contains(strings.ToLower(res.path), "archlinux"), strings.Contains(strings.ToLower(res.path), "manjaro"):
+					if res.parsed.DistroType != db.DistroTypeArchBased {
+						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeArchBased, res.path, res.parsed.DistroType)
+					}
+				case strings.Contains(strings.ToLower(res.path), "alpine"):
+					if res.parsed.DistroType != db.DistroTypeAlpineBased {
+						t.Errorf("Expected %s distro type for %s, got %s", db.DistroTypeAlpineBased, res.path, res.parsed.DistroType)
+					}
+				case strings.Contains(strings.ToLower(res.path), "leap"), strings.Contains(strings.ToLower(res.path), "tumbleweed"), strings.Contains(strings.ToLower(res.path), "opensuse"):
+				}
 			} else {
 				failed++
 				t.Errorf("ISO extraction failed for %s: %v", res.path, res.err)
 			}
 		}
+
 		t.Logf("ISO extraction test completed: %d passed, %d failed", passed, failed)
-	}
-}
-
-// If this is in my PR please tell me to delete it.
-func TestISODebug(t *testing.T) {
-	setup(t)
-	defer cleanup(t)
-
-	var path string = "/home/egp1042/Documents/ISOS/Leap-16.0-online-installer-x86_64.install.iso"
-	destPath := fmt.Sprintf("%s/%s", config.Config.ISOs.StorageDir, "Leap-16.0-online-installer-x86_64.install")
-	if k, err := iso.ExtractISO(path, destPath); err != nil {
-		t.Fatalf("ISO extraction failed for %s: %v", path, err)
-	} else {
-		var marshalled []byte
-		if marshalled, err = json.Marshal(k); err != nil {
-			t.Fatalf("ISO extraction returned unparsable data for %s: %v", path, err)
-		} else {
-			t.Logf("ISO extraction succeeded for %s: %s", path, string(marshalled))
-		}
+		t.Logf("Details:\n%s", debug)
 	}
 }
