@@ -41,9 +41,9 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ### **Persona 2 - Dan - Student**
 
-* **Bio:** A student who wants to deploy there personal projects on real hardware. Isn't as focused on the technical details or computation power of the systems, is more focused on being able to easily get there projects running and accessible to the public. Doesns't want to deal with complicated UI or deployment process for there projects, and would prefer if software was intuitive to use.
-* **Motivation:** Wants to use a service that makes iteracting with the underlying systems as simple as possible without needing a lot of technical skills. Wants to focus on there projects, not dealing with infrastructure.
-* **Goals:** Setup there projects on the provided systems, and share the things they've made publicly.
+* **Bio:** A student who wants to deploy their personal projects on real hardware. Isn't as focused on the technical details or computation power of the systems, is more focused on being able to easily get their projects running and accessible to the public. Doesns't want to deal with complicated UI or deployment process for their projects, and would prefer if software was intuitive to use.
+* **Motivation:** Wants to use a service that makes iteracting with the underlying systems as simple as possible without needing a lot of technical skills. Wants to focus on their projects, not dealing with infrastructure.
+* **Goals:** Setup their projects on the provided systems, and share the things they've made publicly.
 
 ### **Persona 3 - Matt - Researcher**
 
@@ -51,18 +51,17 @@ OpnLaaS streamlines provisioning for both users and admins:
 * **Motivation:** Wants to be able to book resources to be used for approved personalized projects, additionally may need additional resources on-demand with control over the systems.  
 * **Goals:** Streamline ability for onboarded users to book hosts and provide interfaces in order to execute Redfish or IPMI commands on the allocated systems. 
 
-### **Persona 4 - Kestutis -**
+### **Persona 4 - Kestutis - Student**
 
 * **Bio:** Student interested in networking programming looking to create a network communication protocol that will require multiple hosts on a network.
 * **Motivation:** wants to have control of multiple hosts on a network for testing with minimal setup.
 * **Goals:** enable users to easily create multiple hosts on a network that can communicate with eachother.
 
-### **Persona 5 - Alex -**
+### **Persona 5 - Alex - Student**
 
 * **Bio:** A student who challenges a friend to create a better chess engine, Student who wants to learn to make a large scale project for the first time in a friendly competition with their friends. 
 * **Motivation:** Wants to test which of the engines are better by simulating many games against each other. 
 * **Goals:** Provide compute to students to simulate hundreds of chess games.
-
 
 ## 4. Epics and Features
 
@@ -88,7 +87,27 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ### **Feature 1 – User & Resource Dashboard**
 
+* As the System Architect, I want to provide a way to show and manage resources to facilitate user bookings and resource allocation.
+* As a Student, I want to easily view and book available resources for my projects.
+* As a Researcher, I want to be able to reserve and manage computational resources for my projects.
+* As a Student, I want to deploy my projects on bare metal servers with minimal setup.
+* As a Student, I want to monitor the health and status of the bare metal servers I am using.
+
 ### **Feature 2 – Virtualization Integration**
+
+* As a System Architect, I want to integrate with Proxmox API to automate VM and container lifecycle management.
+* As a Student, I want to create, start, stop, and delete virtual machines easily.
+* As a Researcher, I want to manage virtualized environments for my computational tasks.
+* As a Student, I want to monitor the health and status of the virtual machines I am using.
+* As a Student, I want to deploy my projects on virtual machines with minimal setup.
+
+### **Feature 3 – Bare Metal Provisioning**
+
+* As a System Architect, I want to integrate with IPMI and BMC interfaces for bare metal server management.
+* As a Student, I want to deploy my projects on bare metal servers with minimal setup.
+* As a Researcher, I want to monitor the health and status of the bare metal servers I am using.
+* As a Student, I want to monitor the health and status of the bare metal servers I am using.
+* As a Student, I want to access detailed hardware metrics and logs for troubleshooting.
 
 ## 6. Product Backlog (GitLab)
 
