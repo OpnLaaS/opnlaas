@@ -16,7 +16,8 @@
     <script src="/static/scripts/global.js" type="module" defer></script>
 </head>
 <!-- mb is temporary fix, the footer is hiding stuff at the bottom -->
-<body class="bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 antialiased overflow-x-hidden mb-25"> 
+
+<body class="bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 antialiased overflow-x-hidden mb-25">
     <a href="#main" class="skip-link bg-sky-600 text-white rounded">Skip to content</a>
 
     <header
@@ -26,9 +27,11 @@
 
             <nav aria-label="Primary" class="flex items-center gap-3">
                 <a href="/" class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/10">Home</a>
+                {{if not .LoggedIn}}
                 <a href="/login"
                     class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring">Log
                     In</a>
+                {{end}}
                 <a href="/dashboard"
                     class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring">Public
                     Dashboard</a>

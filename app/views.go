@@ -9,15 +9,17 @@ func showLanding(c *fiber.Ctx) error {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 
 	if user != nil {
-		return c.Redirect("/dashboard")
+		return c.Redirect("/dashboard",)
 	}
 
-	return c.Render("landing", bindWithLocals(c, fiber.Map{"Title": "Welcome"}), "layout")
+	return c.Render("landing", bindWithLocals(c, fiber.Map{"Title": "Welcome", "LoggedIn": user != nil}), "layout")
 }
 
 func showLogin(c *fiber.Ctx) error {
+	var 		user        *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 	return c.Render("login", fiber.Map{
 		"Title": "Login",
+		"LoggedIn": user != nil,
 	}, "layout")
 }
 
@@ -37,6 +39,7 @@ func showDashboard(c *fiber.Ctx) (err error) {
 			return c.Render("dashboard", bindWithLocals(c, fiber.Map{
 				"Title": "Dashboard",
 				"User":  user.LDAPConn.Username,
+				"LoggedIn": user != nil,
 				"Error": err.Error(),
 			}), "layout")
 		}
@@ -50,4 +53,6 @@ func showDashboard(c *fiber.Ctx) (err error) {
 		"LoggedIn": user != nil,
 		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
 	}), "layout")
+
+	
 }
