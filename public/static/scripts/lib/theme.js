@@ -3,14 +3,17 @@ function setTheme(darkMode = true) {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
     
     const themeIcon = document.getElementById("theme-icon");
-    themeIcon.textContent = darkMode ? "☀️" : "🌙";
+    if (themeIcon) { 
+        themeIcon.textContent = darkMode ? "☀️" : "🌙";
+    }
 
     const logoImage = document.getElementById("logo-image");
     if (logoImage) {
         logoImage.src = darkMode ? "/static/img/logo_dark.png" : "/static/img/logo_light.png";
     }
 }
-export default function initTheming() {
+
+export function initTheming() {
     if (localStorage.getItem("theme")) {
         setTheme(localStorage.getItem("theme") === "dark");
     } else {
@@ -18,14 +21,37 @@ export default function initTheming() {
     }
 
     const toggle = document.getElementById("theme-toggle");
-    toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
+    if (toggle) { 
+        toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
+    }
 
     const yearEl = document.getElementById("year");
     if (yearEl) {
         yearEl.textContent = new Date().getFullYear().toString();
     }
+    changeDashboard();
 }
 
-function changeDasboard() {
-    location.pathname = "/dashboard.html";
+export function changeDashboard() {
+    var currentPath = location.pathname;
+    console.log("Current location:", currentPath);
+    
+    if (currentPath.includes("/dashboard")) {
+        const el = document.getElementById("dashboard");
+        if (el) { 
+            el.classList.add("bg-gray-200", "dark:bg-white/20");
+        }
+    
+    } else if (currentPath === "/") {
+        const el = document.getElementById("home");
+        if (el) { 
+            el.classList.add("bg-gray-200", "dark:bg-white/20");
+        }
+        
+    } else if (currentPath.includes("/login")) {
+        const el = document.getElementById("login");
+        if (el) { 
+            el.classList.add("bg-gray-200", "dark:bg-white/20");
+        }
+    }
 }
