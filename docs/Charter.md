@@ -39,11 +39,11 @@ OpnLaaS streamlines provisioning for both users and admins:
 * **Motivation:** Wants to automate resource allocation to save time on repetitive setup, additionally wants to enable students and faculty to independently manage their lab resources while promoting projects.
 * **Goals:** Streamline user onboarding, reduce provisioning errors, and ensure uptime across lab infrastructure. Create a safe and effective application.
 
-### **Persona 2 - Dan -**
+### **Persona 2 - Dan - Student**
 
-* **Bio:**
-* **Motivation:**
-* **Goals:**
+* **Bio:** A student who wants to deploy there personal projects on real hardware. Isn't as focused on the technical details or computation power of the systems, is more focused on being able to easily get there projects running and accessible to the public. Doesns't want to deal with complicated UI or deployment process for there projects, and would prefer if software was intuitive to use.
+* **Motivation:** Wants to use a service that makes iteracting with the underlying systems as simple as possible without needing a lot of technical skills. Wants to focus on there projects, not dealing with infrastructure.
+* **Goals:** Setup there projects on the provided systems, and share the things they've made publicly.
 
 ### **Persona 3 - Matt - Researcher**
 
