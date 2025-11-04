@@ -8,11 +8,11 @@ OpnLaaS (Open Lab as a Service)
 
 ### **Team Members**
 
-* Evan Parker – (System Architecture & Backend)
-* Dan McCarthy – (Frontend Development)
-* Matt Gee - (Full Stack Development)
-* Kestutis Biskis – (Frontend Development & Database Systems)
-* Alex Houle – (Backend API Development & Frontend Integration)
+* Evan Parker – Bachelors in Computer Science - (System Architecture & Backend)
+* Dan McCarthy – Bachelors in Information Technology - (Frontend Development)
+* Matt Gee - Bachelors in Computer Science - (Full Stack Development)
+* Kestutis Biskis – Bachelors in Computer Science - (Frontend Development & Database Systems)
+* Alex Houle – Bachelors in Computer Science - (Backend API Development & Frontend Integration)
 
 ### **Target Audience**
 
