@@ -33,13 +33,11 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ## 3. Personas
 
-> *Each persona represents a distinct type of user and their motivations.*
-
 ### **Persona 1 - Evan - System Architect**
 
-* **Bio:** The System Architect responsible for designing and maintaining the overall infrastructure. Primary system administrator for the cybersecurity lab, oversees FreeIPA, Proxmox, Bare-Metal servers and their BMCs.
-* **Motivation:** Wants to automate resource allocation to save time on repetitive setup.
-* **Goals:** Streamline user onboarding, reduce provisioning errors, and ensure uptime across lab infrastructure.
+* **Bio:** The System Architect responsible for designing and maintaining the overall infrastructure. Primary system administrator for the cybersecurity lab, oversees FreeIPA, Proxmox, Bare-Metal servers and their BMCs. Interested in automation and security while providing robust solutions.
+* **Motivation:** Wants to automate resource allocation to save time on repetitive setup, additionally wants to enable students and faculty to independently manage their lab resources while promoting projects.
+* **Goals:** Streamline user onboarding, reduce provisioning errors, and ensure uptime across lab infrastructure. Create a safe and effective application.
 
 ### **Persona 2 - Dan -**
 
@@ -79,27 +77,23 @@ OpnLaaS streamlines provisioning for both users and admins:
 * Connects OpnLaaS to Proxmox API for automated VM/CT creation.
 * Includes control actions: start, stop, reboot, and delete.
 
+#### **Feature 3 – Bare Metal Provisioning**
+
+* Integrates with IPMI and BMC interfaces for bare metal server management.
+* Supports automated ISO repository for automated OS installation.
+* Supports automated OS deployment and hardware monitoring.
+
 ## 5. Stories
 
 ### **Feature 1 – User & Resource Dashboard**
 
-
-
 ### **Feature 2 – Virtualization Integration**
-
 
 ## 6. Product Backlog (GitLab)
 
-| Priority | Story                                | Epic                       | Status      |
-| -------- | ------------------------------------ | -------------------------- | ----------- |
-| High     | User authentication via LDAP         | Infrastructure Automation  | To Do       |
-| High     | Dashboard view of user resources     | Infrastructure Automation  | In Progress |
-| Medium   | VM creation and lifecycle control    | Virtualization Integration | To Do       |
-| Medium   | Booking system approval workflow     | Infrastructure Automation  | To Do       |
-| Low      | Enhanced UI/UX with Tailwind styling | Web Interface              | Planned     |
+Please See: https://github.com/orgs/OpnLaaS/projects/1
 
 ## 7. Notes / Future Work
 
 * Add Bare Metal Provisioning System and Booking System integration.
-* Implement ISO repository for automated OS installation.
 * Expand test coverage and monitoring.
