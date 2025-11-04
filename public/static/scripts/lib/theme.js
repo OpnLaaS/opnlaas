@@ -25,3 +25,7 @@ export default function initTheming() {
         yearEl.textContent = new Date().getFullYear().toString();
     }
 }
+
+function changeDasboard() {
+    location.pathname = "/dashboard.html";
+}
