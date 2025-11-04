@@ -7,7 +7,7 @@ function setTheme(darkMode = true) {
 
     const logoImage = document.getElementById("logo-image");
     if (logoImage) {
-        logoImage.src = darkMode ? "/static/img/logo_dark.png" : "/static/img/logo_light.png";
+        logoImage.src = darkMode ? "/static/img/logo-dark.svg" : "/static/img/logo.svg";
     }
 }
 export default function initTheming() {
