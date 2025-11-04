@@ -32,6 +32,10 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/api/enums/management-types", apiEnumsManagementTypeNames)
 	app.Get("/api/enums/power-states", apiEnumsPowerStateNames)
 	app.Get("/api/enums/boot-modes", apiEnumsBootModeNames)
+	app.Get("/api/enums/power-actions", apiEnumsPowerActionNames)
+	app.Get("/api/enums/architectures", apiEnumsArchitectureNames)
+	app.Get("/api/enums/distro-types", apiEnumsDistroTypeNames)
+	app.Get("/api/enums/preconfigure-types", apiEnumsPreConfigureTypeNames)
 
 	// Hosts API
 	app.Get("/api/hosts", apiHostsAll)
@@ -39,6 +43,10 @@ func CreateApp() (app *fiber.App) {
 	app.Post("/api/hosts", mustBeLoggedIn, mustBeAdmin, apiHostCreate)
 	app.Delete("/api/hosts/:management_ip", mustBeLoggedIn, mustBeAdmin, apiHostDelete)
 	app.Post("/api/hosts/:management_ip/power/:action", mustBeLoggedIn, mustBeAdmin, apiHostPowerControl)
+
+	// ISO Images API
+	app.Post("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesCreate)
+	app.Get("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesList)
 	return
 }
 
