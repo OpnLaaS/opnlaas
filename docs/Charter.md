@@ -59,9 +59,10 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ### **Persona 5 - Alex -**
 
-* **Bio:** A stutdent who challendges a friend to create a better chess engine, Student who wants to learn to make a large scale project for the first time in a friendly competion with their friends. 
-* **Motivation:** Wants to test which of the enignes are better by simulating many games agianst eachother. 
-* **Goals:** Proivde compute to students to simualte hundreds of chess games.
+* **Bio:** A student who challenges a friend to create a better chess engine, Student who wants to learn to make a large scale project for the first time in a friendly competition with their friends. 
+* **Motivation:** Wants to test which of the engines are better by simulating many games against each other. 
+* **Goals:** Provide compute to students to simulate hundreds of chess games.
+
 
 ## 4. Epics and Features
 
