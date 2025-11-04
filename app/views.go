@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/opnlaas/laas/auth"
+	"github.com/opnlaas/opnlaas/auth"
 )
 
 func showLanding(c *fiber.Ctx) error {
@@ -32,7 +32,7 @@ func showDashboard(c *fiber.Ctx) (err error) {
 		displayName string
 	)
 
-	if user != nil {
+	if user != nil && user.LDAPConn != nil {
 		if displayName, err = user.LDAPConn.DisplayName(); err != nil {
 			return c.Render("dashboard", bindWithLocals(c, fiber.Map{
 				"Title": "Dashboard",

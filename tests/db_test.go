@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/db"
 )
 
 func TestDB_CRUD_Basic(t *testing.T) {
@@ -14,20 +14,20 @@ func TestDB_CRUD_Basic(t *testing.T) {
 
 	var (
 		err      error
-		testHost *hosts.Host = &hosts.Host{
+		testHost *db.Host = &db.Host{
 			ManagementIP:   "10.0.1.17", // Primary Key
-			ManagementType: hosts.ManagementTypeRedfish,
+			ManagementType: db.ManagementTypeRedfish,
 		}
 	)
 
 	// Create
-	if err = hosts.Hosts.Insert(testHost); err != nil {
+	if err = db.Hosts.Insert(testHost); err != nil {
 		t.Fatalf("Failed to create test host: %v", err)
 	}
 
 	// Read
-	var fetchedHost *hosts.Host
-	if fetchedHost, err = hosts.Hosts.Select(testHost.ManagementIP); err != nil {
+	var fetchedHost *db.Host
+	if fetchedHost, err = db.Hosts.Select(testHost.ManagementIP); err != nil {
 		t.Fatalf("Failed to fetch test host by ID: %v", err)
 	}
 
@@ -37,28 +37,28 @@ func TestDB_CRUD_Basic(t *testing.T) {
 	}
 
 	// Update
-	fetchedHost.ManagementType = hosts.ManagementTypeIPMI
-	if err = hosts.Hosts.Update(fetchedHost); err != nil {
+	fetchedHost.ManagementType = db.ManagementTypeIPMI
+	if err = db.Hosts.Update(fetchedHost); err != nil {
 		t.Fatalf("Failed to update test host: %v", err)
 	}
 
-	var updatedHost *hosts.Host
-	if updatedHost, err = hosts.Hosts.Select(testHost.ManagementIP); err != nil {
+	var updatedHost *db.Host
+	if updatedHost, err = db.Hosts.Select(testHost.ManagementIP); err != nil {
 		t.Fatalf("Failed to fetch updated test host by ID: %v", err)
 	}
 
-	if updatedHost.ManagementType != hosts.ManagementTypeIPMI {
+	if updatedHost.ManagementType != db.ManagementTypeIPMI {
 		t.Fatalf("Updated host has incorrect ManagementType: got %v, want %v",
-			updatedHost.ManagementType, hosts.ManagementTypeIPMI)
+			updatedHost.ManagementType, db.ManagementTypeIPMI)
 	}
 
 	// Delete
-	if err = hosts.Hosts.Delete(updatedHost.ManagementIP); err != nil {
+	if err = db.Hosts.Delete(updatedHost.ManagementIP); err != nil {
 		t.Fatalf("Failed to delete test host: %v", err)
 	}
 
-	var deletedHost *hosts.Host
-	if deletedHost, err = hosts.Hosts.Select(testHost.ManagementIP); err != nil {
+	var deletedHost *db.Host
+	if deletedHost, err = db.Hosts.Select(testHost.ManagementIP); err != nil {
 		t.Fatalf("Expected no error when fetching deleted host, but got: %v", err)
 	}
 

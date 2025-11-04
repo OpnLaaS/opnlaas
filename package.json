@@ -4,11 +4,13 @@
     "description": "OpnLaaS Frontend Tailwind Builder",
     "type": "module",
     "dependencies": {
-        "@tailwindcss/cli": "^4.1.13",
-        "tailwindcss": "^4.1.13"
+        "@tailwindcss/cli": "^4.1.13"
     },
     "scripts": {
         "devel": "npx @tailwindcss/cli -i ./public/static/styles/main.css -o ./public/static/styles/tailwind.css --watch",
         "build": "npx @tailwindcss/cli -i ./public/static/styles/main.css -o ./public/static/styles/tailwind.css --minify"
+    },
+    "devDependencies": {
+        "tailwindcss": "^4.1.16"
     }
 }

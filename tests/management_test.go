@@ -4,8 +4,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opnlaas/laas/config"
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/db"
 )
 
 func TestRedfishManagementHosts(t *testing.T) {
@@ -32,15 +32,17 @@ func TestRedfishManagementHosts(t *testing.T) {
 
 			var (
 				err  error
-				host *hosts.Host = &hosts.Host{
+				host *db.Host = &db.Host{
 					ManagementIP:   ip,
-					ManagementType: hosts.ManagementTypeRedfish,
+					ManagementType: db.ManagementTypeRedfish,
 				}
 			)
 
-			if host.Management, err = hosts.NewHostManagementClient(host); err != nil {
+			if host.Management, err = db.NewHostManagementClient(host); err != nil {
 				t.Errorf("Failed to create HostManagementClient for IP %s: %v", ip, err)
 				return
+			} else {
+				defer host.Management.Close()
 			}
 
 			if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {

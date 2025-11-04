@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/opnlaas/laas/config"
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/db"
 )
 
 func TestEnumAPIVendorIDs(t *testing.T) {
@@ -23,16 +23,16 @@ func TestEnumAPIVendorIDs(t *testing.T) {
 	} else if body == "" {
 		t.Fatalf("Expected non-empty response body")
 	} else {
-		var result map[string]hosts.VendorID
+		var result map[string]db.VendorID
 		if err = json.Unmarshal([]byte(body), &result); err != nil {
 			t.Fatalf("Failed to parse JSON response: %v", err)
 		}
 
-		if len(result) != len(hosts.VendorNameReverses) {
-			t.Fatalf("Expected %d vendors, got %d", len(hosts.VendorNameReverses), len(result))
+		if len(result) != len(db.VendorNameReverses) {
+			t.Fatalf("Expected %d vendors, got %d", len(db.VendorNameReverses), len(result))
 		}
 
-		for name, id := range hosts.VendorNameReverses {
+		for name, id := range db.VendorNameReverses {
 			if result[name] != id {
 				t.Fatalf("Expected vendor %s to have ID %d, got %d", name, id, result[name])
 			}
@@ -54,16 +54,16 @@ func TestEnumAPIFormFactorNames(t *testing.T) {
 	} else if body == "" {
 		t.Fatalf("Expected non-empty response body")
 	} else {
-		var result map[string]hosts.FormFactor
+		var result map[string]db.FormFactor
 		if err = json.Unmarshal([]byte(body), &result); err != nil {
 			t.Fatalf("Failed to parse JSON response: %v", err)
 		}
 
-		if len(result) != len(hosts.FormFactorNameReverses) {
-			t.Fatalf("Expected %d vendors, got %d", len(hosts.FormFactorNameReverses), len(result))
+		if len(result) != len(db.FormFactorNameReverses) {
+			t.Fatalf("Expected %d vendors, got %d", len(db.FormFactorNameReverses), len(result))
 		}
 
-		for name, id := range hosts.FormFactorNameReverses {
+		for name, id := range db.FormFactorNameReverses {
 			if result[name] != id {
 				t.Fatalf("Expected vendor %s to have ID %d, got %d", name, id, result[name])
 			}
@@ -85,16 +85,16 @@ func TestEnumAPIFormManagementTypes(t *testing.T) {
 	} else if body == "" {
 		t.Fatalf("Expected non-empty response body")
 	} else {
-		var result map[string]hosts.ManagementType
+		var result map[string]db.ManagementType
 		if err = json.Unmarshal([]byte(body), &result); err != nil {
 			t.Fatalf("Failed to parse JSON response: %v", err)
 		}
 
-		if len(result) != len(hosts.ManagementTypeNameReverses) {
-			t.Fatalf("Expected %d vendors, got %d", len(hosts.ManagementTypeNameReverses), len(result))
+		if len(result) != len(db.ManagementTypeNameReverses) {
+			t.Fatalf("Expected %d vendors, got %d", len(db.ManagementTypeNameReverses), len(result))
 		}
 
-		for name, id := range hosts.ManagementTypeNameReverses {
+		for name, id := range db.ManagementTypeNameReverses {
 			if result[name] != id {
 				t.Fatalf("Expected vendor %s to have ID %d, got %d", name, id, result[name])
 			}
@@ -116,16 +116,16 @@ func TestEnumAPIFormPowerStates(t *testing.T) {
 	} else if body == "" {
 		t.Fatalf("Expected non-empty response body")
 	} else {
-		var result map[string]hosts.PowerState
+		var result map[string]db.PowerState
 		if err = json.Unmarshal([]byte(body), &result); err != nil {
 			t.Fatalf("Failed to parse JSON response: %v", err)
 		}
 
-		if len(result) != len(hosts.PowerStateNameReverses) {
-			t.Fatalf("Expected %d vendors, got %d", len(hosts.PowerStateNameReverses), len(result))
+		if len(result) != len(db.PowerStateNameReverses) {
+			t.Fatalf("Expected %d vendors, got %d", len(db.PowerStateNameReverses), len(result))
 		}
 
-		for name, id := range hosts.PowerStateNameReverses {
+		for name, id := range db.PowerStateNameReverses {
 			if result[name] != id {
 				t.Fatalf("Expected vendor %s to have ID %d, got %d", name, id, result[name])
 			}
@@ -147,16 +147,16 @@ func TestEnumAPIFormBootModes(t *testing.T) {
 	} else if body == "" {
 		t.Fatalf("Expected non-empty response body")
 	} else {
-		var result map[string]hosts.BootMode
+		var result map[string]db.BootMode
 		if err = json.Unmarshal([]byte(body), &result); err != nil {
 			t.Fatalf("Failed to parse JSON response: %v", err)
 		}
 
-		if len(result) != len(hosts.BootModeNameReverses) {
-			t.Fatalf("Expected %d vendors, got %d", len(hosts.BootModeNameReverses), len(result))
+		if len(result) != len(db.BootModeNameReverses) {
+			t.Fatalf("Expected %d vendors, got %d", len(db.BootModeNameReverses), len(result))
 		}
 
-		for name, id := range hosts.BootModeNameReverses {
+		for name, id := range db.BootModeNameReverses {
 			if result[name] != id {
 				t.Fatalf("Expected vendor %s to have ID %d, got %d", name, id, result[name])
 			}

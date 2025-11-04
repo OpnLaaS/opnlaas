@@ -1,11 +1,15 @@
 function setTheme(darkMode = true) {
     document.documentElement.classList[darkMode ? "add" : "remove"]("dark");
     localStorage.setItem("theme", darkMode ? "dark" : "light");
-
+    
     const themeIcon = document.getElementById("theme-icon");
     themeIcon.textContent = darkMode ? "☀️" : "🌙";
-}
 
+    const logoImage = document.getElementById("logo-image");
+    if (logoImage) {
+        logoImage.src = darkMode ? "/static/img/logo_dark.png" : "/static/img/logo_light.png";
+    }
+}
 export default function initTheming() {
     if (localStorage.getItem("theme")) {
         setTheme(localStorage.getItem("theme") === "dark");

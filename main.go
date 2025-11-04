@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/opnlaas/laas/app"
-	"github.com/opnlaas/laas/config"
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/app"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/db"
 	"github.com/z46-dev/go-logger"
 )
 
@@ -22,7 +22,7 @@ func init() {
 func main() {
 	var err error
 
-	if err = hosts.InitDB(); err != nil {
+	if err = db.InitDB(); err != nil {
 		log.Errorf("Failed to initialize database: %v\n", err)
 		panic(err)
 	}

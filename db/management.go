@@ -1,11 +1,11 @@
-package hosts
+package db
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/bougou/go-ipmi"
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 	"github.com/stmcginnis/gofish"
 	"github.com/stmcginnis/gofish/redfish"
 )
