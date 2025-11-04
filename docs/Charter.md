@@ -11,7 +11,7 @@ OpnLaaS (Open Lab as a Service)
 * Evan Parker – (System Architecture & Backend)
 * Dan McCarthy – (Frontend Development)
 * Matt Gee - (Full Stack Development)
-* Kestutis Biskis – (Frontend Development & Database Systems)
+* Kestutis Biskis – (Frontend Development😭 & Database Systems)
 * Alex Houle – (Backend API Development & Frontend Integration)
 
 ### **Target Audience**
@@ -53,9 +53,9 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ### **Persona 4 - Kestutis -**
 
-* **Bio:**
-* **Motivation:**
-* **Goals:**
+* **Bio:** Student interested in networking programming looking to create a network communication protocol that will require multiple hosts on a network.
+* **Motivation:** wants to have control of multiple hosts on a network for testing with minimal setup.
+* **Goals:** enable users to easily create multiple hosts on a network that can communicate with eachother.
 
 ### **Persona 5 - Alex -**
 
