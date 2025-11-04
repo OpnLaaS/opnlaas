@@ -222,9 +222,23 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 
 	// Extract ISO
 	var isoFS *db.StoredISOImage
-	if isoFS, err = iso.ExtractISO(tempFilePath, config.Config.ISOs.SearchDir); err != nil {
+	if isoFS, err = iso.ExtractISO(tempFilePath, config.Config.ISOs.StorageDir); err != nil {
+		return
+	}
+
+	if err = db.StoredISOImages.Insert(isoFS); err != nil {
 		return
 	}
 
 	return c.JSON(isoFS)
+}
+
+func apiISOImagesList(c *fiber.Ctx) (err error) {
+	var isoList []*db.StoredISOImage
+
+	if isoList, err = db.StoredISOImages.SelectAll(); err != nil {
+		return
+	}
+
+	return c.JSON(isoList)
 }

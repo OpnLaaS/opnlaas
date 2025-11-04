@@ -46,6 +46,7 @@ func CreateApp() (app *fiber.App) {
 
 	// ISO Images API
 	app.Post("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesCreate)
+	app.Get("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesList)
 	return
 }
 
