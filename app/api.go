@@ -1,7 +1,10 @@
 package app
 
 import (
+	"fmt"
 	"mime/multipart"
+	"os"
+	"path/filepath"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/opnlaas/opnlaas/auth"
@@ -215,7 +218,7 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 	}
 
 	// Save file to temp location
-	tempFilePath := "/tmp/" + fileHeader.Filename
+	var tempFilePath string = fmt.Sprintf("%s/%s", os.TempDir(), filepath.Base(fileHeader.Filename))
 	if err = c.SaveFile(fileHeader, tempFilePath); err != nil {
 		return
 	}
