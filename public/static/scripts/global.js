@@ -1,3 +1,4 @@
-import initTheming from "./lib/theme.js";
+import {initTheming, changeDashboard} from "./lib/theme.js";
 
+changeDashboard();
 initTheming();
