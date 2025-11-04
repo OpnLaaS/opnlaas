@@ -8,15 +8,14 @@ import (
 func showLanding(c *fiber.Ctx) error {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 
-	if user != nil {
-		return c.Redirect("/dashboard",)
-	}
-
-	return c.Render("landing", bindWithLocals(c, fiber.Map{"Title": "Welcome", "LoggedIn": user != nil}), "layout")
+	return c.Render("landing", bindWithLocals(c, fiber.Map{
+		"Title": "Welcome", 
+		"LoggedIn": user != nil}),
+		 "layout")
 }
 
 func showLogin(c *fiber.Ctx) error {
-	var 		user        *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 	return c.Render("login", fiber.Map{
 		"Title": "Login",
 		"LoggedIn": user != nil,
@@ -30,7 +29,7 @@ func showLogout(c *fiber.Ctx) error {
 
 func showDashboard(c *fiber.Ctx) (err error) {
 	var (
-		user        *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 		displayName string
 	)
 

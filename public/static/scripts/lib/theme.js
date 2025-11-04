@@ -37,21 +37,21 @@ export function changeDashboard() {
     console.log("Current location:", currentPath);
     
     if (currentPath.includes("/dashboard")) {
-        const el = document.getElementById("dashboard");
-        if (el) { 
-            el.classList.add("bg-gray-200", "dark:bg-white/20");
+        const navButton = document.getElementById("dashboard");
+        if (navButton) { 
+            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
         }
     
     } else if (currentPath === "/") {
-        const el = document.getElementById("home");
-        if (el) { 
-            el.classList.add("bg-gray-200", "dark:bg-white/20");
+        const navButton = document.getElementById("home");
+        if (navButton) { 
+            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
         }
         
     } else if (currentPath.includes("/login")) {
-        const el = document.getElementById("login");
-        if (el) { 
-            el.classList.add("bg-gray-200", "dark:bg-white/20");
+        const navButton = document.getElementById("login");
+        if (navButton) { 
+            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
         }
     }
 }
