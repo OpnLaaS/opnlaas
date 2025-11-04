@@ -50,10 +50,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             clone.querySelector('[data-field="size_gb"]').textContent = host.specs.memory.size_gb;
             clone.querySelector('[data-field="speed_mhz"]').textContent = host.specs.memory.speed_mhz;
             // processor
+            clone.querySelector('[data-field="manufacturer"]').textContent = host.specs.processor.manufacturer;
             clone.querySelector('[data-field="cores"]').textContent = host.specs.processor.cores;
             clone.querySelector('[data-field="count"]').textContent = host.specs.processor.count;
             clone.querySelector('[data-field="sku"]').textContent = host.specs.processor.sku;
             clone.querySelector('[data-field="threads"]').textContent = host.specs.processor.threads;
+            clone.querySelector('[data-field="processor_speed_mhz"]').textContent = `${host.specs.processor.base_speed_mhz} / ${host.specs.processor.max_speed_mhz}`;
             // storage
             // TODO needs forEach or somethin, just the first one so far
             clone.querySelector('[data-field="capacity_gb"]').textContent = host.specs.storage[0].capacity_gb;

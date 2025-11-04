@@ -21,10 +21,13 @@ type (
 	PreConfigureType int
 
 	HostCPUSpecs struct {
-		Sku     string `json:"sku"`
-		Count   int    `json:"count"`
-		Cores   int    `json:"cores"`
-		Threads int    `json:"threads"`
+		Manufacturer string `json:"manufacturer"`
+		Sku          string `json:"sku"`
+		Count        int    `json:"count"`
+		Cores        int    `json:"cores"`
+		Threads      int    `json:"threads"`
+		BaseSpeedMHz int    `json:"base_speed_mhz"`
+		MaxSpeedMHz  int    `json:"max_speed_mhz"`
 	}
 
 	HostMemorySpecs struct {
