@@ -8,11 +8,11 @@ OpnLaaS (Open Lab as a Service)
 
 ### **Team Members**
 
-* Evan Parker – BS Computer Science – (System Architecture & Backend)
-* Dan McCarthy – BS IT – (Frontend Development)
-* Matt Gee – BS Computer Science – (Full Stack Development)
-* Kestutis Biskis – BS Computer Science – (Frontend Development & Database Systems)
-* Alex Houle – BS Computer Science – (Backend API Development & Frontend Integration)
+* Evan Parker – Bachelors in Computer Science - (System Architecture & Backend)
+* Dan McCarthy – Bachelors in Information Technology - (Frontend Development)
+* Matt Gee - Bachelors in Computer Science - (Full Stack Development)
+* Kestutis Biskis – Bachelors in Computer Science - (Frontend Development & Database Systems)
+* Alex Houle – Bachelors in Computer Science - (Backend API Development & Frontend Integration)
 
 ### **Target Audience**
 
@@ -53,9 +53,9 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ### **Persona 4 - Kestutis -**
 
-* **Bio:**
-* **Motivation:**
-* **Goals:**
+* **Bio:** Student interested in networking programming looking to create a network communication protocol that will require multiple hosts on a network.
+* **Motivation:** wants to have control of multiple hosts on a network for testing with minimal setup.
+* **Goals:** enable users to easily create multiple hosts on a network that can communicate with eachother.
 
 ### **Persona 5 - Alex -**
 
