@@ -12,8 +12,10 @@ import (
 )
 
 func TestISO(t *testing.T) {
+	if !config.Config.ISOs.TestingISOs {
+		t.Skip("Skipping ISO tests because TestingISOs is false")
+	}
 
-	
 	setup(t)
 	defer cleanup(t)
 
