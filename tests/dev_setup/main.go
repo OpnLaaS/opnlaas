@@ -63,28 +63,40 @@ func main() {
 
 	var processorChoices = []db.HostCPUSpecs{
 		{
-			Count:   2,
-			Sku:     "Intel Xeon Silver 4214",
-			Cores:   12,
-			Threads: 24,
+			Manufacturer: "Intel",
+			Count:        2,
+			Sku:          "Intel Xeon Silver 4214",
+			Cores:        12,
+			Threads:      24,
+			BaseSpeedMHz: 2100,
+			MaxSpeedMHz:  3000,
 		},
 		{
-			Count:   2,
-			Sku:     "Intel Xeon Gold 6230",
-			Cores:   20,
-			Threads: 40,
+			Manufacturer: "Intel",
+			Count:        2,
+			Sku:          "Intel Xeon Gold 6230",
+			Cores:        20,
+			Threads:      40,
+			BaseSpeedMHz: 2000,
+			MaxSpeedMHz:  2700,
 		},
 		{
-			Count:   2,
-			Sku:     "AMD EPYC 7302P",
-			Cores:   16,
-			Threads: 32,
+			Manufacturer: "AMD",
+			Count:        2,
+			Sku:          "AMD EPYC 7302P",
+			Cores:        16,
+			Threads:      32,
+			BaseSpeedMHz: 3200,
+			MaxSpeedMHz:  3500,
 		},
 		{
-			Count:   1,
-			Sku:     "AMD EPYC 7502P",
-			Cores:   32,
-			Threads: 64,
+			Manufacturer: "AMD",
+			Count:        1,
+			Sku:          "AMD EPYC 7502P",
+			Cores:        32,
+			Threads:      64,
+			BaseSpeedMHz: 2000,
+			MaxSpeedMHz:  3500,
 		},
 	}
 
@@ -92,18 +104,22 @@ func main() {
 		{
 			SizeGB:   64,
 			NumDIMMs: 4,
+			SpeedMHz: 2666,
 		},
 		{
 			SizeGB:   128,
 			NumDIMMs: 8,
+			SpeedMHz: 2933,
 		},
 		{
 			SizeGB:   256,
 			NumDIMMs: 16,
+			SpeedMHz: 3200,
 		},
 		{
 			SizeGB:   512,
 			NumDIMMs: 32,
+			SpeedMHz: 2933,
 		},
 	}
 

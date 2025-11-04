@@ -318,8 +318,27 @@ func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
 		Threads: c.redfishPrimarySystem.ProcessorSummary.LogicalProcessorCount,
 	}
 
+	var processorsList []*redfish.Processor
+	if processorsList, err = c.redfishPrimarySystem.Processors(); err != nil {
+		return
+	} else if len(processorsList) > 0 {
+		c.Host.Specs.Processor.Manufacturer = string(processorsList[0].Manufacturer)
+		c.Host.Specs.Processor.BaseSpeedMHz = int(processorsList[0].OperatingSpeedMHz)
+		c.Host.Specs.Processor.MaxSpeedMHz = int(processorsList[0].MaxSpeedMHz)
+	}
+
 	c.Host.Specs.Memory = HostMemorySpecs{
 		SizeGB: int(c.redfishPrimarySystem.MemorySummary.TotalSystemMemoryGiB),
+	}
+
+	var memoryList []*redfish.Memory
+	if memoryList, err = c.redfishPrimarySystem.Memory(); err != nil {
+		return
+	} else {
+		c.Host.Specs.Memory.NumDIMMs = len(memoryList)
+		if len(memoryList) > 0 {
+			c.Host.Specs.Memory.SpeedMHz = int(memoryList[0].OperatingSpeedMhz)
+		}
 	}
 
 	c.Host.Model = c.redfishPrimarySystem.Model

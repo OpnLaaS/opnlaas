@@ -9,12 +9,12 @@ import (
 )
 
 func TestRedfishManagementHosts(t *testing.T) {
+	setup(t)
+	defer cleanup(t)
+
 	if !config.Config.Management.TestingRunManagement {
 		t.Skip("Skipping Redfish management host tests as MGMT_TESTING_RUN_MGMT is not set to true.")
 	}
-
-	setup(t)
-	defer cleanup(t)
 
 	t.Log("Testing Redfish management host functionality in parallel.")
 
@@ -55,7 +55,7 @@ func TestRedfishManagementHosts(t *testing.T) {
 				return
 			}
 
-			t.Logf("Host %s - Power State: %s, System Model: %s\n", ip, host.LastKnownPowerState.String(), host.Model)
+			t.Logf("Host %s - Power State: %s, System Model: %s, System: %+v\n", ip, host.LastKnownPowerState.String(), host.Model, host)
 			totalHosts++
 			totalMemoryGB += host.Specs.Memory.SizeGB
 			totalCores += host.Specs.Processor.Cores
