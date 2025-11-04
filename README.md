@@ -13,3 +13,7 @@ Running:
 2. Single-shell setup:
     - Run `npm run devel &` to start the Tailwind CSS watcher in the background.
     - Then run `go run main.go` to start the OpnLaaS server.
+
+Populating your development database:
+
+Run: `go run tests/dev_setup/main.go`
