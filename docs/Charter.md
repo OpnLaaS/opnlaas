@@ -11,7 +11,7 @@ OpnLaaS (Open Lab as a Service)
 * Evan Parker – (System Architecture & Backend)
 * Dan McCarthy – (Frontend Development)
 * Matt Gee - (Full Stack Development)
-* Kestutis Biskis – (Frontend Development😭 & Database Systems)
+* Kestutis Biskis – (Frontend Development & Database Systems)
 * Alex Houle – (Backend API Development & Frontend Integration)
 
 ### **Target Audience**
@@ -39,17 +39,17 @@ OpnLaaS streamlines provisioning for both users and admins:
 * **Motivation:** Wants to automate resource allocation to save time on repetitive setup, additionally wants to enable students and faculty to independently manage their lab resources while promoting projects.
 * **Goals:** Streamline user onboarding, reduce provisioning errors, and ensure uptime across lab infrastructure. Create a safe and effective application.
 
-### **Persona 2 - Dan -**
+### **Persona 2 - Dan - Student**
 
-* **Bio:**
-* **Motivation:**
-* **Goals:**
+* **Bio:** A student who wants to deploy there personal projects on real hardware. Isn't as focused on the technical details or computation power of the systems, is more focused on being able to easily get there projects running and accessible to the public. Doesns't want to deal with complicated UI or deployment process for there projects, and would prefer if software was intuitive to use.
+* **Motivation:** Wants to use a service that makes iteracting with the underlying systems as simple as possible without needing a lot of technical skills. Wants to focus on there projects, not dealing with infrastructure.
+* **Goals:** Setup there projects on the provided systems, and share the things they've made publicly.
 
-### **Persona 3 - Matt -**
+### **Persona 3 - Matt - Researcher**
 
-* **Bio:**
-* **Motivation:** 
-* **Goals:**
+* **Bio:** A researcher in need of a reserved system in which they can utilized computation power they do not have access to or are unable to procure. Interested in being able to reserve / book resources from the service with the ability to manage booked resources as if the resource was on their network.
+* **Motivation:** Wants to be able to book resources to be used for approved personalized projects, additionally may need additional resources on-demand with control over the systems.  
+* **Goals:** Streamline ability for onboarded users to book hosts and provide interfaces in order to execute Redfish or IPMI commands on the allocated systems. 
 
 ### **Persona 4 - Kestutis -**
 
@@ -59,9 +59,9 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ### **Persona 5 - Alex -**
 
-* **Bio:**
-* **Motivation:** 
-* **Goals:**
+* **Bio:** A stutdent who challendges a friend to create a better chess engine, Student who wants to learn to make a large scale project for the first time in a friendly competion with their friends. 
+* **Motivation:** Wants to test which of the enignes are better by simulating many games agianst eachother. 
+* **Goals:** Proivde compute to students to simualte hundreds of chess games.
 
 ## 4. Epics and Features
 
