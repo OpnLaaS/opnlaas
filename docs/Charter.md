@@ -45,11 +45,11 @@ OpnLaaS streamlines provisioning for both users and admins:
 * **Motivation:**
 * **Goals:**
 
-### **Persona 3 - Matt -**
+### **Persona 3 - Matt - Researcher**
 
-* **Bio:**
-* **Motivation:** 
-* **Goals:**
+* **Bio:** A researcher in need of a reserved system in which they can utilized computation power they do not have access to or are unable to procure. Interested in being able to reserve / book resources from the service with the ability to manage booked resources as if the resource was on their network.
+* **Motivation:** Wants to be able to book resources to be used for approved personalized projects, additionally may need additional resources on-demand with control over the systems.  
+* **Goals:** Streamline ability for onboarded users to book hosts and provide interfaces in order to execute Redfish or IPMI commands on the allocated systems. 
 
 ### **Persona 4 - Kestutis -**
 
