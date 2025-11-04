@@ -19,8 +19,8 @@ func CreateApp() (app *fiber.App) {
 
 	app.Get("/", showLanding)
 	app.Get("/login", showLogin)
-	app.Get("/logout", showLogout)
-	app.Get("/dashboard", mustBeLoggedIn, showDashboard)
+	app.Get("/logout", mustBeLoggedIn, showLogout)
+	app.Get("/dashboard", showDashboard)
 
 	// Auth API
 	app.Post("/api/auth/login", apiLogin)
