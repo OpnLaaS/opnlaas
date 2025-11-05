@@ -65,7 +65,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 ## 4. Epics and Features
 
-### **Epic: Infrastructure Automation and Self-Service Management**
+### **Epic: Dashboard & Proxmox Integration**
 
 #### **Feature 1 – User & Resource Dashboard**
 
@@ -77,11 +77,19 @@ OpnLaaS streamlines provisioning for both users and admins:
 * Connects OpnLaaS to Proxmox API for automated VM/CT creation.
 * Includes control actions: start, stop, reboot, and delete.
 
+### **Epic: Bare Metal Provisioning**
+
 #### **Feature 3 – Bare Metal Provisioning**
 
 * Integrates with IPMI and BMC interfaces for bare metal server management.
 * Supports automated ISO repository for automated OS installation.
 * Supports automated OS deployment and hardware monitoring.
+
+#### **Feature 4 – Monitoring and Logging**
+
+* Provides real-time monitoring of hardware and virtual resources.
+* Implements centralized logging for system events and user activities.
+* Supports alerting and notification for critical events.
 
 ## 5. Stories
 
@@ -108,6 +116,14 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Researcher, I want to monitor the health and status of the bare metal servers I am using.
 * As a Student, I want to monitor the health and status of the bare metal servers I am using.
 * As a Student, I want to access detailed hardware metrics and logs for troubleshooting.
+
+### **Feature 4 – Monitoring and Logging**
+
+* As a System Architect, I want to be able to safely monitor and log system activities.
+* As a Student, I want to receive alerts for critical system events.
+* As a Researcher, I want centralized logs for troubleshooting and analysis.
+* As a Student, I want to access logs and alerts related to my resource usage.
+* As a Student, I want to be able to configure monitoring thresholds and alert preferences.
 
 ## 6. Product Backlog (GitLab)
 
