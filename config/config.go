@@ -84,5 +84,7 @@ func InitEnv(path string) error {
 		return err
 	}
 
+	MustHelpfulHippo()
+
 	return nil
 }
