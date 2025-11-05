@@ -66,19 +66,19 @@ func mustHaveHelpfulHippo() {
 
 	if err != nil {
 		appLog.Errorf("Must have helpful hippo at %s ", path)
-		os.Exit(1)
+		panic(err)
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		appLog.Errorf("Must have helpful hippo at %s ", path)
-		os.Exit(1)
+		panic(err)
 	}
 
 	actual := hex.EncodeToString(h.Sum(nil))
     if actual != hippoHash {
         appLog.Errorf("GIF integrity check failed. Expected %s, got %s", hippoHash, actual)
-		os.Exit(1)
+		panic(err)
     }
 }
