@@ -19,8 +19,6 @@ func init() {
 		appLog.Errorf("failed to generate JWT signing key: %v\n", err)
 		panic(err)
 	}
-
-	// mustHaveHelpfulHippo()
 }
 
 func mustBeLoggedIn(c *fiber.Ctx) error {
@@ -52,28 +50,3 @@ func bindWithLocals(c *fiber.Ctx, binds fiber.Map) (out fiber.Map) {
 
 	return
 }
-
-// func mustHaveHelpfulHippo() {
-// 	const path = "public/static/img/helpful-hippo.gif"
-// 	const hippoHash = "75db3396e74b85f7ad69dad3aada710d1d661a8806b106bb6611d3c4208e6e24"
-
-// 	f, err := os.Open(path)
-
-// 	if err != nil {
-// 		appLog.Errorf("Must have helpful hippo at %s ", path)
-// 		panic(err)
-// 	}
-// 	defer f.Close()
-
-// 	h := sha256.New()
-// 	if _, err := io.Copy(h, f); err != nil {
-// 		appLog.Errorf("Must have helpful hippo at %s ", path)
-// 		panic(err)
-// 	}
-
-// 	actual := hex.EncodeToString(h.Sum(nil))
-// 	if actual != hippoHash {
-// 		appLog.Errorf("GIF integrity check failed. Expected %s, got %s", hippoHash, actual)
-// 		panic(err)
-// 	}
-// }
