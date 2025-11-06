@@ -5,15 +5,15 @@
  * Define custom colors for Tailwind
  */
 @theme {
+    /* Colors for page background/borders*/
     --color-background-primary: #ffffff;
-    --color-background-secondary: #e5e7eb;
-    --color-background-muted: ;
+    --color-background-secondary: #f3f4f6;
+    --color-background-muted: #e5e7eb;
 
-    --color-alt: #a6a7a8;
+    /*  */
+    --color-highlight-primary: #0053b9;
 
-    --color-highlight-primary: ;
-
-    --color-font-primary: #09090b;
+    --color-font-primary: #030712;
     --color-font-secondary: #6b7280;
 }
 
@@ -24,15 +24,13 @@
          * Dark mode varient is based on .dark class
          */
         @variant dark {
-            --color-background-primary: #ffffff;
-            --color-background-secondary: #e5e7eb;
-            --color-background-muted: ;
+            --color-background-primary: #030712;
+            --color-background-secondary: #111827;
+            --color-background-muted: #1f2937;
 
-            --color-alt: #a6a7a8;
+            --color-highlight-primary: #0053b9;
 
-            --color-highlight-primary: ;
-
-            --color-font-primary: #09090b;
+            --color-font-primary: #f3f4f6;
             --color-font-secondary: #6b7280;
         }
     }
@@ -50,7 +48,7 @@
         background-color: var(--color-background-primary);
 
         /* Font styling defaults */
-        color: var(--color-font--primary);
+        color: var(--color-font-primary) !important;
         font-family: Arial, sans-serif;
         -webkit-text-size-adjust: 100%;
         -webkit-font-smoothing: antialiased;
@@ -80,12 +78,12 @@
  * Define component classes
  */
 @layer components {
-    .nav-item {
-        @apply px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring;
+    .navbar>* {
+        @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-secondary focus:outline-none focus-visible:ring;
     }
 
-    .footer-item {
-        @apply hover:underline me-4 md:me-6;
+    .footer>* {
+        @apply text-font-secondary hover:underline me-4 md:me-6;
     }
 
     .skip-link {

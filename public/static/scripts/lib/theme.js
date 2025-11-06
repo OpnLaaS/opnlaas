@@ -45,7 +45,7 @@ export function changeDashboard() {
     } else if (currentPath === "/") {
         const navButton = document.getElementById("home");
         if (navButton) { 
-            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
+            navButton.classList.add("bg-background-secondary");
         }
         
     } else if (currentPath.includes("/login")) {
