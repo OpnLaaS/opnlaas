@@ -96,7 +96,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 ### **Feature 1 – User & Resource Dashboard**
 
 * As the System Architect, I want to provide a way to show and manage resources to facilitate user bookings and resource allocation.
-* As a Student, I want to easily view and book available resources for my projects.
+* As a Student, I want to view and book available resources so that I can get my projects deployed easily.
 * As a Researcher, I want to be able to reserve and manage computational resources for my projects.
 * As a Student, I want to deploy my projects on bare metal servers with minimal setup.
 * As a Student, I want to monitor the health and status of the bare metal servers I am using.
@@ -104,7 +104,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 ### **Feature 2 – Virtualization Integration**
 
 * As a System Architect, I want to integrate with Proxmox API to automate VM and container lifecycle management.
-* As a Student, I want to create, start, stop, and delete virtual machines easily.
+* As a Student, I want to create, start, stop, and delete virtual machines so that I have a dedicating system to run my project on.
 * As a Researcher, I want to manage virtualized environments for my computational tasks.
 * As a Student, I want to monitor the health and status of the virtual machines I am using.
 * As a Student, I want to deploy my projects on virtual machines with minimal setup.
@@ -112,7 +112,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 ### **Feature 3 – Bare Metal Provisioning**
 
 * As a System Architect, I want to integrate with IPMI and BMC interfaces for bare metal server management.
-* As a Student, I want to deploy my projects on bare metal servers with minimal setup.
+* As a Student, I want to use bare metal servers with minimal setup so that I don't have to deal with the technical parts of the underlying system.
 * As a Researcher, I want to monitor the health and status of the bare metal servers I am using.
 * As a Student, I want to monitor the health and status of the bare metal servers I am using.
 * As a Student, I want to access detailed hardware metrics and logs for troubleshooting.
@@ -120,7 +120,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 ### **Feature 4 – Monitoring and Logging**
 
 * As a System Architect, I want to be able to safely monitor and log system activities.
-* As a Student, I want to receive alerts for critical system events.
+* As a Student, I want to receive alerts for critical system events so that I know if anything happens to my project.
 * As a Researcher, I want centralized logs for troubleshooting and analysis.
 * As a Student, I want to access logs and alerts related to my resource usage.
 * As a Student, I want to be able to configure monitoring thresholds and alert preferences.
