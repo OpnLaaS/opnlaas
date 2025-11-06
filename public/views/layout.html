@@ -17,7 +17,7 @@
 </head>
 <!-- mb is temporary fix, the footer is hiding stuff at the bottom -->
 
-<body class="bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 antialiased overflow-x-hidden mb-25">
+<body class="bg-background-primary text-font-secondary antialiased overflow-x-hidden mb-25">
     <a href="#main" class="skip-link bg-sky-600 text-white rounded">Skip to content</a>
 
     <header
@@ -25,24 +25,16 @@
         <div class="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
             <a href="/" class="font-extrabold tracking-tight text-xl">OpnLaaS</a>
 
-            <nav aria-label="Primary" class="flex items-center gap-3">
-                <a href="/"
-                 id="home"
-                  class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring"  >Home</a>
+            <nav class="flex items-center gap-3 [&>a]:nav-item">
+                <a href="/" id="home">Home</a>
                 {{if not .LoggedIn}}
-                <a href="/login"
-                    class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring"
-                    id="login">Log
-                    In</a>
+                <a href="/login" id="login">Log In</a>
                 {{end}}
-                <a href="/dashboard"
-                    class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring" 
-                    id="dashboard" >Public
-                    Dashboard</a>
+                <a href="/dashboard" id="dashboard">Public Dashboard</a>
             </nav>
 
             <button id="theme-toggle"
-                class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring"
+                class="nav-item"
                 aria-label="Toggle color theme">
                 <span aria-hidden="true" id="theme-icon">🌙</span>
             </button>
@@ -52,7 +44,7 @@
     {{if .Error}}
     <div
         class="w-full max-w-2xl p-6 bg-white text-gray-900 rounded-xl shadow-md dark:bg-gray-900 dark:text-gray-100 mx-auto my-12">
-        <h1 class="text-3xl font-bold mb-4">A Critical Error Occurred:</h1>
+        <h1>A Critical Error Occurred:</h1>
         <p class="bg-red-100 text-red-700 p-3 rounded">{{.Error}}</p>
     </div>
     {{else}}
@@ -61,20 +53,21 @@
 
     <footer
         class="fixed bottom-0 left-0 z-20 w-full p-4 bg-white border-t border-gray-200 dark:border-gray-800 shadow-sm md:flex md:items-center md:justify-between md:p-6 dark:bg-gray-950">
-        <span class="text-sm text-gray-500 sm:text-center dark:text-gray-400"><a href="https://github.com.opnlaas/"
-                class="hover:underline">Source Code (GitHub)</a></span>
-        <ul class="flex flex-wrap items-center mt-3 text-sm font-medium text-gray-500 dark:text-gray-400 sm:mt-0">
+        <span class="text-sm text-gray-500 sm:text-center dark:text-gray-400">
+            <a href="https://github.com/opnlaas/opnlaas" target="_blank" class="hover:underline">Source Code (GitHub)</a>
+        </span>
+        <ul class="flex flex-wrap items-center mt-3 text-sm font-medium text-gray-500 dark:text-gray-400 sm:mt-0 [&>a]:footer-item">
             <li>
-                <a href="#" class="hover:underline me-4 md:me-6">About</a>
+                <a href="#">About</a>
             </li>
             <li>
-                <a href="#" class="hover:underline me-4 md:me-6">Privacy Policy</a>
+                <a href="#">Privacy Policy</a>
             </li>
             <li>
-                <a href="#" class="hover:underline me-4 md:me-6">Licensing</a>
+                <a href="#">Licensing</a>
             </li>
             <li>
-                <a href="#" class="hover:underline">Contact</a>
+                <a href="#">Contact</a>
             </li>
         </ul>
     </footer>
