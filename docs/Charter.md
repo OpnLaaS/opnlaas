@@ -55,13 +55,13 @@ OpnLaaS streamlines provisioning for both users and admins:
 
 * **Bio:** Student interested in networking programming looking to create a network communication protocol that will require multiple hosts on a network.
 * **Motivation:** wants to have control of multiple hosts on a network for testing with minimal setup.
-* **Goals:** enable users to easily create multiple hosts on a network that can communicate with eachother.
+* **Goals:** enable users to easily create multiple hosts on a network that can communicate with each other.
 
 ### **Persona 5 - Alex - Student**
 
-* **Bio:** A student who challenges a friend to create a better chess engine, Student who wants to learn to make a large scale project for the first time in a friendly competition with their friends. 
-* **Motivation:** Wants to test which of the engines are better by simulating many games against each other. 
-* **Goals:** Provide compute to students to simulate hundreds of chess games.
+* **Bio:** A chess coach who host their own chess engine to tests students. The engine is run locally to have full control and no one else can mess with it. 
+* **Motivation:** Want to monitor long term progress of their athletes. 
+* **Goals:** Provide compute to Coach to record statistics about each student their progress.
 
 ## 4. Epics and Features
 
@@ -99,7 +99,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to easily view and book available resources for my projects.
 * As a Researcher, I want to be able to reserve and manage computational resources for my projects.
 * As a Student, I want to deploy my projects on bare metal servers with minimal setup.
-* As a Student, I want to monitor the health and status of the bare metal servers I am using.
+* As a Chess Coach, I want to monitor the health and status of the bare metal servers I am using so that I can ensure uptime during ongoing training sessions.
 
 ### **Feature 2 – Virtualization Integration**
 
@@ -107,7 +107,8 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to create, start, stop, and delete virtual machines easily.
 * As a Researcher, I want to manage virtualized environments for my computational tasks.
 * As a Student, I want to monitor the health and status of the virtual machines I am using.
-* As a Student, I want to deploy my projects on virtual machines with minimal setup.
+* As a Chess Coach, I want to deploy my chess analysis tools on virtual machines with minimal setup so that I can quickly spin up testing environments for matches.
+
 
 ### **Feature 3 – Bare Metal Provisioning**
 
@@ -115,7 +116,9 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to deploy my projects on bare metal servers with minimal setup.
 * As a Researcher, I want to monitor the health and status of the bare metal servers I am using.
 * As a Student, I want to monitor the health and status of the bare metal servers I am using.
-* As a Student, I want to access detailed hardware metrics and logs for troubleshooting.
+* As a Chess Coach, I want to access detailed hardware metrics and logs for troubleshooting so that I can identify performance issues affecting simulations or training workloads.
+
+---
 
 ### **Feature 4 – Monitoring and Logging**
 
@@ -123,7 +126,9 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to receive alerts for critical system events.
 * As a Researcher, I want centralized logs for troubleshooting and analysis.
 * As a Student, I want to access logs and alerts related to my resource usage.
-* As a Student, I want to be able to configure monitoring thresholds and alert preferences.
+* As a Chess Coach, I want to configure monitoring thresholds and alerts so that I am notified when system resources are under heavy use during peak training times.
+
+
 
 ## 6. Product Backlog (GitLab)
 
