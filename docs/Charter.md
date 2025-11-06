@@ -51,11 +51,11 @@ OpnLaaS streamlines provisioning for both users and admins:
 * **Motivation:** Wants to be able to book resources to be used for approved personalized projects, additionally may need additional resources on-demand with control over the systems.  
 * **Goals:** Streamline ability for onboarded users to book hosts and provide interfaces in order to execute Redfish or IPMI commands on the allocated systems. 
 
-### **Persona 4 - Kestutis - Student**
+### **Persona 4 - Kestutis - Instructor**
 
 * **Bio:** Student interested in networking programming looking to create a network communication protocol that will require multiple hosts on a network.
 * **Motivation:** wants to have control of multiple hosts on a network for testing with minimal setup.
-* **Goals:** enable users to easily create multiple hosts on a network that can communicate with each other.
+* **Goals:** enable users to easily create multiple hosts on a network that can communicate with eachother.
 
 ### **Persona 5 - Alex - Student**
 
@@ -96,39 +96,34 @@ OpnLaaS streamlines provisioning for both users and admins:
 ### **Feature 1 – User & Resource Dashboard**
 
 * As the System Architect, I want to provide a way to show and manage resources to facilitate user bookings and resource allocation.
-* As a Student, I want to easily view and book available resources for my projects.
+* As a Student, I want to view and book available resources so that I can get my projects deployed easily.
 * As a Researcher, I want to be able to reserve and manage computational resources for my projects.
 * As a Student, I want to deploy my projects on bare metal servers with minimal setup.
-* As a Chess Coach, I want to monitor the health and status of the bare metal servers I am using so that I can ensure uptime during ongoing training sessions.
+* As a Student, I want to monitor the health and status of the bare metal servers I am using.
 
 ### **Feature 2 – Virtualization Integration**
 
 * As a System Architect, I want to integrate with Proxmox API to automate VM and container lifecycle management.
-* As a Student, I want to create, start, stop, and delete virtual machines easily.
+* As a Student, I want to create, start, stop, and delete virtual machines so that I have a dedicating system to run my project on.
 * As a Researcher, I want to manage virtualized environments for my computational tasks.
 * As a Student, I want to monitor the health and status of the virtual machines I am using.
-* As a Chess Coach, I want to deploy my chess analysis tools on virtual machines with minimal setup so that I can quickly spin up testing environments for matches.
-
+* As a Student, I want to deploy my projects on virtual machines with minimal setup.
 
 ### **Feature 3 – Bare Metal Provisioning**
 
 * As a System Architect, I want to integrate with IPMI and BMC interfaces for bare metal server management.
-* As a Student, I want to deploy my projects on bare metal servers with minimal setup.
+* As a Student, I want to use bare metal servers with minimal setup so that I don't have to deal with the technical parts of the underlying system.
 * As a Researcher, I want to monitor the health and status of the bare metal servers I am using.
 * As a Student, I want to monitor the health and status of the bare metal servers I am using.
-* As a Chess Coach, I want to access detailed hardware metrics and logs for troubleshooting so that I can identify performance issues affecting simulations or training workloads.
-
----
+* As a Student, I want to access detailed hardware metrics and logs for troubleshooting.
 
 ### **Feature 4 – Monitoring and Logging**
 
 * As a System Architect, I want to be able to safely monitor and log system activities.
-* As a Student, I want to receive alerts for critical system events.
+* As a Student, I want to receive alerts for critical system events so that I know if anything happens to my project.
 * As a Researcher, I want centralized logs for troubleshooting and analysis.
 * As a Student, I want to access logs and alerts related to my resource usage.
-* As a Chess Coach, I want to configure monitoring thresholds and alerts so that I am notified when system resources are under heavy use during peak training times.
-
-
+* As a Student, I want to be able to configure monitoring thresholds and alert preferences.
 
 ## 6. Product Backlog (GitLab)
 
