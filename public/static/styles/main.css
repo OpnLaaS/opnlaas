@@ -7,12 +7,14 @@
 @theme {
     /* Colors for page background/borders*/
     --color-background-primary: #ffffff;
-    --color-background-secondary: #f3f4f6;
+    --color-background-secondary: #f9fafb;
     --color-background-muted: #e5e7eb;
 
-    /*  */
-    --color-highlight-primary: #0053b9;
+    /* Accent color used throughout site */
+    --color-accent-primary: #0053b9;
+    --color-accent-secondary: #0065E0;
 
+    /* Colors for fonts/text */
     --color-font-primary: #030712;
     --color-font-secondary: #6b7280;
 }
@@ -28,7 +30,7 @@
             --color-background-secondary: #111827;
             --color-background-muted: #1f2937;
 
-            --color-highlight-primary: #0053b9;
+            --color-accent-primary: #0053b9;
 
             --color-font-primary: #f3f4f6;
             --color-font-secondary: #6b7280;
@@ -72,6 +74,16 @@
             @apply leading-7 text-lg [&:not(:first-child)]:mt-6;
         }
     }
+
+    /* Scrollbar style */
+    ::-webkit-scrollbar {
+        height: 10px;
+        width: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-background-muted);
+    }
 }
 
 /*
@@ -79,13 +91,27 @@
  */
 @layer components {
     .navbar>* {
-        @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-secondary focus:outline-none focus-visible:ring;
+        @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-muted focus:outline-none focus-visible:ring;
     }
 
     .footer>* {
-        @apply text-font-secondary hover:underline me-4 md:me-6;
+        @apply text-font-secondary text-sm hover:underline me-4 md:me-6;
     }
 
+    /* text input boxes */
+    .text-input {
+        @apply w-100 m-5;
+    }  
+
+    .text-input>label {
+        @apply text-sm font-medium;
+    }
+
+    .text-input>input {
+        @apply mt-1 block w-full border rounded-lg shadow-sm py-2.5 px-3 bg-background-primary placeholder-background-primary dark:bg-gray-800 border-background-muted;
+    }
+
+    /* Even's accessibility stuff?? */
     .skip-link {
         position: absolute;
         left: -999px;

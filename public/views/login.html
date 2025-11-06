@@ -7,42 +7,38 @@
     <!-- Login Card -->
     <div class="flex items-center justify-center h-fit">
         <div
-            class="max-w-lg w-full bg-white dark:bg-gray-900 p-10 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800">
+            class="max-w-lg w-full bg-background-secondary p-10 rounded-lg shadow-lg border border-background-muted">
             <div class="flex flex-col items-center">
-                <h1 class="mb-2 text-center">Log in</h1>
+                <h2 class="text-center">Log in</h2>
                 <p class="mb-4 text-center">Access your dashboard</p>
             </div>
 
-            {{if .LoginError}}
-            <div
-                class="bg-red-50 text-red-700 p-3 rounded-md border border-red-200 mb-4 dark:bg-red-900 dark:text-red-300 dark:border-red-700">
-                {{.LoginError}}
-            </div>
-            {{end}}
 
             <form method="post" action="/api/auth/login" class="space-y-5 flex flex-col items-center">
-                <div class="w-100">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-                    <input type="text" name="username"
-                        class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
-                        autocomplete="username" required>
+                {{if .LoginError}}
+                    <div
+                        class="w-100 bg-red-200 text-red-700 p-3 rounded-md border border-red-300 mb-4">
+                        {{.LoginError}}
+                    </div>
+                {{end}}
+                <div class="text-input">
+                    <label>Username</label>
+                    <input type="text" name="username" autocomplete="username" required>
                 </div>
-                <div class="w-100 m-5">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-                    <input type="password" name="password"
-                        class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
-                        autocomplete="current-password" required>
+                <div class="text-input">
+                    <label>Password</label>
+                    <input type="password" name="password" autocomplete="current-password" required>
                 </div>
 
-                <div class="w-100 m-5">
+                <div class="text-input">
                     <button type="submit"
-                        class="focus-ring w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition dark:bg-blue-500 dark:hover:bg-blue-600">
+                        class="w-full bg-accent-primary text-white py-2.5 rounded-lg font-medium hover:bg-accent-secondary cursor-pointer transition">
                         Sign In
                     </button>
                 </div>
             </form>
 
-            <p class="mt-4 text-xs text-gray-500 text-center">
+            <p class="mt-4 text-sm text-font-secondary text-center">
                 Having trouble? Contact an admin.
             </p>
         </div>
