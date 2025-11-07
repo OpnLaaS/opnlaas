@@ -13,7 +13,7 @@ function toggleRow(button) {
 
     if (isCollapsed) {
         container.classList.remove("max-h-0", "opacity-0");
-        container.classList.add("max-h-100", "opacity-100");
+        container.classList.add("h-max", "opacity-100");
         arrow.classList.add("rotate-180");
     } else {
         container.classList.add("max-h-0", "opacity-0");

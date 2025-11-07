@@ -1,341 +1,411 @@
-@config "../../../tailwind.config.js";
 @import "tailwindcss";
-
-@keyframes float {
-
-    0%,
-    100% {
-        transform: translateY(0)
-    }
-
-    50% {
-        transform: translateY(-6px)
-    }
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg)
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    * {
-        animation: none !important;
-        transition: none !important;
-        scroll-behavior: auto !important;
-    }
-}
-
-.skip-link {
-    position: absolute;
-    left: -999px;
-    top: auto;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-}
-
-.skip-link:focus {
-    left: 0;
-    top: 0;
-    width: auto;
-    height: auto;
-    padding: .5rem .75rem;
-    z-index: 50;
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* 
-.markdown-body {
-    background: transparent !important;
+ * Define custom colors for Tailwind
+ */
+@theme {
+    /* Colors for page background/borders*/
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f9fafb;
+    --color-background-muted: #e5e7eb;
+
+    /* Accent color used throughout site */
+    --color-accent-primary: #0053b9;
+    --color-accent-secondary: #0065E0;
+
+    /* Colors for fonts/text */
+    --color-font-primary: #030712;
+    --color-font-secondary: #374151;
+    --color-font-muted: #6b7280;
 }
 
-.markdown-body pre {
-    background: rgb(249 250 251) !important;
-    border: 1px solid rgb(229 231 235) !important;
-    border-radius: .75rem !important;
-    padding: 1rem !important;
-    max-height: none !important;
-    overflow: visible !important;
-    position: relative;
-    -webkit-overflow-scrolling: auto !important;
-    tab-size: 4;
-    line-height: 1.6;
+@layer theme {
+    :root,
+    :host {
+        /*
+         * Dark mode varient is based on .dark class
+         */
+        @variant dark {
+            /* NOTE: if the color is the same between thems you don't need to write it twice */
+            --color-background-primary: #030712;
+            --color-background-secondary: #111827;
+            --color-background-muted: #1f2937;
+
+
+            --color-font-primary: #f3f4f6;
+            --color-font-secondary: #d1d5db;
+            --color-font-muted: #6b7280;
+        }
+    }
 }
 
-.dark .markdown-body pre {
-    background: rgb(17 24 39) !important;
-    border-color: rgb(31 41 55) !important;
+/*
+ * Define default styling for elements
+ */
+@layer base {
+    * {
+        box-sizing: border-box;
+    }
+
+    html {
+        background-color: var(--color-background-primary);
+        overflow-x: hidden;
+
+        /* Font styling defaults */
+        color: var(--color-font-primary) !important;
+        font-family: Arial, sans-serif;
+        -webkit-text-size-adjust: 100%;
+        -webkit-font-smoothing: antialiased;
+        -ms-text-size-adjust: 100%;
+        -moz-osx-font-smoothing: grayscale;
+        font-synthesis: none !important;
+
+        h1 {
+            @apply scroll-m-20 text-4xl font-extrabold tracking-tight;
+        }
+
+        h2 {
+            @apply mt-10 scroll-m-20 pb-2 text-3xl font-semibold tracking-tight transition-colors first:mt-0;
+        }
+
+        h3 {
+            @apply mt-8 scroll-m-20 text-2xl font-semibold tracking-tight;
+        }
+
+        p, span {
+            @apply leading-7 text-lg [&:not(:first-child)]:mt-6;
+        }
+    }
+
+    /* Scrollbar style */
+    ::-webkit-scrollbar {
+        height: 10px;
+        width: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-background-muted);
+    }
 }
 
-.markdown-body pre {
-    margin: .5rem 0 !important;
-    background: rgba(0, 0, 0, 0.1) !important;
-    margin-bottom: 2.5rem !important;
+/*
+ * Define component classes
+ */
+@layer components {
+    /* Navbar/footer items */
+    .navbar>* {
+        @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-muted focus:outline-none
+    }
+
+    .footer>* {
+        @apply text-font-muted text-sm hover:underline me-4 md:me-6;
+    }
+
+    /* text input boxes */
+    .text-input {
+        @apply w-100 m-5;
+    }  
+
+    .text-input>label {
+        @apply text-sm font-medium;
+    }
+
+    .text-input>input {
+        @apply mt-1 block w-full border rounded-lg shadow-sm py-2.5 px-3 bg-background-primary placeholder-background-primary dark:bg-gray-800 border-background-muted;
+    }
+
+    /* .shell is a wrapper that forces stuff to be max-width? */
+    .shell {
+        @apply mx-auto max-w-5xl flex items-center justify-between;
+    }
+
+    /* Table utility classes */
+    .table-cell {
+        @apply px-4 py-3 border-b border-background-muted;
+    }
+
+    /* Even's accessibility stuff?? */
+    .skip-link {
+        position: absolute;
+        left: -999px;
+        top: auto;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+    }
+
+    .skip-link:focus {
+        left: 0;
+        top: 0;
+        width: auto;
+        height: auto;
+        padding: .5rem .75rem;
+        z-index: 50;
+    }
 }
 
-.markdown-body pre code,
-.markdown-body code.hljs {
-    display: block;
-    white-space: pre-wrap !important;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    background: transparent !important;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    color: inherit;
-} */
 
-/* --- Markdown + code: light & dark, no horizontal scroll --- */
-.markdown-body {
-    background: transparent !important;
-}
+/*
+ * Default styling for markdown content
+ */
+@layer markdown {
+    /*
+     * TODO: make this not suck as bad
+     */
 
-/* Typography harmonized with site */
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
-    color: inherit !important;
-    font-weight: 800;
-    line-height: 1.2;
-    scroll-margin-top: 6rem;
-}
+    /* --- Markdown + code: light & dark, no horizontal scroll --- */
+    .markdown-body {
+        background: transparent !important;
+    }
 
-.markdown-body h1 {
-    font-size: 2.25rem;
-    margin: 1.5rem 0 1rem 0;
-}
+    /* Typography harmonized with site */
+    .markdown-body h1,
+    .markdown-body h2,
+    .markdown-body h3,
+    .markdown-body h4,
+    .markdown-body h5,
+    .markdown-body h6 {
+        color: inherit !important;
+        font-weight: 800;
+        line-height: 1.2;
+        scroll-margin-top: 6rem;
+    }
 
-.markdown-body h2 {
-    font-size: 1.875rem;
-    margin: 1.25rem 0 .75rem 0;
-}
+    .markdown-body h1 {
+        font-size: 2.25rem;
+        margin: 1.5rem 0 1rem 0;
+    }
 
-.markdown-body h3 {
-    font-size: 1.5rem;
-    margin: 1rem 0 .5rem 0;
-}
+    .markdown-body h2 {
+        font-size: 1.875rem;
+        margin: 1.25rem 0 .75rem 0;
+    }
 
-.markdown-body p {
-    margin: .75rem 0;
-}
+    .markdown-body h3 {
+        font-size: 1.5rem;
+        margin: 1rem 0 .5rem 0;
+    }
 
-.markdown-body a {
-    color: rgb(2 132 199) !important;
-    text-decoration: underline;
-}
+    .markdown-body p {
+        margin: .75rem 0;
+    }
 
-.dark .markdown-body a {
-    color: rgb(56 189 248) !important;
-}
+    .markdown-body a {
+        color: rgb(2 132 199) !important;
+        text-decoration: underline;
+    }
 
-.markdown-body blockquote {
-    border-left: 4px solid rgb(125 211 252);
-    padding-left: .9rem;
-    margin: 1rem 0;
-    opacity: .9;
-}
+    .dark .markdown-body a {
+        color: rgb(56 189 248) !important;
+    }
 
-/* Code blocks: unified surfaces per theme (remove any older duplicate .markdown-body pre rules) */
-.markdown-body pre {
-    background: rgb(249 250 251) !important;
-    /* gray-50 */
-    border: 1px solid rgb(229 231 235) !important;
+    .markdown-body blockquote {
+        border-left: 4px solid rgb(125 211 252);
+        padding-left: .9rem;
+        margin: 1rem 0;
+        opacity: .9;
+    }
+
+    /* Code blocks: unified surfaces per theme (remove any older duplicate .markdown-body pre rules) */
+    .markdown-body pre {
+        background: rgb(249 250 251) !important;
+        /* gray-50 */
+        border: 1px solid rgb(229 231 235) !important;
+        /* gray-200 */
+        border-radius: .75rem !important;
+        padding: 1rem !important;
+        line-height: 1.6;
+        tab-size: 4;
+        max-height: none !important;
+        overflow-x: visible !important;
+        position: relative;
+    }
+
+    .dark .markdown-body pre {
+        background: rgb(17 24 39) !important;
+        /* gray-900 */
+        border-color: rgb(31 41 55) !important;
+        /* gray-800 */
+    }
+
+    /* Inline code + wrap long lines in blocks */
+    .markdown-body :not(pre)>code {
+        background: rgba(17, 24, 39, 0.04);
+        padding: .15rem .35rem;
+        border-radius: .375rem;
+    }
+
+    .dark .markdown-body :not(pre)>code {
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .markdown-body pre code,
+    .markdown-body code.hljs {
+        background: transparent !important;
+        display: block;
+        white-space: pre-wrap !important;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    /* ---------- Highlight.js token colors (LIGHT) ---------- */
+    .markdown-body .hljs {
+        color: rgb(51 65 85);
+    }
+
+    /* slate-700 */
+    .markdown-body .hljs-comment,
+    .markdown-body .hljs-quote {
+        color: rgb(100 116 139);
+    }
+
+    /* slate-500 */
+    .markdown-body .hljs-keyword,
+    .markdown-body .hljs-selector-tag,
+    .markdown-body .hljs-literal {
+        color: rgb(79 70 229);
+    }
+
+    /* indigo-600 */
+    .markdown-body .hljs-string,
+    .markdown-body .hljs-attr,
+    .markdown-body .hljs-template-variable {
+        color: rgb(5 150 105);
+    }
+
+    /* emerald-600 */
+    .markdown-body .hljs-title,
+    .markdown-body .hljs-section,
+    .markdown-body .hljs-name {
+        color: rgb(234 88 12);
+    }
+
+    /* orange-600 */
+    .markdown-body .hljs-variable,
+    .markdown-body .hljs-params {
+        color: rgb(190 18 60);
+    }
+
+    /* rose-700 */
+    .markdown-body .hljs-number,
+    .markdown-body .hljs-symbol,
+    .markdown-body .hljs-bullet {
+        color: rgb(2 132 199);
+    }
+
+    /* sky-600 */
+
+    /* ---------- Highlight.js token colors (DARK) ---------- */
+    .dark .markdown-body .hljs {
+        color: rgb(229 231 235);
+    }
+
     /* gray-200 */
-    border-radius: .75rem !important;
-    padding: 1rem !important;
-    line-height: 1.6;
-    tab-size: 4;
-    max-height: none !important;
-    overflow-x: visible !important;
-    position: relative;
-}
+    .dark .markdown-body .hljs-comment,
+    .dark .markdown-body .hljs-quote {
+        color: rgb(156 163 175);
+    }
 
-.dark .markdown-body pre {
-    background: rgb(17 24 39) !important;
-    /* gray-900 */
-    border-color: rgb(31 41 55) !important;
-    /* gray-800 */
-}
+    /* gray-400 */
+    .dark .markdown-body .hljs-keyword,
+    .dark .markdown-body .hljs-selector-tag,
+    .dark .markdown-body .hljs-literal {
+        color: rgb(96 165 250);
+    }
 
-/* Inline code + wrap long lines in blocks */
-.markdown-body :not(pre)>code {
-    background: rgba(17, 24, 39, 0.04);
-    padding: .15rem .35rem;
-    border-radius: .375rem;
-}
+    /* blue-400 */
+    .dark .markdown-body .hljs-string,
+    .dark .markdown-body .hljs-attr,
+    .dark .markdown-body .hljs-template-variable {
+        color: rgb(134 239 172);
+    }
 
-.dark .markdown-body :not(pre)>code {
-    background: rgba(255, 255, 255, 0.06);
-}
+    /* green-300 */
+    .dark .markdown-body .hljs-title,
+    .dark .markdown-body .hljs-section,
+    .dark .markdown-body .hljs-name {
+        color: rgb(253 186 116);
+    }
 
-.markdown-body pre code,
-.markdown-body code.hljs {
-    background: transparent !important;
-    display: block;
-    white-space: pre-wrap !important;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
+    /* orange-300 */
+    .dark .markdown-body .hljs-variable,
+    .dark .markdown-body .hljs-params {
+        color: rgb(248 113 113);
+    }
 
-/* ---------- Highlight.js token colors (LIGHT) ---------- */
-.markdown-body .hljs {
-    color: rgb(51 65 85);
-}
+    /* red-400 */
+    .dark .markdown-body .hljs-number,
+    .dark .markdown-body .hljs-symbol,
+    .dark .markdown-body .hljs-bullet {
+        color: rgb(147 197 253);
+    }
 
-/* slate-700 */
-.markdown-body .hljs-comment,
-.markdown-body .hljs-quote {
-    color: rgb(100 116 139);
-}
+    /* blue-300 */
 
-/* slate-500 */
-.markdown-body .hljs-keyword,
-.markdown-body .hljs-selector-tag,
-.markdown-body .hljs-literal {
-    color: rgb(79 70 229);
-}
+    /* Markdown List Elements */
+    .markdown-body ul, .markdown-body ol {
+        margin-left: 1.25rem;
+        margin-top: .5rem;
+        margin-bottom: .5rem;
+        padding-left: 1rem;
+    }
 
-/* indigo-600 */
-.markdown-body .hljs-string,
-.markdown-body .hljs-attr,
-.markdown-body .hljs-template-variable {
-    color: rgb(5 150 105);
-}
+    .markdown-body li + li {
+        margin-top: .25rem;
+    }
 
-/* emerald-600 */
-.markdown-body .hljs-title,
-.markdown-body .hljs-section,
-.markdown-body .hljs-name {
-    color: rgb(234 88 12);
-}
+    /* Markdown List Bullet Points */
+    .markdown-body ul li {
+        list-style-type: disc;
+    }
 
-/* orange-600 */
-.markdown-body .hljs-variable,
-.markdown-body .hljs-params {
-    color: rgb(190 18 60);
-}
+    .markdown-body ul ul li {
+        list-style-type: circle;
+    }
 
-/* rose-700 */
-.markdown-body .hljs-number,
-.markdown-body .hljs-symbol,
-.markdown-body .hljs-bullet {
-    color: rgb(2 132 199);
-}
+    .markdown-body ul ul ul li {
+        list-style-type: square;
+    }
 
-/* sky-600 */
+    .markdown-body ol {
+        list-style-type: decimal;
+    }
 
-/* ---------- Highlight.js token colors (DARK) ---------- */
-.dark .markdown-body .hljs {
-    color: rgb(229 231 235);
-}
+    /* Markdown Table */
+    .markdown-body table {
+        width: 100%;
+        overflow: auto;
+        display: block;
+        margin: 1.5rem 0;
+        border-collapse: collapse;
+        border-spacing: 0;
+        font-size: .875rem;
+        line-height: 1.6;
+    }
 
-/* gray-200 */
-.dark .markdown-body .hljs-comment,
-.dark .markdown-body .hljs-quote {
-    color: rgb(156 163 175);
-}
+    .markdown-body th {
+        font-weight: 600;
+        border-bottom: 2px solid rgb(229 231 235);
+        /* gray-200 */
+        padding: .5rem .75rem;
+        text-align: left;
+    }
 
-/* gray-400 */
-.dark .markdown-body .hljs-keyword,
-.dark .markdown-body .hljs-selector-tag,
-.dark .markdown-body .hljs-literal {
-    color: rgb(96 165 250);
-}
+    .dark .markdown-body th {
+        border-color: rgb(55 65 81);
+        /* gray-700 */
+    }
 
-/* blue-400 */
-.dark .markdown-body .hljs-string,
-.dark .markdown-body .hljs-attr,
-.dark .markdown-body .hljs-template-variable {
-    color: rgb(134 239 172);
-}
+    .markdown-body td {
+        border-bottom: 1px solid rgb(229 231 235);
+        /* gray-200 */
+        padding: .5rem .75rem;
+    }
 
-/* green-300 */
-.dark .markdown-body .hljs-title,
-.dark .markdown-body .hljs-section,
-.dark .markdown-body .hljs-name {
-    color: rgb(253 186 116);
-}
-
-/* orange-300 */
-.dark .markdown-body .hljs-variable,
-.dark .markdown-body .hljs-params {
-    color: rgb(248 113 113);
-}
-
-/* red-400 */
-.dark .markdown-body .hljs-number,
-.dark .markdown-body .hljs-symbol,
-.dark .markdown-body .hljs-bullet {
-    color: rgb(147 197 253);
-}
-
-/* blue-300 */
-
-/* Markdown List Elements */
-.markdown-body ul, .markdown-body ol {
-    margin-left: 1.25rem;
-    margin-top: .5rem;
-    margin-bottom: .5rem;
-    padding-left: 1rem;
-}
-
-.markdown-body li + li {
-    margin-top: .25rem;
-}
-
-/* Markdown List Bullet Points */
-.markdown-body ul li {
-    list-style-type: disc;
-}
-
-.markdown-body ul ul li {
-    list-style-type: circle;
-}
-
-.markdown-body ul ul ul li {
-    list-style-type: square;
-}
-
-.markdown-body ol {
-    list-style-type: decimal;
-}
-
-/* Markdown Table */
-.markdown-body table {
-    width: 100%;
-    overflow: auto;
-    display: block;
-    margin: 1.5rem 0;
-    border-collapse: collapse;
-    border-spacing: 0;
-    font-size: .875rem;
-    line-height: 1.6;
-}
-
-.markdown-body th {
-    font-weight: 600;
-    border-bottom: 2px solid rgb(229 231 235);
-    /* gray-200 */
-    padding: .5rem .75rem;
-    text-align: left;
-}
-
-.dark .markdown-body th {
-    border-color: rgb(55 65 81);
-    /* gray-700 */
-}
-
-.markdown-body td {
-    border-bottom: 1px solid rgb(229 231 235);
-    /* gray-200 */
-    padding: .5rem .75rem;
-}
-
-.dark .markdown-body td {
-    border-color: rgb(55 65 81);
-    /* gray-700 */
+    .dark .markdown-body td {
+        border-color: rgb(55 65 81);
+        /* gray-700 */
+    }
 }

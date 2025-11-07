@@ -39,19 +39,19 @@ export function changeDashboard() {
     if (currentPath.includes("/dashboard")) {
         const navButton = document.getElementById("dashboard");
         if (navButton) { 
-            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
+            navButton.classList.add("bg-background-muted");
         }
     
     } else if (currentPath === "/") {
         const navButton = document.getElementById("home");
         if (navButton) { 
-            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
+            navButton.classList.add("bg-background-muted");
         }
         
     } else if (currentPath.includes("/login")) {
         const navButton = document.getElementById("login");
         if (navButton) { 
-            navButton.classList.add("bg-gray-200", "dark:bg-white/20");
+            navButton.classList.add("bg-background-muted");
         }
     }
 }
