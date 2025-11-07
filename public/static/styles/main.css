@@ -16,7 +16,8 @@
 
     /* Colors for fonts/text */
     --color-font-primary: #030712;
-    --color-font-secondary: #6b7280;
+    --color-font-secondary: #374151;
+    --color-font-muted: #6b7280;
 }
 
 @layer theme {
@@ -26,14 +27,15 @@
          * Dark mode varient is based on .dark class
          */
         @variant dark {
+            /* NOTE: if the color is the same between thems you don't need to write it twice */
             --color-background-primary: #030712;
             --color-background-secondary: #111827;
             --color-background-muted: #1f2937;
 
-            --color-accent-primary: #0053b9;
 
             --color-font-primary: #f3f4f6;
-            --color-font-secondary: #6b7280;
+            --color-font-secondary: #d1d5db;
+            --color-font-muted: #6b7280;
         }
     }
 }
@@ -48,6 +50,7 @@
 
     html {
         background-color: var(--color-background-primary);
+        overflow-x: hidden;
 
         /* Font styling defaults */
         color: var(--color-font-primary) !important;
@@ -90,12 +93,13 @@
  * Define component classes
  */
 @layer components {
+    /* Navbar/footer items */
     .navbar>* {
-        @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-muted focus:outline-none focus-visible:ring;
+        @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-muted focus:outline-none
     }
 
     .footer>* {
-        @apply text-font-secondary text-sm hover:underline me-4 md:me-6;
+        @apply text-font-muted text-sm hover:underline me-4 md:me-6;
     }
 
     /* text input boxes */
@@ -109,6 +113,16 @@
 
     .text-input>input {
         @apply mt-1 block w-full border rounded-lg shadow-sm py-2.5 px-3 bg-background-primary placeholder-background-primary dark:bg-gray-800 border-background-muted;
+    }
+
+    /* .shell is a wrapper that forces stuff to be max-width? */
+    .shell {
+        @apply mx-auto max-w-5xl flex items-center justify-between;
+    }
+
+    /* Table utility classes */
+    .table-cell {
+        @apply px-4 py-3 border-b border-background-muted;
     }
 
     /* Even's accessibility stuff?? */

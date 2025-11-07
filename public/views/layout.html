@@ -21,7 +21,7 @@
 
     <header
         class="sticky top-0 z-40 bg-background-primary border-b border-background-muted">
-        <div class="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
+        <div class="py-4 shell">
             <h1 class="text-2xl">
                 <a href="/">OpnLaaS</a>
             </h1>
@@ -49,28 +49,32 @@
         <p class="bg-red-100 text-red-700 p-3 rounded">{{.Error}}</p>
     </div>
     {{else}}
-        {{embed}}
+        <main class="min-h-[87vh] shell">
+            {{embed}}
+        </main>
     {{end}}
 
     <footer
-        class="absolute bottom-0 left-0 z-20 w-full p-4 border-t bg-background-primary border-background-muted shadow-sm md:flex md:items-center md:justify-between md:p-6">
-        <span class="footer">
-            <a href="https://github.com/opnlaas/opnlaas" target="_blank" class="hover:underline">Source Code (GitHub)</a>
-        </span>
-        <ul class="flex flex-wrap items-center mt-3 sm:mt-0 footer">
-            <li>
-                <a href="#">About</a>
-            </li>
-            <li>
-                <a href="#">Privacy Policy</a>
-            </li>
-            <li>
-                <a href="#">Licensing</a>
-            </li>
-            <li>
-                <a href="#">Contact</a>
-            </li>
-        </ul>
+        class="w-full border-t bg-background-primary border-background-muted">
+        <div class="py-4 shell footer">
+            <span class="mr-max">
+                <a href="https://github.com/opnlaas/opnlaas" target="_blank" class="hover:underline">Source Code (GitHub)</a>
+            </span>
+            <ul class="flex flex-wrap items-center mt-3 sm:mt-0 footer">
+                <li>
+                    <a href="#">About</a>
+                </li>
+                <li>
+                    <a href="#">Privacy Policy</a>
+                </li>
+                <li>
+                    <a href="#">Licensing</a>
+                </li>
+                <li>
+                    <a href="#">Contact</a>
+                </li>
+            </ul>
+        </div>
     </footer>
 </body>
 
