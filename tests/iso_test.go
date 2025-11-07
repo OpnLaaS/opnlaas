@@ -8,7 +8,7 @@ import (
 
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
-	"github.com/opnlaas/opnlaas/iso"
+	"github.com/opnlaas/opnlaas/host/iso"
 )
 
 func TestISO(t *testing.T) {
