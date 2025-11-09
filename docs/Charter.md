@@ -57,7 +57,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 * **Motivation:** wants to have control of multiple hosts on a network for testing with minimal setup.
 * **Goals:** enable users to easily create multiple hosts on a network that can communicate with eachother.
 
-### **Persona 5 - Alex - Student**
+### **Persona 5 - Alex - Coach**
 
 * **Bio:** A chess coach who host their own chess engine to tests students. The engine is run locally to have full control and no one else can mess with it. 
 * **Motivation:** Want to monitor long term progress of their athletes. 
