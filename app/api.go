@@ -5,6 +5,8 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/opnlaas/opnlaas/auth"
@@ -35,6 +37,10 @@ func apiLogin(c *fiber.Ctx) (err error) {
 		}
 	}
 
+	if c.Query("no_redirect") == "1" {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
 	return c.Render("login", fiber.Map{
 		"Title":      "Login",
 		"LoginError": err.Error(),
@@ -42,7 +48,15 @@ func apiLogin(c *fiber.Ctx) (err error) {
 }
 
 func apiLogout(c *fiber.Ctx) (err error) {
-	c.ClearCookie("Authorization")
+	// Need to replace cookie rather than deleting it
+	// Some browsers do not clear cookies without a valid replacement
+	// To-Do: include unauthorization of user in the backend as the token is still valid, the client just looses it
+
+	c.Cookie(&fiber.Cookie{
+		Name:    "Authorization",
+		Value:   "",
+		Expires: time.Now().Add(-time.Hour),
+	})
 	return
 }
 
@@ -124,7 +138,7 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 
 	if existingHost, _ := db.Hosts.Select(body.ManagementIP); existingHost != nil {
 		err = fiber.NewError(fiber.StatusConflict, "host with the same management IP already exists")
-		return
+		return c.SendStatus(409)
 	}
 
 	newHost = &db.Host{
@@ -133,7 +147,7 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 	}
 
 	if newHost.Management, err = db.NewHostManagementClient(newHost); err != nil {
-		return
+		return c.SendStatus(500)
 	} else {
 		defer newHost.Management.Close()
 	}
@@ -163,22 +177,41 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		hostID         string = c.Params("management_ip")
 		powerActionStr string = c.Params("action")
 		powerAction    db.PowerAction
-		ok             bool
-		host           *db.Host
+		// ok             bool
+		host *db.Host
 	)
 
+	println("hi1")
+
 	if host, err = db.Hosts.Select(hostID); err != nil {
+		println("no1")
 		err = fiber.NewError(fiber.StatusInternalServerError, "failed to retrieve host")
 		return
 	} else if host == nil {
+		println("no2")
 		err = fiber.NewError(fiber.StatusNotFound, "host not found")
 		return
 	}
 
-	if powerAction, ok = db.PowerActionNameReverses[powerActionStr]; !ok {
-		err = fiber.NewError(fiber.StatusBadRequest, "invalid power action")
-		return
+	println("hi2")
+	println(powerActionStr)
+
+	powerActionInt, err := strconv.ParseInt(powerActionStr, 0, 16)
+
+	if err != nil {
+
+		return fiber.NewError(fiber.StatusInternalServerError, "bad power action")
 	}
+
+	powerAction = db.PowerAction(powerActionInt)
+
+	// if powerAction, ok = db.PowerActionNameReverses[powerActionStr]; !ok {
+	// 	println(powerAction)
+	// 	err = fiber.NewError(fiber.StatusBadRequest, "invalid power action")
+	// 	return
+	// }
+
+	println("hi3")
 
 	if host.Management == nil {
 		if host.Management, err = db.NewHostManagementClient(host); err != nil {

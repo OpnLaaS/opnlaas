@@ -4,32 +4,71 @@ export async function apiGet(URI, params) {
     let url = URL + URI;
 
     let response =  await (fetch (
-        url + new URLSearchParams(params).toString()
+        url + new URLSearchParams(params).toString(), {
+            credentials: 'include',
+        }
     ));
+
+    try {
+        var body = await response.json();
+    } catch {
+        var body = {};
+    }
 
     return {
         status_code: response.status,
-        body: await response.json()     
+        body: body
     };
 }
 
-export async function apiPost(URI, params) {
+export async function apiPostJSON(URI, params) {
     let url = URL + URI;
 
     let response =  await (fetch(
         url, {
+            credentials: 'include',
             method: "POST",
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },
-            body: params
+            body: params,
         }
     ));
 
+    try {
+        var body = await response.json();
+    } catch {
+        var body = {};
+    }
+
     return {
         status_code: response.status,
-        body: await response.json()
+        body: body
+    };
+}
+
+// To use when the type of the sent content is defined (ie FormData)
+export async function apiPostGeneric(URI, params) {
+    let url = URL + URI;
+
+    let response =  await (fetch(
+        url, {
+            credentials: 'include',
+            method: "POST",
+            body: params,
+        }
+    ));
+
+    try {
+        var body = await response.json();
+    } catch {
+        var body = {};
+    }
+
+    return {
+        status_code: response.status,
+        body: body
     };
 }
 
@@ -38,6 +77,7 @@ export async function apiDelete(URI, params) {
 
     let response = await (fetch(
         url, {
+            credentials: 'include',
             method: "DELETE",
             headers: {
             'Accept': 'application/json',
@@ -47,13 +87,14 @@ export async function apiDelete(URI, params) {
         }
     ));
 
+    try {
+        var body = await response.json();
+    } catch {
+        var body = {};
+    }
+
     return {
         status_code: response.status,
-        body: await response.json()
+        body: body
     };
 }
-
-// DELETE
-// window.apiPost = apiPost;
-// window.apiGet = apiGet;
-// window.apiDelete = apiDelete;
