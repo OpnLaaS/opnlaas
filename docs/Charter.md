@@ -101,7 +101,6 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As an Instructor, I want to monitor health and status of my students hosts so that it can be used for grading.
 * As a Chess Coach, I want to monitor the health and status of the bare metal servers I am using, so that I can ensure uptime during ongoing training sessions.
 
-
 ### **Feature 2 – Virtualization Integration**
 
 * As a System Architect, I want to integrate with Proxmox API to automate VM and container lifecycle management so that users can quickly deploy virtualized environments.
@@ -109,7 +108,6 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Researcher, I want to manage virtualized environments for my computational tasks so me and my team are able to access identical resources we have individual control over.
 * As an Instructor, I want to be able to easily create several virtual machines for low compute tasks so that i can make several lightweight hosts for classes.
 * As a Chess Coach, I want to deploy my chess analysis tools on virtual machines with minimal setup, so that I can quickly spin up testing environments for matches.
-
 
 ### **Feature 3 – Bare Metal Provisioning**
 
@@ -119,14 +117,13 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As an Instructor, I want to easily create bare metal hosts so that I can allow students to use them for assignments.
 * As a Chess Coach, I want to access detailed hardware metrics and logs for troubleshooting, so that I can identify performance issues affecting simulations or training workloads.
 
-
 ### **Feature 4 – Monitoring and Logging**
 
 * As a System Architect, I want to be able to safely monitor and log system activities so that I can ensure system integrity and troubleshoot issues.
 * As a Student, I want to receive alerts for critical system events so that I know if anything happens to my project.
 * As a Researcher, I want centralized logs for troubleshooting and analysis so my team can more efficiently create reports on experiments and ensure the systems running them are working as expected.
 * As an Instructor, I want to access logs and alerts related to my resource usage so that I can grade my students.
-* As a Student, I want to be able to configure monitoring thresholds and alert preferences.* As a Chess Coach, I want to configure monitoring thresholds and alerts, so that I am notified when system resources are under heavy use during peak training times.
+* As a Chess Coach, I want to configure monitoring thresholds and alerts, so that I am notified when system resources are under heavy use during peak training times.
 
 ## 6. Product Backlog (GitLab)
 
