@@ -99,7 +99,8 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to view and book available resources so that I can get my projects deployed easily.
 * As a Researcher, I want to be able to reserve and manage computational resources for my projects so I can focus on other aspects of my work instead of spending time manually setting up hosts.
 * As an Instructor, I want to monitor health and status of my students hosts so that it can be used for grading.
-* As a Student, I want to monitor the health and status of the bare metal servers I am using.
+* As a Chess Coach, I want to monitor the health and status of the bare metal servers I am using, so that I can ensure uptime during ongoing training sessions.
+
 
 ### **Feature 2 – Virtualization Integration**
 
@@ -107,7 +108,8 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to create, start, stop, and delete virtual machines so that I have a dedicating system to run my project on.
 * As a Researcher, I want to manage virtualized environments for my computational tasks so me and my team are able to access identical resources we have individual control over.
 * As an Instructor, I want to be able to easily create several virtual machines for low compute tasks so that i can make several lightweight hosts for classes.
-* As a Student, I want to deploy my projects on virtual machines with minimal setup.
+* As a Chess Coach, I want to deploy my chess analysis tools on virtual machines with minimal setup, so that I can quickly spin up testing environments for matches.
+
 
 ### **Feature 3 – Bare Metal Provisioning**
 
@@ -115,7 +117,8 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to use bare metal servers with minimal setup so that I don't have to deal with the technical parts of the underlying system.
 * As a Researcher, I want to be able to provision bare metal system so I am able to work on low level components of systems (such as network interface functions) that may be not be accessible in a virtualized environment.
 * As an Instructor, I want to easily create bare metal hosts so that I can allow students to use them for assignments.
-* As a Student, I want to access detailed hardware metrics and logs for troubleshooting.
+* As a Chess Coach, I want to access detailed hardware metrics and logs for troubleshooting, so that I can identify performance issues affecting simulations or training workloads.
+
 
 ### **Feature 4 – Monitoring and Logging**
 
@@ -123,7 +126,7 @@ OpnLaaS streamlines provisioning for both users and admins:
 * As a Student, I want to receive alerts for critical system events so that I know if anything happens to my project.
 * As a Researcher, I want centralized logs for troubleshooting and analysis so my team can more efficiently create reports on experiments and ensure the systems running them are working as expected.
 * As an Instructor, I want to access logs and alerts related to my resource usage so that I can grade my students.
-* As a Student, I want to be able to configure monitoring thresholds and alert preferences.
+* As a Student, I want to be able to configure monitoring thresholds and alert preferences.* As a Chess Coach, I want to configure monitoring thresholds and alerts, so that I am notified when system resources are under heavy use during peak training times.
 
 ## 6. Product Backlog (GitLab)
 
