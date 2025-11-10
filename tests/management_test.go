@@ -121,7 +121,7 @@ func TestRedfishManagementLong(t *testing.T) {
 
 	// Now power it off
 	t.Log("Powering off the host...")
-	if err = host.Management.SetPowerState(db.PowerStateOff, false); err != nil {
+	if err = host.Management.ResetPowerState(true); err != nil {
 		t.Fatalf("Failed to power off host %s: %v", host.ManagementIP, err)
 	}
 

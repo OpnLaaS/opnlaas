@@ -103,6 +103,15 @@ func (c *HostManagementClient) Close() {
 
 // ---------- POWER MANAGEMENT ----------
 
+func (c *HostManagementClient) redfishPrepareBoot() (err error) {
+	err = c.redfishPrimarySystem.SetBoot(redfish.Boot{
+		BootSourceOverrideTarget:  c.redfishPrimarySystem.Boot.BootSourceOverrideTarget,
+		BootSourceOverrideEnabled: redfish.OnceBootSourceOverrideEnabled,
+	})
+
+	return
+}
+
 func (c *HostManagementClient) redfishPowerState() PowerState {
 	switch c.redfishPrimaryChassis.PowerState {
 	case redfish.OnPowerState:
@@ -166,6 +175,10 @@ func (c *HostManagementClient) redfishSetPowerState(desiredState PowerState, for
 		return
 	}
 
+	if err = c.redfishPrepareBoot(); err != nil {
+		return
+	}
+
 	err = c.redfishPrimaryChassis.Reset(action)
 	return
 }
@@ -216,7 +229,11 @@ func (c *HostManagementClient) redfishResetPowerState(force bool) (err error) {
 		action = redfish.PowerCycleResetType
 	}
 
-	err = c.redfishPrimaryChassis.Reset(action)
+	if err = c.redfishPrepareBoot(); err != nil {
+		return
+	}
+
+	err = c.redfishPrimarySystem.Reset(action)
 	return
 }
 
