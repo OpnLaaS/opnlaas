@@ -100,12 +100,18 @@ StoredISOImage struct {
 
 -   Frontend:
     -   Users should have an easy way of selecting an operating system image (ISO) and creating a new VM from it.
-    -
+    -   app routes:
+        -   POST: /dashboard/vm/create
 -   Backend:
-    -   d
+    -   API should support getting current ISO images as well as adding new ones.
+    -   Should also allow authorized users to create a VM using post request.
+    -   api routes:
+        -   GET: /api/iso-images
+        -   POST: /api/iso-images
+        -   POST: /api/vm
 -   Integration:
     -   New VMs should automatically be deployed and visible from the dashboard.
-    -
+    -   Frontend should allow for use of all vm related api routes on the backend.
 
 **Story 2:** - As a Researcher, I want to edit my existing virtual machines, so that I can make changes to my projects as I go.
 
@@ -116,25 +122,22 @@ Tasks:
     _(Same as Story 1)_
 
 -   Frontend:
-    -   d
+    -   There should be an easy way for users to update the config of there existing VMs.
+    -   Next to each VM in the UI it should include the option to edit/delete a VM.
+    -   app routes:
+        -   POST: /dashboard/vm/update
 -   Backend:
-    -   d
+    -   Should check to make sure user is authorized, and VM that is being updated exists (you shouldn't be able to edit something that doesn't exist)
+    -   api routes:
+        -   PUT: /api/vm
 -   Integration:
-    -   d
+    -   Care needs to be taken when testing error handling for the backend. Problems could lead to breaking existing VMs which are in use.
 
 ## Data Models & API Spec
 
 Data models where included with each story as needed. Below is a overview of the API/structure of our application:
 
 ```go
-// Pages
-app.Static("/static", "./public/static")
-
-app.Get("/", showLanding)
-app.Get("/login", showLogin)
-app.Get("/logout", mustBeLoggedIn, showLogout)
-app.Get("/dashboard", showDashboard)
-
 // Auth API
 app.Post("/api/auth/login", apiLogin)
 app.Post("/api/auth/logout", mustBeLoggedIn, apiLogout)
