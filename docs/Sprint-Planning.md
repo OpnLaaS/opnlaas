@@ -68,11 +68,12 @@ Tasks:
     -   app routes:
         -   POST: /dashboard/create
 -   Backend:
-    -   d
+    -   Needs to add new hosts to the database.
+    -   Should authenticate users before allowing them to add new host resources.
     -   api routes:
         -   POST: /api/hosts
 -   Integration:
-    -   d
+    -   Testing should be done to ensure backend has proper error handling for bad inputs. (especially since there are many fields, some of which optional for each host)
 
 ### Feature 2: Virtualization Integration
 
@@ -80,26 +81,45 @@ Tasks:
 
 Tasks:
 
--   Data Model (Host Resource):
+-   Data Model (VM/ISO):
 
--   frontend:
+```go
+StoredISOImage struct {
+	Name         string           `gomysql:"name,primary,unique" json:"name"`
+	DistroName   string           `gomysql:"distro_name" json:"distro_name"`
+	Version      string           `gomysql:"version" json:"version"`
+	Size         int64            `gomysql:"size" json:"size"`
+	FullISOPath  string           `gomysql:"full_iso_path" json:"full_iso_path"`
+	KernelPath   string           `gomysql:"kernel_path" json:"kernel_path"`
+	InitrdPath   string           `gomysql:"initrd_path" json:"initrd_path"`
+	Architecture Architecture     `gomysql:"architecture" json:"architecture"`
+	DistroType   DistroType       `gomysql:"distro_type" json:"distro_type"`
+	PreConfigure PreConfigureType `gomysql:"preconfigure_type" json:"preconfigure_type"`
+}
+```
+
+-   Frontend:
+    -   Users should have an easy way of selecting an operating system image (ISO) and creating a new VM from it.
+    -
+-   Backend:
     -   d
--   backend:
-    -   d
--   integration:
-    -   d
+-   Integration:
+    -   New VMs should automatically be deployed and visible from the dashboard.
+    -
 
 **Story 2:** - As a Researcher, I want to edit my existing virtual machines, so that I can make changes to my projects as I go.
 
 Tasks:
 
--   Data Model (Host Resource):
+-   Data Model (VM/ISO):
 
--   frontend:
+    _(Same as Story 1)_
+
+-   Frontend:
     -   d
--   backend:
+-   Backend:
     -   d
--   integration:
+-   Integration:
     -   d
 
 ## Data Models & API Spec
@@ -146,9 +166,11 @@ app.Get("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesList)
 
 -   Feature 1: User & Resource Dashboard
     -   Dan McCarthy
-    -   .
+    -   Kestutis Biskis
 -   Feature 2: Virtualization Integration
-    -   .
+    -   Evan Parker
+    -   Matt Gee
+    -   Alex Houle
 
 ## Gitlab
 
