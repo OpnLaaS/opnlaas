@@ -177,11 +177,12 @@ func apiHostDelete(c *fiber.Ctx) (err error) {
 
 func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	var (
-		hostID         string = c.Params("management_ip")
-		powerActionStr string = c.Params("action")
-		powerActionInt int64
-		powerAction    db.PowerAction
-		host           *db.Host
+		hostID                string = c.Params("management_ip")
+		powerActionStr        string = c.Params("action")
+		powerActionInt        int64
+		powerAction           db.PowerAction
+		host                  *db.Host
+		hostCurrentPowerState db.PowerState
 	)
 
 	if host, err = db.Hosts.Select(hostID); err != nil {
@@ -206,12 +207,31 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		}
 	}
 
+	if hostCurrentPowerState, err = host.Management.PowerState(false); err != nil {
+		return
+	}
+
 	switch powerAction {
 	case db.PowerActionPowerOn:
+		if hostCurrentPowerState == db.PowerStateOn {
+			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power On)")
+			return
+		}
+
 		err = host.Management.SetPowerState(db.PowerStateOn, false)
 	case db.PowerActionGracefulShutdown:
+		if hostCurrentPowerState == db.PowerStateOff {
+			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power Off)")
+			return
+		}
+
 		err = host.Management.SetPowerState(db.PowerStateOff, false)
 	case db.PowerActionPowerOff:
+		if hostCurrentPowerState == db.PowerStateOff {
+			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power Off)")
+			return
+		}
+
 		err = host.Management.SetPowerState(db.PowerStateOff, true)
 	case db.PowerActionGracefulRestart:
 		err = host.Management.ResetPowerState(false)
