@@ -1,4 +1,4 @@
-import { URL } from "../lib/constants.js"
+import { URL } from "../lib/constants.js";
 
 /**
  * This should not be used outside of the api code, 

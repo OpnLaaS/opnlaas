@@ -10,5 +10,5 @@ export async function getIsoImages() {
 }
 
 export async function postIsoImage(isoImageFileData) {
-    return await apiPostJSON(known_uri.iso_images(), isoImageFileData)
+    return await apiPostJSON(known_uri.iso_images(), isoImageFileData);
 }

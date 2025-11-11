@@ -7,7 +7,7 @@
  *      instead write wrapper in api folder so behavior is consistent 
  */
 
-export * from './api_auth.js';
-export * from './api_enums.js';
-export * from './api_hosts.js';
-export * from './api_isos.js';
+export * from "./api_auth.js";
+export * from "./api_enums.js";
+export * from "./api_hosts.js";
+export * from "./api_isos.js";

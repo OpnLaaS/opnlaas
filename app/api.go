@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/opnlaas/opnlaas/auth"
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
@@ -148,6 +149,7 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 	}
 
 	if newHost.Management, err = db.NewHostManagementClient(newHost); err != nil {
+		log.Errorf("Failed to create management client for new host, internal error: %v", err.Error())
 		return c.SendStatus(500)
 	} else {
 		defer newHost.Management.Close()
@@ -177,6 +179,7 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	var (
 		hostID         string = c.Params("management_ip")
 		powerActionStr string = c.Params("action")
+		powerActionInt int64
 		powerAction    db.PowerAction
 		host           *db.Host
 	)
@@ -189,9 +192,7 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	powerActionInt, err := strconv.ParseInt(powerActionStr, 0, 16)
-
-	if err != nil {
+	if powerActionInt, err = strconv.ParseInt(powerActionStr, 0, 16); err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "bad power action")
 	}
 

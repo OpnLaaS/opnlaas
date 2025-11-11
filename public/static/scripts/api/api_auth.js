@@ -1,9 +1,9 @@
-import { apiPostGeneric, apiPostJSON } from "./util.js"
+import { apiPostGeneric, apiPostJSON } from "./util.js";
 
 const known_uri = {
     login: () => "/api/auth/login?",
     logout: () => "/api/auth/logout"
-}
+};
 
 export async function postLogin(username, password) {
 
