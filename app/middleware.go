@@ -21,8 +21,7 @@ func init() {
 	}
 }
 
-// TO DO - Add variation for api endpoints,
-
+// Separate api and routes middleware to have api return status code while routes redirects client
 func apiMustBeLoggedIn(c *fiber.Ctx) error {
 	if auth.IsAuthenticated(c, jwtSigningKey) == nil {
 		return c.SendStatus(401)

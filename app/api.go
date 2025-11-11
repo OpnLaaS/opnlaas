@@ -29,6 +29,7 @@ func apiLogin(c *fiber.Ctx) (err error) {
 				Value: token,
 			})
 
+			// "no_redirect" is used to prevent JS api errors and to keep api and form action URIs the same
 			if c.Query("no_redirect") == "1" {
 				return c.SendStatus(fiber.StatusOK)
 			}
@@ -51,6 +52,7 @@ func apiLogout(c *fiber.Ctx) (err error) {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 	auth.Logout(user.LDAPConn.Username)
 
+	// Must replace cookie as some browsers require a valid replacement before deletion
 	c.Cookie(&fiber.Cookie{
 		Name:    "Authorization",
 		Value:   "",
@@ -176,8 +178,7 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		hostID         string = c.Params("management_ip")
 		powerActionStr string = c.Params("action")
 		powerAction    db.PowerAction
-		// ok             bool
-		host *db.Host
+		host           *db.Host
 	)
 
 	if host, err = db.Hosts.Select(hostID); err != nil {
@@ -191,7 +192,6 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	powerActionInt, err := strconv.ParseInt(powerActionStr, 0, 16)
 
 	if err != nil {
-
 		return fiber.NewError(fiber.StatusInternalServerError, "bad power action")
 	}
 

@@ -1,5 +1,18 @@
 import { URL } from "../lib/constants.js"
 
+/**
+ * This should not be used outside of the api code, 
+ *  if an endpoint is added to the backed write a corresponding wrapper.
+ * 
+ * All functions follow the same IO structure:
+ * @param {*} URI - The URI endpoint to hit
+ * @param {*} params - Given params in the form of an object* (most of the time)
+ * @returns {
+ *  status_code: - HTTP Status code returned
+ *  body: the response body (JSON), can be null 
+ * }
+ */
+
 export async function apiGet(URI, params) {
     let url = URL + URI;
 
@@ -48,7 +61,8 @@ export async function apiPostJSON(URI, params) {
     };
 }
 
-// To use when the type of the sent content is defined (ie FormData)
+// To use when the type of the sent content is pre-defined and NOT JSON 
+//  (ie FormData for authentication)
 export async function apiPostGeneric(URI, params) {
     let url = URL + URI;
 
