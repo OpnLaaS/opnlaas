@@ -11,38 +11,43 @@
 ### Selected Stories
 
 -   Feature 1: User & Resource Dashboard
-    -   As a Researcher, I want to be able to reserve and manage computational resources for my projects so I can focus on other aspects of my work instead of spending time manually setting up hosts.
-    -   As a Student, I want to view and book available resources so that I can get my projects deployed easily.
+    -   As a System Architect, I want to be able to view existing resources, so that I can make sure systems are running correctly.
+    -   As a System Architect, I want to be able to add new resources so that I am able to update the system with new equipment.
 -   Feature 2: Virtualization Integration
-    -   As a System Architect, I want to integrate with Proxmox API to automate VM and container lifecycle management so that users can quickly deploy virtualized environments.
-    -   As an Instructor, I want to be able to easily create several virtual machines for low compute tasks so that i can make several lightweight hosts for classes.
+    -   As a Researcher, I want to create new virtual machines, so that I can run my projects.
+    -   As a Researcher, I want to edit my existing virtual machines, so that I can make changes to my projects as I go.
+    -   As a Researcher, I want to delete my virtual machines, so that I can free up resources when I finish my projects.
 
-### Story Decompisition
+### Story Decomposition
 
 #### Feature 1: User & Resource Dashboard
 
-**Story 1:** - As a Researcher, I want to be able to reserve and manage computational resources for my projects so I can focus on other aspects of my work instead of spending time manually setting up hosts.
+**Story 1:** - As a System Architect, I want to be able to view existing resources, so that I can make sure systems are running correctly.
 
 Tasks:
 
 -   frontend:
-    -   Dashboard needs to get current resouces from API and display them to users.
-    -   UI should
+    -   Dashboard needs to get current resources from API and display them to users.
+    -   UI should include details of each system, and wether the system is running or not.
     -   app routes:
         -   GET: /dashboard
 -   backend:
-    -   d
     -   Needs to get current resources from DB, and make that available to the frontend.
+    -   api routes:
+        -   GET: /
 -   integration:
+    -   Test should be created for the frontend to make sure resources are displayed correctly.
+    -
 
-    -   d
-
-**Story 2:** - As a Researcher, I want to be able to reserve and manage computational resources for my projects so I can focus on other aspects of my work instead of spending time manually setting up hosts.
+**Story 2:** - As a System Architect, I want to be able to add new resources so that I am able to update the system with new equipment.
 
 Tasks:
 
 -   frontend:
-    -   d
+    -   Dashboard should include an method to add a new host/resource.
+    -   This could be either a separate page or a modal on the dashboard.
+    -   app routes:
+        -   GET: /
 -   backend:
     -   d
 -   integration:
@@ -50,7 +55,7 @@ Tasks:
 
 #### Feature 2: Virtualization Integration
 
-**Story 1:** - As a System Architect, I want to integrate with Proxmox API to automate VM and container lifecycle management so that users can quickly deploy virtualized environments.
+**Story 1:** -
 
 Tasks:
 
@@ -61,7 +66,7 @@ Tasks:
 -   integration:
     -   d
 
-**Story 2:** - As an Instructor, I want to be able to easily create several virtual machines for low compute tasks so that i can make several lightweight hosts for classes.
+**Story 2:** -
 
 Tasks:
 
@@ -79,6 +84,7 @@ Tasks:
 ### Responsibilities
 
 -   Feature 1: User & Resource Dashboard
+    -   Dan McCarthy
     -   .
 -   Feature 2: Virtualization Integration
     -   .
