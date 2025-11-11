@@ -45,7 +45,7 @@ func TestRedfishManagementHosts(t *testing.T) {
 				defer host.Management.Close()
 			}
 
-			if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {
+			if host.LastKnownPowerState, err = host.Management.PowerState(false); err != nil {
 				t.Errorf("Failed to get Redfish power state for IP %s: %v", ip, err)
 				return
 			}
@@ -80,7 +80,6 @@ func TestRedfishManagementLong(t *testing.T) {
 
 	if !config.Config.Management.TestingRunLongManagement {
 		t.Skip("Skipping long Redfish management host tests as MGMT_TESTING_RUN_LONG_MGMT is not set to true.")
-
 	}
 
 	var (
@@ -99,7 +98,7 @@ func TestRedfishManagementLong(t *testing.T) {
 		defer host.Management.Close()
 	}
 
-	if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {
+	if host.LastKnownPowerState, err = host.Management.PowerState(false); err != nil {
 		t.Fatalf("Failed to get Redfish power state for IP %s: %v", host.ManagementIP, err)
 	}
 
@@ -112,25 +111,28 @@ func TestRedfishManagementLong(t *testing.T) {
 			t.Fatalf("Failed to power on host %s: %v", host.ManagementIP, err)
 		}
 
-		// Wait and verify
-		if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {
-			t.Fatalf("Host %s did not reach Power On state: %v", host.ManagementIP, err)
+		if err = host.Management.WaitSystemPowerState(db.PowerStateOn, 60); err != nil {
+			t.Fatalf("Host %s did not reach Power On state within timeout: %v", host.ManagementIP, err)
+		} else {
+			host.LastKnownPowerState = db.PowerStateOn
 		}
+
 		t.Log("Host powered on successfully.")
 	}
 
 	// Now power it off
 	t.Log("Powering off the host...")
-	if err = host.Management.ResetPowerState(true); err != nil {
+	if err = host.Management.SetPowerState(db.PowerStateOff, true); err != nil {
 		t.Fatalf("Failed to power off host %s: %v", host.ManagementIP, err)
 	}
 
 	// Wait and verify
-	if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {
-		t.Fatalf("Host %s did not reach Power Off state: %v", host.ManagementIP, err)
-	} else if host.LastKnownPowerState != db.PowerStateOff {
-		t.Fatalf("Host %s is not in Power Off state after power off command.", host.ManagementIP)
+	if err = host.Management.WaitSystemPowerState(db.PowerStateOff, 60); err != nil {
+		t.Fatalf("Host %s did not reach Power Off state within timeout: %v", host.ManagementIP, err)
+	} else {
+		host.LastKnownPowerState = db.PowerStateOff
 	}
 
+	t.Log("Host powered off successfully.")
 	t.Log("Completed long Redfish management host test.")
 }
