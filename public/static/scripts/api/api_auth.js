@@ -1,9 +1,4 @@
-import { apiPostGeneric, apiPostJSON } from "./util.js";
-
-const known_uri = {
-    login: () => "/api/auth/login?",
-    logout: () => "/api/auth/logout"
-};
+import { apiPostGeneric, apiPostJSON, known_uri } from "./util.js";
 
 export async function postLogin(username, password) {
 
@@ -12,11 +7,11 @@ export async function postLogin(username, password) {
     formData.append("password", password);
 
     return await apiPostGeneric(
-        known_uri.login() + new URLSearchParams("no_redirect=1"), 
+        known_uri.auth_login() + new URLSearchParams("no_redirect=1"), 
         formData,
     );
 }
 
 export async function postLogout() {
-    return await apiPostJSON(known_uri.logout());
+    return await apiPostJSON(known_uri.auth_logout());
 }

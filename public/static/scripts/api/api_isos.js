@@ -1,9 +1,4 @@
-import { apiGet, apiPostJSON } from "./util.js";
-
-const known_uri = {
-    iso_images: () => "/api/iso-images",
-};
-
+import { apiGet, apiPostJSON, known_uri } from "./util.js";
 
 export async function getIsoImages() {
     return await apiGet(known_uri.iso_images());
