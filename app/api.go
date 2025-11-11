@@ -211,8 +211,6 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	// 	return
 	// }
 
-	println("hi3")
-
 	if host.Management == nil {
 		if host.Management, err = db.NewHostManagementClient(host); err != nil {
 			return

@@ -1,4 +1,4 @@
-import { getPowerActions, getVendors } from './api_enums.js';
+import { getManagementTypes, getPowerActions, getVendors } from './api_enums.js';
 import { deleteHostByManagementIp, getHostsAll, getHostsByManagementIp, postHostCreate, postHostPowerControl } from './api_hosts.js';
 import { getIsoImages, postIsoImage } from './api_isos.js';
 import { postLogout, postLogin } from './api_auth.js';
@@ -22,3 +22,4 @@ window.postIsoImage = postIsoImage;
 window.deleteHost = deleteHostByManagementIp;
 window.postPowerAction = postHostPowerControl;
 window.getPowerAction = getPowerActions;
+window.getManagementTypes = getManagementTypes;
