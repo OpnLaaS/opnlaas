@@ -1,0 +1,34 @@
+<div class="relative w-full flex flex-col items-center justify-center text-center p-8 py-12 md:py-24">
+    <div class="w-60 h-auto a-auto overflow-hidden m-5 py-10">
+        <img id="logo-image" src="/static/img/logo.svg" alt="OpnLaaS Logo" class="object-contain w-full h-full logo-image">
+    </div>
+
+    <h2 class="text-3xl md:text-5xl font-extrabold text-font-primary">
+        Welcome to OpnLaaS
+    </h2>
+    <p class="max-w-2xl mt-4 text-lg md:text-xl text-font-secondary">
+        OpnLaaS (Open Lab as a Service) is an open-source platform designed to facilitate the deployment and management of bare metal servers, virtual machines, and LXC containers.
+    </p>
+    <p class="max-w-2xl mt-2 text-lg md:text-xl text-font-secondary">
+        Our platform provides a user-friendly interface for administrators and users to efficiently manage infrastructure for coursework, research, and experimentation.
+    </p>
+
+    <div class="mt-8 flex gap-4">
+        {{if .LoggedIn}}
+        <a href="/dashboard"
+            class="px-6 py-3 rounded-lg font-medium bg-accent-primary text-white hover:bg-accent-secondary transition-colors shadow-lg">
+            Go to Dashboard
+        </a>
+        {{else}}
+        <a href="/login"
+            class="px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 transition-colors shadow-lg">
+            Get Started
+        </a>
+        {{end}}
+        
+        <a href="https://github.com/opnlaas/opnlaas" target="_blank"
+            class="px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 transition-colors shadow-lg">
+            View on GitHub
+        </a>
+    </div>
+</div>

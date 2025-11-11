@@ -3,7 +3,14 @@ function setTheme(darkMode = true) {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
 
     const themeIcon = document.getElementById("theme-icon");
-    themeIcon.textContent = darkMode ? "☀️" : "🌙";
+    if (themeIcon) {
+        themeIcon.textContent = darkMode ? "☀️" : "🌙";
+    }
+
+    const logoImage = document.getElementById("logo-image");
+    if (logoImage) {
+        logoImage.src = darkMode ? "/static/img/logo-dark.svg" : "/static/img/logo.svg";
+    }
 }
 
 export default function initTheming() {
@@ -14,7 +21,9 @@ export default function initTheming() {
     }
 
     const toggle = document.getElementById("theme-toggle");
-    toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
+    if (toggle) {
+        toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
+    }
 
     const yearEl = document.getElementById("year");
     if (yearEl) {
