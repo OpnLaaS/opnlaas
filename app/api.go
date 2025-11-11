@@ -48,9 +48,8 @@ func apiLogin(c *fiber.Ctx) (err error) {
 }
 
 func apiLogout(c *fiber.Ctx) (err error) {
-	// Need to replace cookie rather than deleting it
-	// Some browsers do not clear cookies without a valid replacement
-	// To-Do: include unauthorization of user in the backend as the token is still valid, the client just looses it
+	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	auth.Logout(user.LDAPConn.Username)
 
 	c.Cookie(&fiber.Cookie{
 		Name:    "Authorization",
@@ -181,20 +180,13 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		host *db.Host
 	)
 
-	println("hi1")
-
 	if host, err = db.Hosts.Select(hostID); err != nil {
-		println("no1")
 		err = fiber.NewError(fiber.StatusInternalServerError, "failed to retrieve host")
 		return
 	} else if host == nil {
-		println("no2")
 		err = fiber.NewError(fiber.StatusNotFound, "host not found")
 		return
 	}
-
-	println("hi2")
-	println(powerActionStr)
 
 	powerActionInt, err := strconv.ParseInt(powerActionStr, 0, 16)
 
@@ -204,12 +196,6 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	}
 
 	powerAction = db.PowerAction(powerActionInt)
-
-	// if powerAction, ok = db.PowerActionNameReverses[powerActionStr]; !ok {
-	// 	println(powerAction)
-	// 	err = fiber.NewError(fiber.StatusBadRequest, "invalid power action")
-	// 	return
-	// }
 
 	if host.Management == nil {
 		if host.Management, err = db.NewHostManagementClient(host); err != nil {
