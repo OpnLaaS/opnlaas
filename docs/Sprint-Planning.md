@@ -104,7 +104,43 @@ Tasks:
 
 ## Data Models & API Spec
 
-Data models where included with each story as needed. Below is a overview of the API of our application:
+Data models where included with each story as needed. Below is a overview of the API/structure of our application:
+
+```go
+// Pages
+app.Static("/static", "./public/static")
+
+app.Get("/", showLanding)
+app.Get("/login", showLogin)
+app.Get("/logout", mustBeLoggedIn, showLogout)
+app.Get("/dashboard", showDashboard)
+
+// Auth API
+app.Post("/api/auth/login", apiLogin)
+app.Post("/api/auth/logout", mustBeLoggedIn, apiLogout)
+
+// Enums API
+app.Get("/api/enums/vendors", apiEnumsVendorNames)
+app.Get("/api/enums/form-factors", apiEnumsFormFactorNames)
+app.Get("/api/enums/management-types", apiEnumsManagementTypeNames)
+app.Get("/api/enums/power-states", apiEnumsPowerStateNames)
+app.Get("/api/enums/boot-modes", apiEnumsBootModeNames)
+app.Get("/api/enums/power-actions", apiEnumsPowerActionNames)
+app.Get("/api/enums/architectures", apiEnumsArchitectureNames)
+app.Get("/api/enums/distro-types", apiEnumsDistroTypeNames)
+app.Get("/api/enums/preconfigure-types", apiEnumsPreConfigureTypeNames)
+
+// Hosts API
+app.Get("/api/hosts", apiHostsAll)
+app.Get("/api/hosts/:management_ip", apiHostByManagementIP)
+app.Post("/api/hosts", mustBeLoggedIn, mustBeAdmin, apiHostCreate)
+app.Delete("/api/hosts/:management_ip", mustBeLoggedIn, mustBeAdmin, apiHostDelete)
+app.Post("/api/hosts/:management_ip/power/:action", mustBeLoggedIn, mustBeAdmin, apiHostPowerControl)
+
+// ISO Images API
+app.Post("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesCreate)
+app.Get("/api/iso-images", mustBeLoggedIn, mustBeAdmin, apiISOImagesList)
+```
 
 ## Responsibilities
 
