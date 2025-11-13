@@ -36,7 +36,9 @@ type Configuration struct {
 	}
 
 	ISOs struct {
-		SearchDir string `env:"ISOS_SEARCH_DIR,default=./isos"`
+		SearchDir   string `env:"ISOS_SEARCH_DIR,default=./iso_search"`
+		StorageDir  string `env:"ISOS_STORAGE_DIR,default=./isos"`
+		TestingISOs bool   `env:"ISOS_TESTING,default=false"`
 	}
 
 	WebServer struct {
@@ -50,8 +52,10 @@ type Configuration struct {
 		DefaultIPMIPass string `env:"MGMT_DEFAULT_IPMI_PASS,default=ipmiUserPassword"`
 
 		// Array values are separated with "|" in the .env file (e.g. LDAP_ADMIN_GROUPS=admins|laasAdmins)
-		TestingManagementIPs []string `env:"MGMT_TESTING_IPS,default="`
-		TestingRunManagement bool     `env:"MGMT_TESTING_RUN_MGMT,default=false"`
+		TestingManagementIPs     []string `env:"MGMT_TESTING_IPS,default="`
+		TestingRunManagement     bool     `env:"MGMT_TESTING_RUN_MGMT,default=false"`
+		TestingRunLongManagement bool     `env:"MGMT_TESTING_RUN_LONG_MGMT,default=false"`
+		TestingLongManagementIP  string   `env:"MGMT_TESTING_LONG_MGMT_IP,default="`
 	}
 
 	JWT struct {
@@ -81,6 +85,8 @@ func InitEnv(path string) error {
 	if err != nil {
 		return err
 	}
+
+	MustHelpfulHippo()
 
 	return nil
 }

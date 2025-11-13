@@ -1,12 +1,15 @@
-package hosts
+package db
 
 import (
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 	"github.com/z46-dev/go-logger"
 	"github.com/z46-dev/gomysql"
 )
 
-var Hosts *gomysql.RegisteredStruct[Host]
+var (
+	Hosts           *gomysql.RegisteredStruct[Host]
+	StoredISOImages *gomysql.RegisteredStruct[StoredISOImage]
+)
 
 func InitDB() (err error) {
 	var dbLog *logger.Logger = logger.NewLogger().SetPrefix("[DB]", logger.BoldGreen)
@@ -18,6 +21,11 @@ func InitDB() (err error) {
 
 	if Hosts, err = gomysql.Register(Host{}); err != nil {
 		dbLog.Errorf("Failed to register Host struct: %v\n", err)
+		return
+	}
+
+	if StoredISOImages, err = gomysql.Register(StoredISOImage{}); err != nil {
+		dbLog.Errorf("Failed to register StoredISOImage struct: %v\n", err)
 		return
 	}
 

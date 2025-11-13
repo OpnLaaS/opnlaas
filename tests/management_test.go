@@ -4,17 +4,17 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opnlaas/laas/config"
-	"github.com/opnlaas/laas/hosts"
+	"github.com/opnlaas/opnlaas/config"
+	"github.com/opnlaas/opnlaas/db"
 )
 
 func TestRedfishManagementHosts(t *testing.T) {
+	setup(t)
+	defer cleanup(t)
+
 	if !config.Config.Management.TestingRunManagement {
 		t.Skip("Skipping Redfish management host tests as MGMT_TESTING_RUN_MGMT is not set to true.")
 	}
-
-	setup(t)
-	defer cleanup(t)
 
 	t.Log("Testing Redfish management host functionality in parallel.")
 
@@ -32,18 +32,20 @@ func TestRedfishManagementHosts(t *testing.T) {
 
 			var (
 				err  error
-				host *hosts.Host = &hosts.Host{
+				host *db.Host = &db.Host{
 					ManagementIP:   ip,
-					ManagementType: hosts.ManagementTypeRedfish,
+					ManagementType: db.ManagementTypeRedfish,
 				}
 			)
 
-			if host.Management, err = hosts.NewHostManagementClient(host); err != nil {
+			if host.Management, err = db.NewHostManagementClient(host); err != nil {
 				t.Errorf("Failed to create HostManagementClient for IP %s: %v", ip, err)
 				return
+			} else {
+				defer host.Management.Close()
 			}
 
-			if host.LastKnownPowerState, err = host.Management.PowerState(); err != nil {
+			if host.LastKnownPowerState, err = host.Management.PowerState(false); err != nil {
 				t.Errorf("Failed to get Redfish power state for IP %s: %v", ip, err)
 				return
 			}
@@ -53,7 +55,7 @@ func TestRedfishManagementHosts(t *testing.T) {
 				return
 			}
 
-			t.Logf("Host %s - Power State: %s, System Model: %s\n", ip, host.LastKnownPowerState.String(), host.Model)
+			t.Logf("Host %s - Power State: %s, System Model: %s, System: %+v\n", ip, host.LastKnownPowerState.String(), host.Model, host)
 			totalHosts++
 			totalMemoryGB += host.Specs.Memory.SizeGB
 			totalCores += host.Specs.Processor.Cores
@@ -70,4 +72,67 @@ func TestRedfishManagementHosts(t *testing.T) {
 	t.Logf("Total Hosts Tested: %d", totalHosts)
 	t.Logf("Aggregate Specs - Memory: %d GB, CPU Cores: %d, CPU Threads: %d, Storage: %d GB",
 		totalMemoryGB, totalCores, totalThreads, totalStorageGB)
+}
+
+func TestRedfishManagementLong(t *testing.T) {
+	setup(t)
+	defer cleanup(t)
+
+	if !config.Config.Management.TestingRunLongManagement {
+		t.Skip("Skipping long Redfish management host tests as MGMT_TESTING_RUN_LONG_MGMT is not set to true.")
+	}
+
+	var (
+		err  error
+		host *db.Host = &db.Host{
+			ManagementIP:   config.Config.Management.TestingLongManagementIP,
+			ManagementType: db.ManagementTypeRedfish,
+		}
+	)
+
+	t.Logf("Starting long Redfish management host test on IP: %s", host.ManagementIP)
+
+	if host.Management, err = db.NewHostManagementClient(host); err != nil {
+		t.Fatalf("Failed to create HostManagementClient for IP %s: %v", host.ManagementIP, err)
+	} else {
+		defer host.Management.Close()
+	}
+
+	if host.LastKnownPowerState, err = host.Management.PowerState(false); err != nil {
+		t.Fatalf("Failed to get Redfish power state for IP %s: %v", host.ManagementIP, err)
+	}
+
+	t.Logf("Initial Power State: %s", host.LastKnownPowerState)
+
+	// Make sure it's on
+	if host.LastKnownPowerState != db.PowerStateOn {
+		t.Log("Powering on the host...")
+		if err = host.Management.SetPowerState(db.PowerStateOn, true); err != nil {
+			t.Fatalf("Failed to power on host %s: %v", host.ManagementIP, err)
+		}
+
+		if err = host.Management.WaitSystemPowerState(db.PowerStateOn, 60); err != nil {
+			t.Fatalf("Host %s did not reach Power On state within timeout: %v", host.ManagementIP, err)
+		} else {
+			host.LastKnownPowerState = db.PowerStateOn
+		}
+
+		t.Log("Host powered on successfully.")
+	}
+
+	// Now power it off
+	t.Log("Powering off the host...")
+	if err = host.Management.SetPowerState(db.PowerStateOff, true); err != nil {
+		t.Fatalf("Failed to power off host %s: %v", host.ManagementIP, err)
+	}
+
+	// Wait and verify
+	if err = host.Management.WaitSystemPowerState(db.PowerStateOff, 60); err != nil {
+		t.Fatalf("Host %s did not reach Power Off state within timeout: %v", host.ManagementIP, err)
+	} else {
+		host.LastKnownPowerState = db.PowerStateOff
+	}
+
+	t.Log("Host powered off successfully.")
+	t.Log("Completed long Redfish management host test.")
 }

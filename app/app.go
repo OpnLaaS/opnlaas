@@ -3,14 +3,14 @@ package app
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/template/html/v2"
-	"github.com/opnlaas/laas/config"
+	"github.com/opnlaas/opnlaas/config"
 )
 
-func StartApp() error {
+func CreateApp() (app *fiber.App) {
 	var templateEngine = html.New("./public/views", ".html")
 	templateEngine.Reload(config.Config.WebServer.ReloadTemplatesOnEachRender)
 
-	var app = fiber.New(fiber.Config{
+	app = fiber.New(fiber.Config{
 		Views: templateEngine,
 	})
 
@@ -19,16 +19,44 @@ func StartApp() error {
 
 	app.Get("/", showLanding)
 	app.Get("/login", showLogin)
-	app.Get("/logout", showLogout)
-	app.Get("/dashboard", mustBeLoggedIn, showDashboard)
+	app.Get("/logout", routesMustBeLoggedIn, showLogout)
+	app.Get("/dashboard", showDashboard)
 
-	// API
+	// Auth API
 	app.Post("/api/auth/login", apiLogin)
-	app.Post("/api/auth/logout", mustBeLoggedIn, apiLogout)
+	app.Post("/api/auth/logout", apiMustBeLoggedIn, apiLogout)
 
+	// Enums API
+	app.Get("/api/enums/vendors", apiEnumsVendorNames)
+	app.Get("/api/enums/form-factors", apiEnumsFormFactorNames)
+	app.Get("/api/enums/management-types", apiEnumsManagementTypeNames)
+	app.Get("/api/enums/power-states", apiEnumsPowerStateNames)
+	app.Get("/api/enums/boot-modes", apiEnumsBootModeNames)
+	app.Get("/api/enums/power-actions", apiEnumsPowerActionNames)
+	app.Get("/api/enums/architectures", apiEnumsArchitectureNames)
+	app.Get("/api/enums/distro-types", apiEnumsDistroTypeNames)
+	app.Get("/api/enums/preconfigure-types", apiEnumsPreConfigureTypeNames)
+
+	// Hosts API
+	app.Get("/api/hosts", apiHostsAll)
+	app.Get("/api/hosts/:management_ip", apiHostByManagementIP)
+	app.Post("/api/hosts", apiMustBeLoggedIn, apiMustBeAdmin, apiHostCreate)
+	app.Delete("/api/hosts/:management_ip", apiMustBeLoggedIn, apiMustBeAdmin, apiHostDelete)
+	app.Post("/api/hosts/:management_ip/power/:action", apiMustBeLoggedIn, apiMustBeAdmin, apiHostPowerControl)
+
+	// ISO Images API
+	app.Post("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesCreate)
+	app.Get("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesList)
+	return
+}
+
+func StartApp() (err error) {
+	var app *fiber.App = CreateApp()
 	if config.Config.WebServer.TlsDir != "" {
-		return app.ListenTLS(config.Config.WebServer.Address, config.Config.WebServer.TlsDir+"/fullchain.pem", config.Config.WebServer.TlsDir+"/privkey.pem")
+		err = app.ListenTLS(config.Config.WebServer.Address, config.Config.WebServer.TlsDir+"/fullchain.pem", config.Config.WebServer.TlsDir+"/privkey.pem")
+		return
 	}
 
-	return app.Listen(config.Config.WebServer.Address)
+	err = app.Listen(config.Config.WebServer.Address)
+	return
 }
