@@ -113,10 +113,10 @@ func TestContainerLifecycle(t *testing.T) {
 
 	t.Logf("successfully connected to container via SSH at %s\n", openIPs[0].String())
 
-	var output string
+	var output []byte
 	if _, output, err = conn.SendWithOutput("hostname"); err != nil {
 		t.Fatalf("failed to run hostname command in container: %v\n", err)
-	} else if strings.TrimSpace(conf.Hostname) != conf.Hostname {
+	} else if strings.TrimSpace(string(output)) != conf.Hostname {
 		t.Fatalf("unexpected hostname output: expected %s, got %s\n", conf.Hostname, output)
 	}
 

@@ -16,27 +16,49 @@ type SSHConnection struct {
 	auth     ssh.AuthMethod
 }
 
-func (conn *SSHConnection) Close() {
-	conn.session.Close()
-	conn.client.Close()
-}
-
-func (conn *SSHConnection) Send(command string) error {
-	return conn.session.Run(command)
-}
-
-func (conn *SSHConnection) SendWithOutput(command string) (int, string, error) {
-	output, err := conn.session.CombinedOutput(command)
-
-	if err != nil {
-		if exitErr, ok := err.(*ssh.ExitError); ok {
-			return exitErr.ExitStatus(), string(output), nil
-		}
-
-		return -1, string(output), err
+// If you've run a command and want to run another, you need to reset the session
+func (conn *SSHConnection) Reset() (err error) {
+	if err = conn.session.Close(); err != nil {
+		return
 	}
 
-	return 0, string(output), nil
+	conn.session, err = conn.client.NewSession()
+	return
+}
+
+func (conn *SSHConnection) Close() (err error) {
+	if err = conn.session.Close(); err != nil {
+		return
+	}
+
+	err = conn.client.Close()
+	return
+}
+
+func (conn *SSHConnection) Send(command string) (err error) {
+	err = conn.session.Run(command)
+	return
+}
+
+func (conn *SSHConnection) SendWithOutput(command string) (status int, output []byte, err error) {
+	if output, err = conn.session.CombinedOutput(command); err != nil {
+		var (
+			exitErr *ssh.ExitError
+			ok      bool
+		)
+
+		if exitErr, ok = err.(*ssh.ExitError); ok {
+			status = exitErr.ExitStatus()
+			err = nil
+			return
+		}
+
+		status = -1
+		return
+	}
+
+	status = 0
+	return
 }
 
 func WithPrivateKey(key []byte) ssh.AuthMethod {
@@ -50,6 +72,10 @@ func WithPrivateKey(key []byte) ssh.AuthMethod {
 	}
 
 	return ssh.PublicKeys(signer)
+}
+
+func WithPassword(password string) ssh.AuthMethod {
+	return ssh.Password(password)
 }
 
 func Connect(username, host string, port int, auth ssh.AuthMethod) (conn *SSHConnection, err error) {
@@ -77,19 +103,10 @@ func Connect(username, host string, port int, auth ssh.AuthMethod) (conn *SSHCon
 	return conn, nil
 }
 
-func (conn *SSHConnection) Reset() (err error) {
-	conn.session.Close()
-
-	conn.session, err = conn.client.NewSession()
-	return
-}
-
 func ConnectOnceReadyWithRetry(username, host string, port int, auth ssh.AuthMethod, retries int) (conn *SSHConnection, err error) {
 	if err = WaitOnline(host); err != nil {
 		return
 	}
-
-	fmt.Println("Host is online, attempting SSH connection...")
 
 	for i := range retries {
 		err = nil
