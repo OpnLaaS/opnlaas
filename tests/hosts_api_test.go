@@ -3,7 +3,6 @@ package tests
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -160,56 +159,5 @@ func TestHostsAPI(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestHostsAdditionKinda(t *testing.T) {
-	// t.Skip("Skip due to being a debug development test")
-
-	var err error
-
-	if err = config.InitEnv("../.env"); err != nil {
-		t.Fatalf("Failed to load .env: %v", err)
-	}
-
-	if config.Config.Management.TestingRunManagement {
-		if len(config.Config.Management.TestingManagementIPs) == 0 {
-			t.Fatalf("No management IPs configured in test.env")
-		} else if strings.TrimSpace(config.Config.Management.TestingManagementIPs[0]) == "" {
-			t.Fatalf("First management IP is empty in test.env")
-		}
-	}
-
-	config.Config.Database.File = fmt.Sprintf("../%s", config.Config.Database.File)
-	if err = db.InitDB(); err != nil {
-		t.Fatalf("Failed to initialize DB: %v", err)
-	}
-
-	var app *fiber.App = setupAppServer(t)
-	defer cleanupAppServer(t, app)
-
-	auth.AddUserInjection("alice", "alice", auth.AuthPermsAdministrator)
-	for _, ip := range config.Config.Management.TestingManagementIPs {
-		var (
-			newHost *db.Host = &db.Host{ManagementIP: ip, ManagementType: db.ManagementTypeRedfish}
-			user    string   = "alice"
-		)
-
-		if cookies, err := loginAndGetCookies(t, user, user); err != nil {
-			t.Fatalf("Failed to login as %s: %v", user, err)
-		} else {
-			if status, resp, err := makeHTTPPostRequest(t, fmt.Sprintf("http://%s/api/hosts", config.Config.WebServer.Address), func() string {
-				if str, err := json.Marshal(newHost); err != nil {
-					t.Fatalf("Failed to marshal new host JSON: %v", err)
-					return ""
-				} else {
-					return string(str)
-				}
-			}(), cookies); err != nil {
-				t.Fatalf("Failed to create host: %v", err)
-			} else if status != fiber.StatusOK {
-				t.Fatalf("Expected status %d, got %d: %s", fiber.StatusOK, status, resp)
-			}
-		}
 	}
 }
