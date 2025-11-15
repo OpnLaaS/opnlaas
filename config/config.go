@@ -54,6 +54,22 @@ type Configuration struct {
 		TestingRunManagement bool     `env:"MGMT_TESTING_RUN_MGMT,default=false"`
 	}
 
+	Proxmox struct {
+		Enabled bool   `env:"PROXMOX_ENABLED,default=false"`
+		Host    string `env:"PROXMOX_HOST,default=proxmox.local"`
+		Port    string `env:"PROXMOX_PORT,default=8006"`
+		TokenID string `env:"PROXMOX_API_TOKEN_ID,default=root@pam!laas-api-token"`
+		Secret  string `env:"PROXMOX_API_TOKEN_SECRET,default=supersecretproxmoxapitokensecret"`
+
+		Testing struct {
+			Enabled        bool   `env:"PROXMOX_TESTING_ENABLED,default=false"`
+			Subnet         string `env:"PROXMOX_TESTING_SUBNET,default=10.255.255.0/24"`
+			Storage        string `env:"PROXMOX_TESTING_STORAGE,default=local-lvm"`
+			UbuntuTemplate string `env:"PROXMOX_TESTING_UBUNTU_TEMPLATE,default=local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"`
+			
+		}
+	}
+
 	JWT struct {
 		Secret string `env:"JWT_SECRET,required=true"`
 	}
