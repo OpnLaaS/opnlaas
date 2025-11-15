@@ -89,6 +89,8 @@ func ConnectOnceReadyWithRetry(username, host string, port int, auth ssh.AuthMet
 		return
 	}
 
+	fmt.Println("Host is online, attempting SSH connection...")
+
 	for i := range retries {
 		err = nil
 		if conn, err = Connect(username, host, port, auth); err == nil {

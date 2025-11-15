@@ -70,6 +70,9 @@ type Configuration struct {
 			Subnet         string `env:"PROXMOX_TESTING_SUBNET,default=10.255.255.0/24"`
 			Storage        string `env:"PROXMOX_TESTING_STORAGE,default=local-lvm"`
 			UbuntuTemplate string `env:"PROXMOX_TESTING_UBUNTU_TEMPLATE,default=local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"`
+			Gateway        string `env:"PROXMOX_TESTING_GATEWAY,default=10.0.0.1"`
+			DNS            string `env:"PROXMOX_TESTING_DNS,default=10.0.0.2"`
+			SearchDomain   string `env:"PROXMOX_TESTING_SEARCH_DOMAIN,default=local"`
 		}
 	}
 

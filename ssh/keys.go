@@ -19,16 +19,7 @@ func readFileHelper(path string) (data string, err error) {
 	return string(fileData), nil
 }
 
-func CreateSSHKeyPair(directory string) (pub, priv string, err error) {
-	if _, err = os.Stat(directory); !os.IsNotExist(err) {
-		err = os.ErrExist
-		return
-	} else {
-		if err = os.MkdirAll(directory, 0755); err != nil {
-			return
-		}
-	}
-
+func CreateSSHKeyPair() (pub, priv string, err error) {
 	var (
 		privateKey     *rsa.PrivateKey
 		publicKey      ssh.PublicKey
@@ -40,7 +31,7 @@ func CreateSSHKeyPair(directory string) (pub, priv string, err error) {
 		return
 	}
 
-	if privateKeyFile, err = os.Create(directory + "/id_rsa"); err != nil {
+	if privateKeyFile, err = os.Create(os.TempDir() + "/id_rsa"); err != nil {
 		return
 	}
 
@@ -63,15 +54,15 @@ func CreateSSHKeyPair(directory string) (pub, priv string, err error) {
 		return
 	}
 
-	if err = os.WriteFile(directory+"/id_rsa.pub", ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
+	if err = os.WriteFile(os.TempDir()+"/id_rsa.pub", ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
 		return
 	}
 
-	if pub, err = readFileHelper(directory + "/id_rsa.pub"); err != nil {
+	if pub, err = readFileHelper(os.TempDir() + "/id_rsa.pub"); err != nil {
 		return
 	}
 
-	if priv, err = readFileHelper(directory + "/id_rsa"); err != nil {
+	if priv, err = readFileHelper(os.TempDir() + "/id_rsa"); err != nil {
 		return
 	}
 
