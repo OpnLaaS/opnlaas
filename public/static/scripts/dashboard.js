@@ -140,3 +140,16 @@ function cleanSku(manufacturer, sku) {
 
 
 window.toggleItem = toggleItem;
+
+
+const addHostBtn = document.getElementById("addHostBtn")
+const addHostForm = document.getElementById("newHostForm")
+function hideForm() {
+    if (newHostForm.classList.contains("hidden")) {
+        newHostForm.classList.remove("hidden");
+    } else {
+        newHostForm.classList.add("hidden")
+    }
+}
+
+addHostBtn.addEventListener('click', hideForm)

@@ -1,4 +1,43 @@
 <div class="py-6 md:py-8 w-full">
+    {{if .IsAdmin}}
+    <div id="newHost" class="pb-10">
+        <button id="addHostBtn"
+            class="my-6 bg-background-secondary hover:bg-background-muted border border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition">
+            + Add New Host
+        </button>
+
+        <!-- TODO: Is this in use? -->
+        <div id="newHostForm" class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary">
+            <a class="font-bold text-2      xl strong">New Host</a>
+            <form id="hostForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Management IPv4</label>
+                    <input type="text" name="managementAddress" required
+                        class="focus-ring mt-1 block w-full border border-background-muted  rounded-lg shadow-sm py-2 px-3 placeholder-gray-400"
+                        placeholder="0.0.0.0">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Management Type</label>
+                    <select name="managementType" required
+                        class="focus-ring mt-1 block w-full border border-background-muted  rounded-lg shadow-sm py-2 px-3 placeholder-gray-400">
+                        <option value="ipmi">IPMI</option>
+                        <option value="redfish">Redfish</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button type="submit"
+                        class="focus-ring bg-background-muted hover:bg-background-secondary text-font-secondary  py-2 px-4 rounded-lg font-medium  transition">
+                        Add Host
+                    </button>
+                    <button type="button" id="cancelHostBtn"
+                        class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {{end}}
     <div class="flex items-center justify-between mb-4">
         <h2>Hosts</h2>
     </div>
@@ -34,7 +73,7 @@
             <div class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
                 <div class="px-6 pt-3 pb-5 border-t border-background-muted">
 
-                   <div class="py-3">
+                    <div class="py-3">
                         <span class="m-3 h-20">
                             <span class="opacity-70">IP: </span>
                             <span data-field="ip"></span>
