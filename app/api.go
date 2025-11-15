@@ -5,8 +5,11 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/opnlaas/opnlaas/auth"
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
@@ -27,12 +30,17 @@ func apiLogin(c *fiber.Ctx) (err error) {
 				Value: token,
 			})
 
+			// "no_redirect" is used to prevent JS api errors and to keep api and form action URIs the same
 			if c.Query("no_redirect") == "1" {
 				return c.SendStatus(fiber.StatusOK)
 			}
 
 			return c.Redirect("/dashboard")
 		}
+	}
+
+	if c.Query("no_redirect") == "1" {
+		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
 	return c.Render("login", fiber.Map{
@@ -42,7 +50,15 @@ func apiLogin(c *fiber.Ctx) (err error) {
 }
 
 func apiLogout(c *fiber.Ctx) (err error) {
-	c.ClearCookie("Authorization")
+	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	auth.Logout(user.LDAPConn.Username)
+
+	// Must replace cookie as some browsers require a valid replacement before deletion
+	c.Cookie(&fiber.Cookie{
+		Name:    "Authorization",
+		Value:   "",
+		Expires: time.Now().Add(-time.Hour),
+	})
 	return
 }
 
@@ -124,7 +140,7 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 
 	if existingHost, _ := db.Hosts.Select(body.ManagementIP); existingHost != nil {
 		err = fiber.NewError(fiber.StatusConflict, "host with the same management IP already exists")
-		return
+		return c.SendStatus(409)
 	}
 
 	newHost = &db.Host{
@@ -133,7 +149,8 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 	}
 
 	if newHost.Management, err = db.NewHostManagementClient(newHost); err != nil {
-		return
+		log.Errorf("Failed to create management client for new host, internal error: %v", err.Error())
+		return c.SendStatus(500)
 	} else {
 		defer newHost.Management.Close()
 	}
@@ -160,11 +177,12 @@ func apiHostDelete(c *fiber.Ctx) (err error) {
 
 func apiHostPowerControl(c *fiber.Ctx) (err error) {
 	var (
-		hostID         string = c.Params("management_ip")
-		powerActionStr string = c.Params("action")
-		powerAction    db.PowerAction
-		ok             bool
-		host           *db.Host
+		hostID                string = c.Params("management_ip")
+		powerActionStr        string = c.Params("action")
+		powerActionInt        int64
+		powerAction           db.PowerAction
+		host                  *db.Host
+		hostCurrentPowerState db.PowerState
 	)
 
 	if host, err = db.Hosts.Select(hostID); err != nil {
@@ -175,10 +193,11 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	if powerAction, ok = db.PowerActionNameReverses[powerActionStr]; !ok {
-		err = fiber.NewError(fiber.StatusBadRequest, "invalid power action")
-		return
+	if powerActionInt, err = strconv.ParseInt(powerActionStr, 0, 16); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "bad power action")
 	}
+
+	powerAction = db.PowerAction(powerActionInt)
 
 	if host.Management == nil {
 		if host.Management, err = db.NewHostManagementClient(host); err != nil {
@@ -188,12 +207,31 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		}
 	}
 
+	if hostCurrentPowerState, err = host.Management.PowerState(false); err != nil {
+		return
+	}
+
 	switch powerAction {
 	case db.PowerActionPowerOn:
+		if hostCurrentPowerState == db.PowerStateOn {
+			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power On)")
+			return
+		}
+
 		err = host.Management.SetPowerState(db.PowerStateOn, false)
 	case db.PowerActionGracefulShutdown:
+		if hostCurrentPowerState == db.PowerStateOff {
+			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power Off)")
+			return
+		}
+
 		err = host.Management.SetPowerState(db.PowerStateOff, false)
 	case db.PowerActionPowerOff:
+		if hostCurrentPowerState == db.PowerStateOff {
+			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power Off)")
+			return
+		}
+
 		err = host.Management.SetPowerState(db.PowerStateOff, true)
 	case db.PowerActionGracefulRestart:
 		err = host.Management.ResetPowerState(false)
