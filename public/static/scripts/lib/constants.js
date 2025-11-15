@@ -1,0 +1,1 @@
+export const URL = `${location.protocol}//${location.host}`;

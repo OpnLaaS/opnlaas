@@ -3,14 +3,17 @@ function setTheme(darkMode = true) {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
     
     const themeIcon = document.getElementById("theme-icon");
-    themeIcon.textContent = darkMode ? "☀️" : "🌙";
+    if (themeIcon) {
+        themeIcon.textContent = darkMode ? "☀️" : "🌙";
+    }
 
     const logoImage = document.getElementById("logo-image");
     if (logoImage) {
-        logoImage.src = darkMode ? "/static/img/logo_dark.png" : "/static/img/logo_light.png";
+        logoImage.src = darkMode ? "/static/img/logo-dark.svg" : "/static/img/logo.svg";
     }
 }
-export default function initTheming() {
+
+export function initTheming() {
     if (localStorage.getItem("theme")) {
         setTheme(localStorage.getItem("theme") === "dark");
     } else {
@@ -18,10 +21,37 @@ export default function initTheming() {
     }
 
     const toggle = document.getElementById("theme-toggle");
-    toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
+    if (toggle) {
+        toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
+    }
 
     const yearEl = document.getElementById("year");
     if (yearEl) {
         yearEl.textContent = new Date().getFullYear().toString();
+    }
+    changeDashboard();
+}
+
+export function changeDashboard() {
+    var currentPath = location.pathname;
+    console.log("Current location:", currentPath);
+    
+    if (currentPath.includes("/dashboard")) {
+        const navButton = document.getElementById("dashboard");
+        if (navButton) {
+            navButton.classList.add("bg-background-muted");
+        }
+    
+    } else if (currentPath === "/") {
+        const navButton = document.getElementById("home");
+        if (navButton) {
+            navButton.classList.add("bg-background-muted");
+        }
+        
+    } else if (currentPath.includes("/login")) {
+        const navButton = document.getElementById("login");
+        if (navButton) {
+            navButton.classList.add("bg-background-muted");
+        }
     }
 }

@@ -1,4 +1,4 @@
-package hosts
+package db
 
 import (
 	"encoding/json"
@@ -10,18 +10,24 @@ import (
 )
 
 type (
-	VendorID       int
-	FormFactor     int
-	ManagementType int
-	PowerState     int
-	BootMode       int
-	PowerAction    int
+	VendorID         int
+	FormFactor       int
+	ManagementType   int
+	PowerState       int
+	BootMode         int
+	PowerAction      int
+	Architecture     string
+	DistroType       int
+	PreConfigureType int
 
 	HostCPUSpecs struct {
-		Sku     string `json:"sku"`
-		Count   int    `json:"count"`
-		Cores   int    `json:"cores"`
-		Threads int    `json:"threads"`
+		Manufacturer string `json:"manufacturer"`
+		Sku          string `json:"sku"`
+		Count        int    `json:"count"`
+		Cores        int    `json:"cores"`
+		Threads      int    `json:"threads"`
+		BaseSpeedMHz int    `json:"base_speed_mhz"`
+		MaxSpeedMHz  int    `json:"max_speed_mhz"`
 	}
 
 	HostMemorySpecs struct {
@@ -65,6 +71,19 @@ type (
 		Specs               HostSpecs             `gomysql:"specs" json:"specs"`
 		Management          *HostManagementClient `json:"-"`
 	}
+
+	StoredISOImage struct {
+		Name         string           `gomysql:"name,primary,unique" json:"name"`
+		DistroName   string           `gomysql:"distro_name" json:"distro_name"`
+		Version      string           `gomysql:"version" json:"version"`
+		Size         int64            `gomysql:"size" json:"size"`
+		FullISOPath  string           `gomysql:"full_iso_path" json:"full_iso_path"`
+		KernelPath   string           `gomysql:"kernel_path" json:"kernel_path"`
+		InitrdPath   string           `gomysql:"initrd_path" json:"initrd_path"`
+		Architecture Architecture     `gomysql:"architecture" json:"architecture"`
+		DistroType   DistroType       `gomysql:"distro_type" json:"distro_type"`
+		PreConfigure PreConfigureType `gomysql:"preconfigure_type" json:"preconfigure_type"`
+	}
 )
 
 const (
@@ -77,29 +96,63 @@ const (
 	VendorGigabyte
 	VendorAsus
 	VendorIntel
+)
 
+const (
 	FormFactorOther FormFactor = iota
 	FormFactorRackmount
 	FormFactorTower
 	FormFactorBlade
 	FormFactorMicroserver
+)
 
+const (
 	ManagementTypeNotSupported ManagementType = iota
 	ManagementTypeIPMI
 	ManagementTypeRedfish
+)
 
+const (
 	PowerStateUnknown PowerState = iota
 	PowerStateOn
 	PowerStateOff
+)
 
+const (
 	BootModeUEFI BootMode = iota
 	BootModeLegacy
+)
 
+const (
 	PowerActionPowerOn PowerAction = iota
 	PowerActionPowerOff
 	PowerActionGracefulShutdown
 	PowerActionGracefulRestart
 	PowerActionForceRestart
+)
+
+const (
+	ArchitectureX86_64 Architecture = "x86_64"
+	ArchitectureARM64  Architecture = "aarch64"
+)
+
+const (
+	DistroTypeOther DistroType = iota
+	DistroTypeDebianBased
+	DistroTypeRedHatBased
+	DistroTypeArchBased
+	DistroTypeSUSEBased
+	DistroTypeAlpineBased
+	DistroTypeWindowsBased
+)
+
+const (
+	PreConfigureTypeNone PreConfigureType = iota
+	PreConfigureTypeCloudInit
+	PreConfigureTypeKickstart
+	PreConfigureTypePreseed
+	PreConfigureTypeAutoYaST
+	PreConfigureTypeArchInstallAuto
 )
 
 var (
@@ -159,6 +212,36 @@ var (
 	}
 
 	PowerActionNameReverses = map[string]PowerAction{}
+
+	ArchitectureNames = map[Architecture]string{
+		ArchitectureX86_64: "x86_64",
+		ArchitectureARM64:  "arm64",
+	}
+
+	ArchitectureNameReverses = map[string]Architecture{}
+
+	DistroTypeNames = map[DistroType]string{
+		DistroTypeOther:        "Other",
+		DistroTypeDebianBased:  "Debian-Based",
+		DistroTypeRedHatBased:  "RedHat-Based",
+		DistroTypeArchBased:    "Arch-Based",
+		DistroTypeSUSEBased:    "SUSE-Based",
+		DistroTypeAlpineBased:  "Alpine-Based",
+		DistroTypeWindowsBased: "Windows-Based",
+	}
+
+	DistroTypeNameReverses = map[string]DistroType{}
+
+	PreConfigureTypeNames = map[PreConfigureType]string{
+		PreConfigureTypeNone:            "None",
+		PreConfigureTypeCloudInit:       "Cloud-Init",
+		PreConfigureTypeKickstart:       "Kickstart",
+		PreConfigureTypePreseed:         "Preseed",
+		PreConfigureTypeAutoYaST:        "AutoYaST",
+		PreConfigureTypeArchInstallAuto: "Arch Install Auto",
+	}
+
+	PreConfigureTypeNameReverses = map[string]PreConfigureType{}
 )
 
 func (v VendorID) String() string {
@@ -209,6 +292,30 @@ func (p PowerAction) String() string {
 	return "Unknown Action"
 }
 
+func (a Architecture) String() string {
+	if name, exists := ArchitectureNames[a]; exists {
+		return name
+	}
+
+	return "Unknown Architecture"
+}
+
+func (d DistroType) String() string {
+	if name, exists := DistroTypeNames[d]; exists {
+		return name
+	}
+
+	return "Other"
+}
+
+func (p PreConfigureType) String() string {
+	if name, exists := PreConfigureTypeNames[p]; exists {
+		return name
+	}
+
+	return "None"
+}
+
 func (specs HostSpecs) String() string {
 	var (
 		specsBytes []byte
@@ -245,5 +352,17 @@ func init() {
 
 	for k, v := range PowerActionNames {
 		PowerActionNameReverses[v] = k
+	}
+
+	for k, v := range ArchitectureNames {
+		ArchitectureNameReverses[v] = k
+	}
+
+	for k, v := range DistroTypeNames {
+		DistroTypeNameReverses[v] = k
+	}
+
+	for k, v := range PreConfigureTypeNames {
+		PreConfigureTypeNameReverses[v] = k
 	}
 }

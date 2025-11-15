@@ -19,12 +19,12 @@ func CreateApp() (app *fiber.App) {
 
 	app.Get("/", showLanding)
 	app.Get("/login", showLogin)
-	app.Get("/logout", showLogout)
-	app.Get("/dashboard", mustBeLoggedIn, showDashboard)
+	app.Get("/logout", routesMustBeLoggedIn, showLogout)
+	app.Get("/dashboard", showDashboard)
 
 	// Auth API
 	app.Post("/api/auth/login", apiLogin)
-	app.Post("/api/auth/logout", mustBeLoggedIn, apiLogout)
+	app.Post("/api/auth/logout", apiMustBeLoggedIn, apiLogout)
 
 	// Enums API
 	app.Get("/api/enums/vendors", apiEnumsVendorNames)
@@ -32,13 +32,21 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/api/enums/management-types", apiEnumsManagementTypeNames)
 	app.Get("/api/enums/power-states", apiEnumsPowerStateNames)
 	app.Get("/api/enums/boot-modes", apiEnumsBootModeNames)
+	app.Get("/api/enums/power-actions", apiEnumsPowerActionNames)
+	app.Get("/api/enums/architectures", apiEnumsArchitectureNames)
+	app.Get("/api/enums/distro-types", apiEnumsDistroTypeNames)
+	app.Get("/api/enums/preconfigure-types", apiEnumsPreConfigureTypeNames)
 
 	// Hosts API
 	app.Get("/api/hosts", apiHostsAll)
 	app.Get("/api/hosts/:management_ip", apiHostByManagementIP)
-	app.Post("/api/hosts", mustBeLoggedIn, mustBeAdmin, apiHostCreate)
-	app.Delete("/api/hosts/:management_ip", mustBeLoggedIn, mustBeAdmin, apiHostDelete)
-	app.Post("/api/hosts/:management_ip/power/:action", mustBeLoggedIn, mustBeAdmin, apiHostPowerControl)
+	app.Post("/api/hosts", apiMustBeLoggedIn, apiMustBeAdmin, apiHostCreate)
+	app.Delete("/api/hosts/:management_ip", apiMustBeLoggedIn, apiMustBeAdmin, apiHostDelete)
+	app.Post("/api/hosts/:management_ip/power/:action", apiMustBeLoggedIn, apiMustBeAdmin, apiHostPowerControl)
+
+	// ISO Images API
+	app.Post("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesCreate)
+	app.Get("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesList)
 	return
 }
 

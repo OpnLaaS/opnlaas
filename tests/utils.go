@@ -13,7 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/opnlaas/opnlaas/app"
 	"github.com/opnlaas/opnlaas/config"
-	"github.com/opnlaas/opnlaas/hosts"
+	"github.com/opnlaas/opnlaas/db"
 )
 
 func setup(t *testing.T) {
@@ -34,7 +34,7 @@ func setup(t *testing.T) {
 	// Randomize the database file name to avoid conflicts
 	config.Config.Database.File = fmt.Sprintf("test_db_%d.db", time.Now().UnixNano())
 
-	if err = hosts.InitDB(); err != nil {
+	if err = db.InitDB(); err != nil {
 		t.Fatalf("Failed to initialize DB: %v", err)
 	}
 }
@@ -42,11 +42,11 @@ func setup(t *testing.T) {
 func cleanup(t *testing.T) {
 	var err error
 
-	if err = hosts.CloseDB(); err != nil {
+	if err = db.CloseDB(); err != nil {
 		t.Fatalf("Failed to close DB: %v", err)
 	}
 
-	if err = os.Remove(hosts.DatabaseFilePath()); err != nil {
+	if err = os.Remove(db.DatabaseFilePath()); err != nil {
 		t.Fatalf("Failed to remove test database file: %v", err)
 	}
 }

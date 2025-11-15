@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/opnlaas/opnlaas/auth"
 	"github.com/opnlaas/opnlaas/config"
-	"github.com/opnlaas/opnlaas/hosts"
+	"github.com/opnlaas/opnlaas/db"
 )
 
 func TestHostsAPI(t *testing.T) {
@@ -32,7 +32,7 @@ func TestHostsAPI(t *testing.T) {
 		if hostsObject, err = makeHTTPGetRequestJSON(t, fmt.Sprintf("http://%s/api/hosts", config.Config.WebServer.Address)); err != nil {
 			t.Fatalf("Failed to get hosts: %v", err)
 		} else if hostsObject != nil {
-			if hostsSlice, ok := hostsObject.([]*hosts.Host); !ok {
+			if hostsSlice, ok := hostsObject.([]*db.Host); !ok {
 				t.Fatalf("Expected hosts list to be a slice, got %T", hostsObject)
 			} else if len(hostsSlice) != 0 {
 				t.Fatalf("Expected hosts list to be empty, got %d hosts", len(hostsSlice))
@@ -45,7 +45,7 @@ func TestHostsAPI(t *testing.T) {
 
 		t.Run("Add a host", func(t *testing.T) {
 			var (
-				newHost *hosts.Host = &hosts.Host{ManagementIP: config.Config.Management.TestingManagementIPs[0], ManagementType: hosts.ManagementTypeRedfish}
+				newHost *db.Host = &db.Host{ManagementIP: config.Config.Management.TestingManagementIPs[0], ManagementType: db.ManagementTypeRedfish}
 				user    string      = "alice"
 			)
 
@@ -64,7 +64,7 @@ func TestHostsAPI(t *testing.T) {
 				} else if status != fiber.StatusOK {
 					t.Fatalf("Expected status %d, got %d: %s", fiber.StatusOK, status, resp)
 				} else {
-					var createdHost hosts.Host
+					var createdHost db.Host
 					if err := json.Unmarshal([]byte(resp), &createdHost); err != nil {
 						t.Fatalf("Failed to unmarshal created host JSON: %v", err)
 					} else if createdHost.ManagementIP != config.Config.Management.TestingManagementIPs[0] {
@@ -92,7 +92,7 @@ func TestHostsAPI(t *testing.T) {
 					if _, ok := hostsSlice[0].(map[string]interface{}); !ok {
 						t.Fatalf("Expected host object to be a map, got %T", hostsSlice[0])
 					} else {
-						var target hosts.Host
+						var target db.Host
 						hostJSON, _ := json.Marshal(hostsSlice[0])
 						if err := json.Unmarshal(hostJSON, &target); err != nil {
 							t.Fatalf("Failed to unmarshal host JSON: %v", err)
@@ -116,7 +116,7 @@ func TestHostsAPI(t *testing.T) {
 				if hostMap, ok := hostObject.(map[string]interface{}); !ok {
 					t.Fatalf("Expected host object to be a map, got %T", hostObject)
 				} else {
-					var target hosts.Host
+					var target db.Host
 					hostJSON, _ := json.Marshal(hostMap)
 					if err := json.Unmarshal(hostJSON, &target); err != nil {
 						t.Fatalf("Failed to unmarshal host JSON: %v", err)
@@ -152,7 +152,7 @@ func TestHostsAPI(t *testing.T) {
 			if hostsObject, err = makeHTTPGetRequestJSON(t, fmt.Sprintf("http://%s/api/hosts", config.Config.WebServer.Address)); err != nil {
 				t.Fatalf("Failed to get hosts: %v", err)
 			} else if hostsObject != nil {
-				if hostsSlice, ok := hostsObject.([]*hosts.Host); !ok {
+				if hostsSlice, ok := hostsObject.([]*db.Host); !ok {
 					t.Fatalf("Expected hosts list to be a slice, got %T", hostsObject)
 				} else if len(hostsSlice) != 0 {
 					t.Fatalf("Expected hosts list to be empty, got %d hosts", len(hostsSlice))
