@@ -1,4 +1,4 @@
-import { reverseObject } from "./lib/util.js"; 
+import { reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
 
 const list = document.getElementById("host-list");
@@ -25,18 +25,29 @@ function toggleItem(button) {
 function togglePowerMenu(button) {
     const wrapper = button.closest("div.relative");
     const menu = wrapper.querySelector(".power-menu");
-
     const isClosed = menu.classList.contains("max-h-0");
 
+    closeAllMenus();
     if (isClosed) {
         menu.classList.remove("max-h-0", "opacity-0");
         menu.classList.add("max-h-[500px]", "opacity-100");
-    } else {
-        menu.classList.add("max-h-0", "opacity-0");
-        menu.classList.remove("max-h-[500px]", "opacity-100");
     }
 }
 
+function closeAllMenus() {
+    document.querySelectorAll(".power-menu").forEach(menu => {
+        menu.classList.add("max-h-0", "opacity-0");
+        menu.classList.remove("max-h-[500px]", "opacity-100");
+    });
+}
+
+document.addEventListener("click", function (event) {
+    if (event.target.closest(".power-menu") || event.target.closest(".power-button")) {
+        return;
+    }
+
+    closeAllMenus();
+});
 
 
 // Pretty-print capacity in GB/TB
@@ -151,10 +162,8 @@ function cleanSku(manufacturer, sku) {
 
 
 window.toggleItem = toggleItem;
-
 window.togglePowerMenu = togglePowerMenu;
-
-
+window.closeAllMenus = closeAllMenus;
 
 const addHostBtn = document.getElementById("addHostBtn");
 const newHostForm = document.getElementById("newHostForm");
