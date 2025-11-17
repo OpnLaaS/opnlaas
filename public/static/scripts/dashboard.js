@@ -1,5 +1,5 @@
-import { reverseObject } from "./lib/util.js";
-import { URL } from "./lib/constants.js";
+import { reverseObject } from "./lib/util.js"; 
+import * as API from "./api/api.js";
 
 const tbody = document.getElementById("hosts");
 const template = document.getElementById("host-row-template");
@@ -23,22 +23,18 @@ function toggleRow(button) {
 }
 window.toggleRow = toggleRow;
 
-async function getEnums(endpoint) {
-    return reverseObject(await (await fetch(`${URL}/api/enums/${endpoint}`)).json());
-}
 
 document.addEventListener("DOMContentLoaded", async () => {
     // i know evan said try/catch is bad but whatever
     try {
-        const res = await fetch(`${URL}/api/hosts`);
-        const data = await res.json();
+        const hostData = await API.getHostsAll();
         // get enums
-        const vendorNames = await getEnums("vendors");
-        const formFactors = await getEnums("form-factors");
-        const mgmtTypes = await getEnums("management-types");
-        const powerStates = await getEnums("power-states");
+        const vendorNames = await reverseObject(API.getVendors());
+        const formFactors = await reverseObject(API.getFormFactors());
+        const mgmtTypes = await reverseObject(API.getManagementTypes());
+        const powerStates = await reverseObject(API.getPowerStates());
 
-        data.forEach((host) => {
+        hostData.body.forEach((host) => {
             const clone = template.content.cloneNode(true);
             clone.querySelector('[data-field="form_factor"]').textContent = formFactors[host.form_factor];
             clone.querySelector('[data-field="power"]').textContent = powerStates[host.last_known_power_state];
