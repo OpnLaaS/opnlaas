@@ -7,7 +7,7 @@ const emptyState = document.getElementById("empty");
 
 function toggleItem(button) {
     const section = button.closest("section");
-    const collapsible = section.querySelector(".transition-all");
+    const collapsible = section.querySelector(".transition-all:not(.power-menu)");
     const arrow = button.querySelector("svg");
     const isCollapsed = collapsible.classList.contains("max-h-0");
 
@@ -21,6 +21,23 @@ function toggleItem(button) {
         arrow.style.transform = "";
     }
 }
+
+function togglePowerMenu(button) {
+    const wrapper = button.closest("div.relative");
+    const menu = wrapper.querySelector(".power-menu");
+
+    const isClosed = menu.classList.contains("max-h-0");
+
+    if (isClosed) {
+        menu.classList.remove("max-h-0", "opacity-0");
+        menu.classList.add("max-h-[500px]", "opacity-100");
+    } else {
+        menu.classList.add("max-h-0", "opacity-0");
+        menu.classList.remove("max-h-[500px]", "opacity-100");
+    }
+}
+
+
 
 // Pretty-print capacity in GB/TB
 function prettyCapacityGB(gb) {
@@ -140,6 +157,9 @@ function cleanSku(manufacturer, sku) {
 
 
 window.toggleItem = toggleItem;
+
+window.togglePowerMenu = togglePowerMenu;
+
 
 
 const addHostBtn = document.getElementById("addHostBtn")

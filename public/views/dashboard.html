@@ -1,13 +1,15 @@
 <div class="py-6 md:py-8 w-full">
+
+
     {{if .IsAdmin}}
     <div id="newHost" class="pb-10">
         <button id="addHostBtn"
-            class="my-6 bg-background-secondary hover:bg-background-muted border border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition">
+            class="my-6 bg-background-secondary hover:bg-background-muted border shadow-sm  border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
             + Add New Host
         </button>
 
-        <!-- TODO: Is this in use? -->
-        <div id="newHostForm" class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary">
+        <div id="newHostForm"
+            class="mt-4 p-4 border border-background-muted hiddengit hidden rounded-lg bg-background-secondary">
             <a class="font-bold text-2      xl strong">New Host</a>
             <form id="hostForm" class="space-y-4">
                 <div>
@@ -38,7 +40,7 @@
         </div>
     </div>
     {{end}}
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 transition-color ">
         <h2>Hosts</h2>
     </div>
 
@@ -47,7 +49,7 @@
     <div id="host-list" class="w-full flex flex-col space-y-4"></div>
 
     <template id="host-item-template">
-        <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm overflow-hidden">
+        <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm ">
 
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4">
@@ -59,8 +61,29 @@
                 </div>
                 <div class="flex items-center space-x-2">
                     <span class="inline-block px-2 py-1 rounded text-xs bg-background-muted" data-field="power"></span>
-                    <button class="text-blue-500 hover:cursor-pointer" onclick="toggleItem(this)"
-                        aria-label="Toggle details">
+                    <!-- Three dots + dropdown -->
+                    <div class="relative">
+                        <button class="hover:text-font-secondary hover:cursor-pointer" onclick="togglePowerMenu(this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                class="bi bi-three-dots-vertical text-font-primary" viewBox="0 0 16 16">
+                                <path
+                                    d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
+                            </svg>
+                        </button>
+
+                        <!-- Powercontrols -->
+                        <div
+                            class="power-menu absolute right-0 mt-2 w-40 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0 z-100">
+                            <button id="powerOn" class="block w-full text-left px-4 py-2 hover:bg-background-muted">Power On</button>
+                            <button id="powerOff" class="block w-full text-left px-4 py-2 hover:bg-background-muted">Power Off</button>
+                            <button id="reset" class="block w-full text-left px-4 py-2 hover:bg-background-muted">Reset</button>
+                            <button id="hPowerOne" class="block w-full text-left px-4 py-2 hover:bg-background-muted">Hard Power On</button>
+                            <button id="hPowerOff" class="block w-full text-left px-4 py-2 hover:bg-background-muted">Hard Power Off</button>
+                            <button id="hReset" class="block w-full text-left px-4 py-2 hover:bg-background-muted">Hard Reset</button>
+                        </div>
+                    </div>
+                    <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer"
+                        onclick="toggleItem(this)" aria-label="Toggle details">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                             stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -68,6 +91,7 @@
                     </button>
                 </div>
             </div>
+
 
             <!-- Details -->
             <div class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
