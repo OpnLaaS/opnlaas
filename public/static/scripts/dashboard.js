@@ -1,5 +1,5 @@
-import { reverseObject } from "./lib/util.js";
-import { URL } from "./lib/constants.js";
+import { reverseObject } from "./lib/util.js"; 
+import * as API from "./api/api.js";
 
 const list = document.getElementById("host-list");
 const template = document.getElementById("host-item-template");
@@ -13,11 +13,11 @@ function toggleItem(button) {
 
     if (isCollapsed) {
         collapsible.classList.remove("max-h-0", "opacity-0");
-        collapsible.classList.add("max-h-[1200px]", "opacity-100");
+        collapsible.classList.add("max-h-100", "opacity-100");
         arrow.style.transform = "rotate(180deg)";
     } else {
         collapsible.classList.add("max-h-0", "opacity-0");
-        collapsible.classList.remove("max-h-[1200px]", "opacity-100");
+        collapsible.classList.remove("max-h-100", "opacity-100");
         arrow.style.transform = "";
     }
 }
@@ -61,31 +61,24 @@ function renderStorageLine(dev) {
     return parts.filter(Boolean).join(" • ");
 }
 
-async function getEnums(name) {
-    const res = await fetch(`${URL}/api/enums/${name}`);
-    if (!res.ok) throw new Error(`Failed to load enum: ${name}`);
-    const obj = await res.json();
-    return reverseObject(obj);
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        const res = await fetch(`${URL}/api/hosts`);
-        if (!res.ok) throw new Error("Failed to load hosts");
-        const data = await res.json();
+        const hostData = await API.getHostsAll();
+        // get enums
+        const vendorsRes = await API.getVendors();
+        const vendorNames = reverseObject(vendorsRes.body || {});
 
-        if (!Array.isArray(data) || data.length === 0) {
-            emptyState?.classList.remove("hidden");
-            return;
-        }
+        const formFactorsRes = await API.getFormFactors();
+        const formFactors = reverseObject(formFactorsRes.body || {});
 
-        const vendorNames = await getEnums("vendors");
-        const formFactors = await getEnums("form-factors");
-        const mgmtTypes = await getEnums("management-types");
-        const powerStates = await getEnums("power-states");
+        const mgmtTypesRes = await API.getManagementTypes();
+        const mgmtTypes = reverseObject(mgmtTypesRes.body || {});
+
+        const powerStatesRes = await API.getPowerStates();
+        const powerStates = reverseObject(powerStatesRes.body || {});
 
         list.innerHTML = "";
-        data.forEach((host) => {
+        hostData.body.forEach((host) => {
             const frag = template.content.cloneNode(true);
 
             // header
@@ -95,7 +88,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
-            frag.querySelector('[data-field="mgmt-type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
+            frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
             frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
 
             // memory
@@ -145,6 +138,7 @@ function resolveEnum(maybeMap, value) {
     if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
     return (value ?? "—");
 }
+
 function cleanSku(manufacturer, sku) {
     if (!sku) return sku;
     const man = (manufacturer || "").toLowerCase().trim();
@@ -162,14 +156,16 @@ window.togglePowerMenu = togglePowerMenu;
 
 
 
-const addHostBtn = document.getElementById("addHostBtn")
-const addHostForm = document.getElementById("newHostForm")
+const addHostBtn = document.getElementById("addHostBtn");
+const newHostForm = document.getElementById("newHostForm");
 function hideForm() {
     if (newHostForm.classList.contains("hidden")) {
         newHostForm.classList.remove("hidden");
     } else {
-        newHostForm.classList.add("hidden")
+        newHostForm.classList.add("hidden");
     }
 }
 
-addHostBtn.addEventListener('click', hideForm)
+if (addHostBtn) {
+    addHostBtn.addEventListener('click', hideForm);
+}
