@@ -1,31 +1,57 @@
 import { reverseObject } from "./lib/util.js"; 
 import * as API from "./api/api.js";
 
-const tbody = document.getElementById("hosts");
-const template = document.getElementById("host-row-template");
+const list = document.getElementById("host-list");
+const template = document.getElementById("host-item-template");
+const emptyState = document.getElementById("empty");
 
-function toggleRow(button) {
-    const tr = button.closest("tr");
-    const nextRow = tr.nextElementSibling;
-    const container = nextRow.querySelector("div");
+function toggleItem(button) {
+    const section = button.closest("section");
+    const collapsible = section.querySelector(".transition-all");
     const arrow = button.querySelector("svg");
-    const isCollapsed = container.classList.contains("max-h-0");
+    const isCollapsed = collapsible.classList.contains("max-h-0");
 
     if (isCollapsed) {
-        container.classList.remove("max-h-0", "opacity-0");
-        container.classList.add("h-max", "opacity-100");
-        arrow.classList.add("rotate-180");
+        collapsible.classList.remove("max-h-0", "opacity-0");
+        collapsible.classList.add("max-h-[1200px]", "opacity-100");
+        arrow.style.transform = "rotate(180deg)";
     } else {
-        container.classList.add("max-h-0", "opacity-0");
-        container.classList.remove("max-h-100", "opacity-100");
-        arrow.classList.remove("rotate-180");
+        collapsible.classList.add("max-h-0", "opacity-0");
+        collapsible.classList.remove("max-h-[1200px]", "opacity-100");
+        arrow.style.transform = "";
     }
 }
-window.toggleRow = toggleRow;
 
+// Pretty-print capacity in GB/TB
+function prettyCapacityGB(gb) {
+    if (gb == null || isNaN(gb)) return "Unknown";
+    const n = Number(gb);
+    if (n >= 1024) return (n / 1024).toFixed(1).replace(/\.0$/, "") + " TB";
+    return n + " GB";
+}
+
+function totalCapacityGB(devs) {
+    return (devs || []).reduce((sum, d) => sum + (Number(d.capacity_gb) || 0), 0);
+}
+
+function renderStorageLine(dev) {
+    if (!dev || typeof dev !== "object") return "Unknown device";
+    const parts = [];
+    if ("capacity_gb" in dev) parts.push(prettyCapacityGB(dev.capacity_gb));
+    if (dev.media_type) parts.push(String(dev.media_type).toUpperCase());
+    if (dev.interface) parts.push(dev.interface);
+    if (dev.model) parts.push(dev.model);
+    return parts.filter(Boolean).join(" • ");
+}
+
+async function getEnums(name) {
+    const res = await fetch(`${URL}/api/enums/${name}`);
+    if (!res.ok) throw new Error(`Failed to load enum: ${name}`);
+    const obj = await res.json();
+    return reverseObject(obj);
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // i know evan said try/catch is bad but whatever
     try {
         const hostData = await API.getHostsAll();
         // get enums
@@ -34,34 +60,89 @@ document.addEventListener("DOMContentLoaded", async () => {
         const mgmtTypes = await reverseObject(API.getManagementTypes());
         const powerStates = await reverseObject(API.getPowerStates());
 
+        list.innerHTML = "";
         hostData.body.forEach((host) => {
-            const clone = template.content.cloneNode(true);
-            clone.querySelector('[data-field="form_factor"]').textContent = formFactors[host.form_factor];
-            clone.querySelector('[data-field="power"]').textContent = powerStates[host.last_known_power_state];
-            clone.querySelector('[data-field="ip"]').textContent = host.management_ip;
-            clone.querySelector('[data-field="mgmt-type"]').textContent = mgmtTypes[host.management_type];
-            clone.querySelector('[data-field="name"]').textContent = host.model;
-            // memory
-            clone.querySelector('[data-field="num_dimms"]').textContent = host.specs.memory.num_dimms;
-            clone.querySelector('[data-field="size_gb"]').textContent = host.specs.memory.size_gb;
-            clone.querySelector('[data-field="speed_mhz"]').textContent = host.specs.memory.speed_mhz;
-            // processor
-            clone.querySelector('[data-field="manufacturer"]').textContent = host.specs.processor.manufacturer;
-            clone.querySelector('[data-field="cores"]').textContent = host.specs.processor.cores;
-            clone.querySelector('[data-field="count"]').textContent = host.specs.processor.count;
-            clone.querySelector('[data-field="sku"]').textContent = host.specs.processor.sku;
-            clone.querySelector('[data-field="threads"]').textContent = host.specs.processor.threads;
-            clone.querySelector('[data-field="processor_speed_mhz"]').textContent = `${host.specs.processor.base_speed_mhz} / ${host.specs.processor.max_speed_mhz}`;
-            // storage
-            // TODO needs forEach or somethin, just the first one so far
-            clone.querySelector('[data-field="capacity_gb"]').textContent = host.specs.storage[0].capacity_gb;
-            clone.querySelector('[data-field="media_type"]').textContent = host.specs.storage[0].media_type;
+            const frag = template.content.cloneNode(true);
 
-            clone.querySelector('[data-field="vendor"]').textContent = vendorNames[host.vendor];
-            // clone.querySelector('[data-field=""]').textContent = host.
-            tbody.appendChild(clone);
+            // header
+            frag.querySelector('[data-field="name"]').textContent = host.model;
+            frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
+            frag.querySelector('[data-field="power"]').textContent = resolveEnum(powerStates, host.last_known_power_state);
+
+            // chips (system facts)
+            frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
+            frag.querySelector('[data-field="mgmt-type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
+            frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
+
+            // memory
+            const mem = host.specs?.memory || {};
+            frag.querySelector('[data-field="num_dimms"]').textContent = mem.num_dimms ?? "—";
+            frag.querySelector('[data-field="size_gb"]').textContent = mem.size_gb ?? "—";
+            frag.querySelector('[data-field="speed_mhz"]').textContent = mem.speed_mhz ?? "—";
+
+            // processor
+            const proc = host.specs?.processor || {};
+            frag.querySelector('[data-field="manufacturer"]').textContent = proc.manufacturer ?? "—";
+            frag.querySelector('[data-field="sku"]').textContent = cleanSku(proc.manufacturer ?? "", proc.sku ?? "—");
+            frag.querySelector('[data-field="cores"]').textContent = proc.cores ?? "—";
+            frag.querySelector('[data-field="count"]').textContent = proc.count ?? "—";
+            frag.querySelector('[data-field="threads"]').textContent = proc.threads ?? "—";
+            frag.querySelector('[data-field="processor_speed_mhz"]').textContent = `${proc.base_speed_mhz ?? "—"} / ${proc.max_speed_mhz ?? "—"}`;
+
+            // storage
+            const storageUl = frag.querySelector('[data-field="storage_list"]');
+            storageUl.innerHTML = "";
+            const storage = Array.isArray(host.specs?.storage) ? host.specs.storage : [];
+            if (storage.length) {
+                storage.forEach((dev) => {
+                    const li = document.createElement("li");
+                    li.textContent = renderStorageLine(dev);
+                    storageUl.appendChild(li);
+                });
+            } else {
+                const li = document.createElement("li");
+                li.textContent = "No storage info";
+                storageUl.appendChild(li);
+            }
+            const totalGB = totalCapacityGB(storage);
+            frag.querySelector('[data-field="storage_total"]').textContent = prettyCapacityGB(totalGB);
+            frag.querySelector('[data-field="storage_summary"]').textContent = `${storage.length} device${storage.length === 1 ? "" : "s"}`;
+
+            list.appendChild(frag);
         });
     } catch (err) {
         console.error(err);
     }
 });
+
+// expose to template
+
+function resolveEnum(maybeMap, value) {
+    if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
+    return (value ?? "—");
+}
+function cleanSku(manufacturer, sku) {
+    if (!sku) return sku;
+    const man = (manufacturer || "").toLowerCase().trim();
+    const s = String(sku).trim();
+    if (man && s.toLowerCase().startsWith(man)) {
+        return s.slice(man.length).trim().replace(/^[-,\s]+/, "");
+    }
+    return s;
+}
+
+
+window.toggleItem = toggleItem;
+
+
+const addHostBtn = document.getElementById("addHostBtn")
+const newHostForm = document.getElementById("newHostForm")
+function hideForm() {
+    if (newHostForm.classList.contains("hidden")) {
+        newHostForm.classList.remove("hidden");
+    } else {
+        newHostForm.classList.add("hidden")
+    }
+}
+
+addHostBtn.addEventListener('click', hideForm)
