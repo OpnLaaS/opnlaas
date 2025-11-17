@@ -13,11 +13,11 @@ function toggleItem(button) {
 
     if (isCollapsed) {
         collapsible.classList.remove("max-h-0", "opacity-0");
-        collapsible.classList.add("max-h-[1200px]", "opacity-100");
+        collapsible.classList.add("max-h-100", "opacity-100");
         arrow.style.transform = "rotate(180deg)";
     } else {
         collapsible.classList.add("max-h-0", "opacity-0");
-        collapsible.classList.remove("max-h-[1200px]", "opacity-100");
+        collapsible.classList.remove("max-h-100", "opacity-100");
         arrow.style.transform = "";
     }
 }
@@ -44,21 +44,21 @@ function renderStorageLine(dev) {
     return parts.filter(Boolean).join(" • ");
 }
 
-async function getEnums(name) {
-    const res = await fetch(`${URL}/api/enums/${name}`);
-    if (!res.ok) throw new Error(`Failed to load enum: ${name}`);
-    const obj = await res.json();
-    return reverseObject(obj);
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         const hostData = await API.getHostsAll();
         // get enums
-        const vendorNames = await reverseObject(API.getVendors());
-        const formFactors = await reverseObject(API.getFormFactors());
-        const mgmtTypes = await reverseObject(API.getManagementTypes());
-        const powerStates = await reverseObject(API.getPowerStates());
+        const vendorsRes = await API.getVendors();
+        const vendorNames = reverseObject(vendorsRes.body || {});
+
+        const formFactorsRes = await API.getFormFactors();
+        const formFactors = reverseObject(formFactorsRes.body || {});
+
+        const mgmtTypesRes = await API.getManagementTypes();
+        const mgmtTypes = reverseObject(mgmtTypesRes.body || {});
+
+        const powerStatesRes = await API.getPowerStates();
+        const powerStates = reverseObject(powerStatesRes.body || {});
 
         list.innerHTML = "";
         hostData.body.forEach((host) => {
@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
-            frag.querySelector('[data-field="mgmt-type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
+            frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
             frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
 
             // memory
@@ -121,6 +121,7 @@ function resolveEnum(maybeMap, value) {
     if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
     return (value ?? "—");
 }
+
 function cleanSku(manufacturer, sku) {
     if (!sku) return sku;
     const man = (manufacturer || "").toLowerCase().trim();
@@ -135,14 +136,16 @@ function cleanSku(manufacturer, sku) {
 window.toggleItem = toggleItem;
 
 
-const addHostBtn = document.getElementById("addHostBtn")
-const newHostForm = document.getElementById("newHostForm")
+const addHostBtn = document.getElementById("addHostBtn");
+const newHostForm = document.getElementById("newHostForm");
 function hideForm() {
     if (newHostForm.classList.contains("hidden")) {
         newHostForm.classList.remove("hidden");
     } else {
-        newHostForm.classList.add("hidden")
+        newHostForm.classList.add("hidden");
     }
 }
 
-addHostBtn.addEventListener('click', hideForm)
+if (addHostBtn) {
+    addHostBtn.addEventListener('click', hideForm);
+}

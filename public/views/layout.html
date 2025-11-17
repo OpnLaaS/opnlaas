@@ -31,7 +31,12 @@
                 {{if not .LoggedIn}}
                 <a href="/login" id="login">Log In</a>
                 {{end}}
+                {{if .isAdmin}}
+                <a href="/dashboard" id="dashboard">My Dashboard</a>
+                {{end}}
+                {{if not .isAdmin}}
                 <a href="/dashboard" id="dashboard">Public Dashboard</a>
+                {{end}}
             </nav>
 
             <button id="theme-toggle"
