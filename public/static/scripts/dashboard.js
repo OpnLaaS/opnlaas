@@ -209,7 +209,8 @@ addHostForm.addEventListener("submit", async (e) => {
         return;
     }
     const mgmtTypes = (await API.getManagementTypes()).body;
-    const m = mgmtTypes[managementType.toUpperCase()];
+
+    const m = mgmtTypes[managementType];
     API.postHostCreate(address, m);
 
 });
