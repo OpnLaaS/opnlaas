@@ -188,14 +188,10 @@ function getDeviceIP(element) {
 
 async function powerControl(button) {
     const btnText = button.textContent;
-    console.log(btnText);
     const device_address = getDeviceIP(button).textContent;
-    console.log(device_address);
 
     const powerActions = (await API.getPowerActions()).body;
-    console.log(powerActions);
     const power_action = powerActions[btnText];
-    console.log(power_action);
     
     API.postHostPowerControl(device_address, power_action);
 }
@@ -207,17 +203,13 @@ addHostForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const address = document.getElementById("addressInput").value;
     const managementType = document.getElementById("managementSelect").value;
-    console.log(address, managementType);
 
     if (!validateIP(address)) {
         //TODO add error message on webpage
-        console.log("invalid address");
         return;
     }
     const mgmtTypes = (await API.getManagementTypes()).body;
-    console.log(mgmtTypes);
     const m = mgmtTypes[managementType.toUpperCase()];
-    console.log(m);
     API.postHostCreate(address, m);
 
 });
