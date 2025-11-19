@@ -30,14 +30,14 @@ function togglePowerMenu(button) {
     closeAllMenus();
     if (isClosed) {
         menu.classList.remove("max-h-0", "opacity-0");
-        menu.classList.add("max-h-[500px]", "opacity-100");
+        menu.classList.add("max-h-70", "opacity-100");
     }
 }
 
 function closeAllMenus() {
     document.querySelectorAll(".power-menu").forEach(menu => {
         menu.classList.add("max-h-0", "opacity-0");
-        menu.classList.remove("max-h-[500px]", "opacity-100");
+        menu.classList.remove("max-h-70", "opacity-100");
     });
 }
 
@@ -177,4 +177,51 @@ function hideForm() {
 
 if (addHostBtn) {
     addHostBtn.addEventListener('click', hideForm);
+}
+
+function getDeviceIP(element) {
+    if (!element) return null;
+    const section = element.closest("section");
+    if (!section) return null;
+    return section.querySelector('[data-field="ip"]');
+}
+
+async function powerControl(button) {
+    const btnText = button.textContent;
+    console.log(btnText);
+    const device_address = getDeviceIP(button).textContent;
+    console.log(device_address);
+
+    const powerActions = (await API.getPowerActions()).body;
+    console.log(powerActions);
+    const power_action = powerActions[btnText];
+    console.log(power_action);
+    
+    API.postHostPowerControl(device_address, power_action);
+}
+window.powerControl = powerControl;
+
+
+const addHostForm = newHostForm;
+addHostForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const address = document.getElementById("addressInput").value;
+    const managementType = document.getElementById("managementSelect").value;
+    console.log(address, managementType);
+
+    if (!validateIP(address)) {
+        //TODO add error message on webpage
+        console.log("invalid address");
+        return;
+    }
+    const mgmtTypes = (await API.getManagementTypes()).body;
+    console.log(mgmtTypes);
+    const m = mgmtTypes[managementType.toUpperCase()];
+    console.log(m);
+    API.postHostCreate(address, m);
+
+});
+
+function validateIP(address) {
+    return /^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$/.test(address);
 }

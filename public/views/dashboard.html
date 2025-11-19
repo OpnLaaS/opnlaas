@@ -9,22 +9,22 @@
         </button>
 
 
-        <div id="newHostForm" class="hidden mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary">
+        <div id="newHostForm" class="hidden mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all ease-in-out">
             <a class="font-bold text-2      xl strong">New Host</a>
             <form id="hostForm" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Management IPv4</label>
-                    <input type="text" name="managementAddress" required
+                    <input id="addressInput" type="text" name="managementAddress" required
                         class="focus-ring mt-1 block w-full border border-background-muted  rounded-lg shadow-sm py-2 px-3 placeholder-gray-400"
                         placeholder="0.0.0.0">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Management Type</label>
-                    <select name="managementType" required
+                    <select id="managementSelect" name="managementType" required
                         class="focus-ring mt-1 block w-full border border-background-muted  rounded-lg shadow-sm py-2 px-3 placeholder-gray-400">
-                        <option value="ipmi">IPMI</option>
-                        <option value="redfish">Redfish</option>
+                        <option value="IPMI">IPMI</option>
+                        <option value="Redfish">Redfish</option>
                     </select>
                 </div>
 
@@ -64,7 +64,7 @@
                     <!-- Three dots + dropdown -->
                     <div class="relative">
                         {{if .IsAdmin}}
-                        <button class="hover:text-font-secondary hover:cursor-pointer power-button  "
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer power-button"
                             onclick="togglePowerMenu(this)">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                                 class="bi bi-three-dots-vertical text-font-primary" viewBox="0 0 16 16">
@@ -76,22 +76,17 @@
 
                         <!-- Powercontrols -->
                         <div
-                            class="power-menu absolute right-0 mt-2 w-40 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0 z-100">
-                            <button id="powerOn" onclick="closeAllMenus()"
+                            class="power-menu absolute right-0 mt-2 w-45 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0 z-100">
+                            <button id="powerOn" onclick="powerControl(this)"
                                 class="block w-full text-left px-4 py-2 hover:bg-background-muted">Power On</button>
-                            <button id="powerOff" onclick="closeAllMenus()"
+                            <button id="powerOff" onclick="powerControl(this)"
                                 class="block w-full text-left px-4 py-2 hover:bg-background-muted">Power Off</button>
-                            <button id="reset" onclick="closeAllMenus()"
-                                class="block w-full text-left px-4 py-2 hover:bg-background-muted">Reset</button>
-                            <button id="hPowerOne" onclick="closeAllMenus()"
-                                class="block w-full text-left px-4 py-2 hover:bg-background-muted">Hard Power
-                                On</button>
-                            <button id="hPowerOff" onclick="closeAllMenus()"
-                                class="block w-full text-left px-4 py-2 hover:bg-background-muted">Hard Power
-                                Off</button>
-                            <button id="hReset" class="block w-full text-left px-4 py-2 hover:bg-background-muted"
-                                onclick="closeAllMenus()">Hard
-                                Reset</button>
+                            <button id="reset" onclick="powerControl(this)"
+                                class="block w-full text-left px-4 py-2 hover:bg-background-muted">Graceful Shutdown</button>
+                            <button id="hPowerOn" onclick="powerControl(this)"
+                                class="block w-full text-left px-4 py-2 hover:bg-background-muted">Graceful Restart</button>
+                            <button id="hPowerOff" onclick="powerControl(this)"
+                                class="block w-full text-left px-4 py-2 hover:bg-background-muted">Force Restart</button>
                         </div>
                         {{end}}
                     </div>
