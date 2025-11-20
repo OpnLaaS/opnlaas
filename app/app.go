@@ -144,7 +144,7 @@ func runHttpRedirectServer(address string, targetAddress string) {
 	redirectApp := fiber.New()
 
 	redirectApp.Use(func(c *fiber.Ctx) error {
-		targetURL := "http://" + targetAddress + c.OriginalURL()
+		targetURL := "https://" + targetAddress + c.OriginalURL()
 		return c.Redirect(targetURL, fiber.StatusMovedPermanently)
 	})
 
