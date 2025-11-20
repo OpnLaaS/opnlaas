@@ -45,6 +45,8 @@ type Configuration struct {
 		Address                     string `env:"WEB_ADDRESS,default=:8080"`
 		TlsDir                      string `env:"WEB_TLS_DIR"`
 		ReloadTemplatesOnEachRender bool   `env:"WEB_RELOAD_TEMPLATES_ON_EACH_RENDER,default=false"`
+		// Array values are separated with "|" in the .env file (e.g. WEB_REDIRECT_ADDRESSES=:80|:80)
+		RedirectAddresses []string `env:"WEB_REDIRECT_ADDRESSES,default="`
 	}
 
 	Management struct {

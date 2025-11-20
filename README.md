@@ -8,7 +8,7 @@ We recommend you use this in conjunction with a FreeIPA domain for authenticatio
 
 1. Ensure your OpnLaaS server is joined to your FreeIPA domain.
 2. Create the SSL directory `sudo mkdir -p /etc/ssl/ipa`.
-3. Set the correct permissions: `sudo chown root:root /etc/ssl/ipa && sudo chmod 755 /etc/ssl/ipa`.
+3. Set the correct permissions: `sudo chown root:root /etc/ssl/ipa && sudo chmod -R 755 /etc/ssl/ipa`.
 4. Request a certificate: `sudo ipa-getcert request -f /etc/ssl/ipa/opnlaas.crt -k /etc/ssl/ipa/opnlaas.key -N "CN=$(hostname -f)" -D $(hostname -f) -K "HTTP/$(hostname -f)" -w`.
 5. Verify the certificate is issued: `sudo ipa-getcert list`.
 
@@ -16,10 +16,10 @@ We recommend you use this in conjunction with a FreeIPA domain for authenticatio
 
 We have a handy-dandy installation script located in the `scripting` directory. You can use it to install, update, or uninstall OpnLaaS.
 
-Let's make this even easier! You can run the following command to download and execute the installer script in one go:
+Let's make this even easier! You can run the following command to download and execute the interactive installer script in one go:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/opnlaas/opnlaas/main/scripting/laas_installer.sh | bash -s -- -u
+bash -i <(curl -sSL https://raw.githubusercontent.com/opnlaas/opnlaas/main/scripting/laas_installer.sh) -u
 ```
 
 ## Development Setup
