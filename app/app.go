@@ -1,6 +1,10 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/template/html/v2"
 	"github.com/opnlaas/opnlaas/config"
@@ -50,10 +54,78 @@ func CreateApp() (app *fiber.App) {
 	return
 }
 
+func discoverTLSKeys(dir string) (certPath, keyPath string, found bool) {
+	type Candidate struct {
+		cert string
+		key  string
+	}
+
+	candidates := []Candidate{
+		{"fullchain.pem", "privkey.pem"},
+		{"cert.pem", "key.pem"},
+		{"tls.crt", "tls.key"},
+		{"server.crt", "server.key"},
+		{"webserver.crt", "webserver.key"},
+	}
+
+	for _, c := range candidates {
+		certPath = filepath.Join(dir, c.cert)
+		keyPath = filepath.Join(dir, c.key)
+
+		if fileExists(certPath) && fileExists(keyPath) {
+			return certPath, keyPath, true
+		}
+	}
+
+	var crtFiles, keyFiles []string
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", "", false
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".crt") {
+			crtFiles = append(crtFiles, filepath.Join(dir, name))
+		}
+		if strings.HasSuffix(name, ".key") {
+			keyFiles = append(keyFiles, filepath.Join(dir, name))
+		}
+	}
+
+	if len(crtFiles) > 0 && len(keyFiles) > 0 {
+		return crtFiles[0], keyFiles[0], true
+	}
+
+	return "", "", false
+}
+
+func fileExists(p string) bool {
+	info, err := os.Stat(p)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
 func StartApp() (err error) {
 	var app *fiber.App = CreateApp()
 	if config.Config.WebServer.TlsDir != "" {
-		err = app.ListenTLS(config.Config.WebServer.Address, config.Config.WebServer.TlsDir+"/fullchain.pem", config.Config.WebServer.TlsDir+"/privkey.pem")
+		var (
+			certPath, keyPath string
+			found             bool
+		)
+
+		if certPath, keyPath, found = discoverTLSKeys(config.Config.WebServer.TlsDir); !found {
+			err = fiber.ErrInternalServerError
+			return
+		}
+
+		err = app.ListenTLS(config.Config.WebServer.Address, certPath, keyPath)
 		return
 	}
 
