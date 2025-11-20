@@ -114,6 +114,13 @@ func fileExists(p string) bool {
 
 func StartApp() (err error) {
 	var app *fiber.App = CreateApp()
+
+	if len(config.Config.WebServer.RedirectAddresses) > 0 {
+		for _, redirectAddress := range config.Config.WebServer.RedirectAddresses {
+			runHttpRedirectServer(redirectAddress, config.Config.WebServer.Address)
+		}
+	}
+
 	if config.Config.WebServer.TlsDir != "" {
 		var (
 			certPath, keyPath string
@@ -131,4 +138,19 @@ func StartApp() (err error) {
 
 	err = app.Listen(config.Config.WebServer.Address)
 	return
+}
+
+func runHttpRedirectServer(address string, targetAddress string) {
+	redirectApp := fiber.New()
+
+	redirectApp.Use(func(c *fiber.Ctx) error {
+		targetURL := "http://" + targetAddress + c.OriginalURL()
+		return c.Redirect(targetURL, fiber.StatusMovedPermanently)
+	})
+
+	go func() {
+		if err := redirectApp.Listen(address); err != nil {
+			panic(err)
+		}
+	}()
 }
