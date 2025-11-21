@@ -168,10 +168,12 @@ window.closeAllMenus = closeAllMenus;
 const addHostBtn = document.getElementById("addHostBtn");
 const newHostForm = document.getElementById("newHostForm");
 function hideForm() {
-    if (newHostForm.classList.contains("hidden")) {
-        newHostForm.classList.remove("hidden");
+    if (newHostForm.classList.contains("max-h-0")) {
+        newHostForm.classList.remove("max-h-0", "opacity-0");
+        newHostForm.classList.add("max-h-80", "opacity-100");
     } else {
-        newHostForm.classList.add("hidden");
+        newHostForm.classList.remove("max-h-80", "opacity-100");
+        newHostForm.classList.add("max-h-0", "opacity-0");
     }
 }
 
