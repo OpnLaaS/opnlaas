@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,7 +118,7 @@ func StartApp() (err error) {
 
 	if len(config.Config.WebServer.RedirectAddresses) > 0 {
 		for _, redirectAddress := range config.Config.WebServer.RedirectAddresses {
-			runHttpRedirectServer(redirectAddress, config.Config.WebServer.Address)
+			runHttpRedirectServer(redirectAddress, config.Config.WebServer.Address, config.Config.WebServer.TlsDir != "")
 		}
 	}
 
@@ -140,12 +141,28 @@ func StartApp() (err error) {
 	return
 }
 
-func runHttpRedirectServer(address string, targetAddress string) {
-	redirectApp := fiber.New()
+func runHttpRedirectServer(address string, targetAddress string, useTLS bool) (err error) {
+	var (
+		redirectApp *fiber.App = fiber.New()
+		targetPort  string
+	)
+
+	if _, targetPort, err = net.SplitHostPort(targetAddress); err != nil {
+		return
+	}
 
 	redirectApp.Use(func(c *fiber.Ctx) error {
-		targetURL := "https://" + targetAddress + c.OriginalURL()
-		return c.Redirect(targetURL, fiber.StatusMovedPermanently)
+		var targetScheme, host string = "http", net.JoinHostPort(c.Hostname(), targetPort)
+
+		if useTLS {
+			targetScheme = "https"
+		}
+
+		if (useTLS && targetPort == "443") || (!useTLS && targetPort == "80") {
+			host = c.Hostname()
+		}
+
+		return c.Redirect(targetScheme+"://"+host+c.OriginalURL(), fiber.StatusMovedPermanently)
 	})
 
 	go func() {
@@ -153,4 +170,6 @@ func runHttpRedirectServer(address string, targetAddress string) {
 			panic(err)
 		}
 	}()
+
+	return
 }
