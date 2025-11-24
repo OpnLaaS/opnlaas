@@ -202,7 +202,6 @@ async function powerControl(button) {
 }
 window.powerControl = powerControl;
 
-
 const addHostForm = newHostForm;
 addHostForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -213,11 +212,13 @@ addHostForm.addEventListener("submit", async (e) => {
         //TODO add error message on webpage
         return;
     }
+
     const mgmtTypes = (await API.getManagementTypes()).body;
-
     const m = mgmtTypes[managementType];
-    API.postHostCreate(address, m);
 
+    // Wait for host creation request then reload page
+    await API.postHostCreate(address, m);
+    window.location.reload();
 });
 
 function validateIP(address) {
@@ -237,7 +238,6 @@ function uploadISO(e) {
     }
 
     fd.append("iso_image", file, file.name);
-    console.log("come on bruj")
     API.postIsoImage(fd);
 }
 
