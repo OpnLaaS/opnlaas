@@ -217,6 +217,7 @@ addHostForm.addEventListener("submit", async (e) => {
     const m = mgmtTypes[managementType];
 
     // Wait for host creation request then reload page
+    document.getElementById("host-spinner").classList.toggle("hidden");
     await API.postHostCreate(address, m);
     window.location.reload();
 });
