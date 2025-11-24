@@ -6,8 +6,7 @@
 
     <!-- Login Card -->
     <div class="flex items-center justify-center h-fit">
-        <div
-            class="max-w-md w-full bg-background-secondary p-6 rounded-lg shadow-lg border border-background-muted">
+        <div class="max-w-md w-full bg-background-secondary p-6 rounded-lg shadow-lg border border-background-muted">
             <div class="flex flex-col items-center">
                 <h2 class="text-center">Log in</h2>
                 <p class="mb-4 text-center leading-2">Access your dashboard</p>
@@ -16,10 +15,9 @@
 
             <form method="post" action="/api/auth/login" class="space-y-5 flex flex-col items-center">
                 {{if .LoginError}}
-                    <div
-                        class="w-100 bg-red-200 text-red-700 p-3 rounded-md border border-red-300 mb-4">
-                        {{.LoginError}}
-                    </div>
+                <div class="w-100 bg-red-200 text-red-700 p-3 rounded-md border border-red-300 mb-4">
+                    {{.LoginError}}
+                </div>
                 {{end}}
                 <div class="text-input">
                     <label>Username</label>

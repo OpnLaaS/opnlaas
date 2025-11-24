@@ -202,6 +202,12 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 		return
 	}
 
+	if newHost.LastKnownPowerState, err = newHost.Management.PowerState(true); err != nil {
+		return
+	}
+
+	newHost.LastKnownPowerStateTime = time.Now()
+
 	if err = db.Hosts.Insert(newHost); err == nil {
 		err = c.JSON(newHost)
 	}
@@ -226,65 +232,98 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 		powerAction           db.PowerAction
 		host                  *db.Host
 		hostCurrentPowerState db.PowerState
+		waitPowerState        db.PowerState
 	)
 
+	sendPowerError := func(status int, msg string, logErr error) error {
+		if logErr != nil {
+			log.Errorf("power control error for host %s: %v", hostID, logErr)
+		}
+		return c.Status(status).JSON(fiber.Map{"message": msg})
+	}
+
 	if host, err = db.Hosts.Select(hostID); err != nil {
-		err = fiber.NewError(fiber.StatusInternalServerError, "failed to retrieve host")
-		return
+		return sendPowerError(fiber.StatusInternalServerError, "Failed to retrieve host", err)
 	} else if host == nil {
-		err = fiber.NewError(fiber.StatusNotFound, "host not found")
-		return
+		return sendPowerError(fiber.StatusNotFound, "Host not found", nil)
 	}
 
 	if powerActionInt, err = strconv.ParseInt(powerActionStr, 0, 16); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "bad power action")
+		return sendPowerError(fiber.StatusBadRequest, "Invalid power action", err)
 	}
 
 	powerAction = db.PowerAction(powerActionInt)
 
 	if host.Management == nil {
 		if host.Management, err = db.NewHostManagementClient(host); err != nil {
-			return
+			return sendPowerError(fiber.StatusBadGateway, "Failed to create management client", err)
 		} else {
 			defer host.Management.Close()
 		}
 	}
 
 	if hostCurrentPowerState, err = host.Management.PowerState(false); err != nil {
-		return
+		return sendPowerError(fiber.StatusBadGateway, "Failed to read current power state", err)
 	}
 
 	switch powerAction {
 	case db.PowerActionPowerOn:
+		waitPowerState = db.PowerStateOn
 		if hostCurrentPowerState == db.PowerStateOn {
-			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power On)")
-			return
+			return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"message": "Host already powered on"})
 		}
 
-		err = host.Management.SetPowerState(db.PowerStateOn, false)
+		if err = host.Management.SetPowerState(db.PowerStateOn, false); err != nil {
+			return sendPowerError(fiber.StatusBadGateway, "Failed to power on host", err)
+		}
 	case db.PowerActionGracefulShutdown:
+		waitPowerState = db.PowerStateOff
 		if hostCurrentPowerState == db.PowerStateOff {
-			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power Off)")
-			return
+			return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"message": "Host already powered off"})
 		}
 
-		err = host.Management.SetPowerState(db.PowerStateOff, false)
+		if err = host.Management.SetPowerState(db.PowerStateOff, false); err != nil {
+			return sendPowerError(fiber.StatusBadGateway, "Failed to gracefully shut down host", err)
+		}
 	case db.PowerActionPowerOff:
+		waitPowerState = db.PowerStateOff
 		if hostCurrentPowerState == db.PowerStateOff {
-			err = fiber.NewError(fiber.StatusAccepted, "Host already in desired powerstate (Power Off)")
-			return
+			return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"message": "Host already powered off"})
 		}
 
-		err = host.Management.SetPowerState(db.PowerStateOff, true)
+		if err = host.Management.SetPowerState(db.PowerStateOff, true); err != nil {
+			return sendPowerError(fiber.StatusBadGateway, "Failed to force power off host", err)
+		}
 	case db.PowerActionGracefulRestart:
-		err = host.Management.ResetPowerState(false)
+		waitPowerState = db.PowerStateOn
+		if err = host.Management.ResetPowerState(false); err != nil {
+			return sendPowerError(fiber.StatusBadGateway, "Failed to gracefully restart host", err)
+		}
 	case db.PowerActionForceRestart:
-		err = host.Management.ResetPowerState(true)
+		waitPowerState = db.PowerStateOn
+		if err = host.Management.ResetPowerState(true); err != nil {
+			return sendPowerError(fiber.StatusBadGateway, "Failed to force restart host", err)
+		}
 	default:
-		err = fiber.NewError(fiber.StatusBadRequest, "unsupported power action")
+		return sendPowerError(fiber.StatusBadRequest, "Unsupported power action", nil)
 	}
 
-	return
+	// Wait for desired power state
+	if err = host.Management.WaitSystemPowerState(waitPowerState, 120); err != nil {
+		return sendPowerError(fiber.StatusGatewayTimeout, fmt.Sprintf("Timed out waiting for host to reach %s power state", waitPowerState.String()), err)
+	}
+
+	// Update host power state in DB
+	if host.LastKnownPowerState, err = host.Management.PowerState(true); err != nil {
+		log.Warnf("failed to update last known power state for host %s: %v", host.ManagementIP, err)
+	} else {
+		host.LastKnownPowerStateTime = time.Now()
+		if err = db.Hosts.Update(host); err != nil {
+			log.Warnf("failed to save updated power state for host %s: %v", host.ManagementIP, err)
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Power action completed successfully", "power_state": host.LastKnownPowerState})
 }
 
 // ISO Images API

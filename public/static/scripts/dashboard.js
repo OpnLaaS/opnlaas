@@ -1,6 +1,16 @@
 import { reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
 
+// MM/DD/YYYY 24HR:MM
+const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+});
+
 const list = document.getElementById("host-list");
 const template = document.getElementById("host-item-template");
 const emptyState = document.getElementById("empty");
@@ -46,15 +56,17 @@ function togglePowerMenu(button) {
 
     closeAllMenus();
     if (isClosed) {
+        resetPowerMenu(menu);
         menu.classList.remove("max-h-0", "opacity-0");
-        menu.classList.add("max-h-70", "opacity-100");
+        menu.classList.add("max-h-96", "opacity-100");
     }
 }
 
 function closeAllMenus() {
     document.querySelectorAll(".power-menu").forEach(menu => {
+        resetPowerMenu(menu);
         menu.classList.add("max-h-0", "opacity-0");
-        menu.classList.remove("max-h-70", "opacity-100");
+        menu.classList.remove("max-h-96", "opacity-100");
     });
 }
 
@@ -115,6 +127,19 @@ window.toggleItem = toggleItem;
 window.togglePowerMenu = togglePowerMenu;
 window.closeAllMenus = closeAllMenus;
 
+function applyPowerBadge(badgeEl, stateLabel) {
+    if (!badgeEl) return;
+    const normalized = String(stateLabel || "").toLowerCase();
+    badgeEl.classList.remove("power-on", "power-off", "power-unknown");
+    if (normalized.includes("on")) {
+        badgeEl.classList.add("power-on");
+    } else if (normalized.includes("off")) {
+        badgeEl.classList.add("power-off");
+    } else {
+        badgeEl.classList.add("power-unknown");
+    }
+}
+
 async function renderHosts() {
     try {
         const hostData = await API.getHostsAll();
@@ -145,7 +170,19 @@ async function renderHosts() {
             // header
             frag.querySelector('[data-field="name"]').textContent = host.model;
             frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
-            frag.querySelector('[data-field="power"]').textContent = resolveEnum(powerStates, host.last_known_power_state);
+            const powerLabel = resolveEnum(powerStates, host.last_known_power_state);
+            const powerNode = frag.querySelector('[data-field="power"]');
+            powerNode.textContent = powerLabel;
+            powerNode.classList.add("power-state");
+            applyPowerBadge(powerNode.closest("[data-role='power-badge']"), powerLabel);
+            const powerTime = host.last_known_power_state_time ? new Date(host.last_known_power_state_time) : null;
+            if (powerTime) {
+                const formattedTime = dateTimeFormat.format(powerTime);
+                ["power-updated", "power-updated-inline"].forEach((selector) => {
+                    const node = frag.querySelector(`[data-field="${selector}"]`);
+                    if (node) node.textContent = `As of ${formattedTime}`;
+                });
+            }
 
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
@@ -274,21 +311,110 @@ function getDeviceIP(element) {
     return section.querySelector('[data-field="ip"]');
 }
 
+function resetPowerMenu(menu) {
+    if (!menu) return;
+    const errorBox = menu.querySelector('[data-role="power-error"]');
+    if (errorBox) {
+        errorBox.textContent = "";
+        errorBox.classList.add("hidden");
+    }
+    menu.querySelectorAll('button[aria-busy="true"]').forEach(btn => setPowerButtonLoading(btn, false));
+}
+
+function setPowerButtonLoading(button, isLoading, txt) {
+    // const { label, spinner } = ensurePowerButtonStructure(button);
+
+    // if (isLoading) {
+    //     spinner.classList.remove("invisible");
+    //     spinner.classList.add("is-active");
+    //     button.setAttribute("aria-busy", "true");
+    // } else {
+    //     spinner.classList.add("invisible");
+    //     spinner.classList.remove("is-active");
+    //     button.removeAttribute("aria-busy");
+    // }
+
+    if (isLoading) {
+        button.dataset.originalLabel = button.textContent;
+        button.textContent = txt || "Processing...";
+        button.disabled = true;
+    } else {
+        if (button.dataset.originalLabel) {
+            button.textContent = button.dataset.originalLabel;
+            delete button.dataset.originalLabel;
+        }
+
+        button.disabled = false;
+    }
+}
+
 async function powerControl(button) {
-    const btnText = button.textContent.trim();
+    const btnText = (button.dataset.originalLabel || button.textContent || "").trim();
     const ipNode = getDeviceIP(button);
     if (!ipNode) return;
     const deviceAddress = ipNode.textContent;
+    const menu = button.closest(".power-menu");
+    const menuButtons = menu ? Array.from(menu.querySelectorAll("button")) : [];
+    const errorBox = menu?.querySelector('[data-role="power-error"]');
+
+    if (errorBox) {
+        errorBox.textContent = "";
+        errorBox.classList.add("hidden");
+    }
 
     try {
+        menuButtons.forEach((btn) => btn.disabled = true);
+
+        setPowerButtonLoading(button, true, "Processing...");
+
         const powerActions = (await API.getPowerActions()).body;
         const powerAction = powerActions[btnText];
-        await API.postHostPowerControl(deviceAddress, powerAction);
+        const response = await API.postHostPowerControl(deviceAddress, powerAction);
+
+        const message = response?.body?.message;
+        const isOK = response.status_code === 200;
+        if (!isOK) {
+            const fallback = message || "Failed to change power state.";
+            if (errorBox) {
+                errorBox.textContent = fallback;
+                errorBox.classList.remove("hidden");
+            } else {
+                alert(fallback);
+            }
+            return;
+        } else {
+            // body.power_state is new
+            const newPowerState = resolveEnum(reverseObject((await API.getPowerStates()).body), response.body.power_state);
+            const hostSection = button.closest("section");
+            const powerNode = hostSection?.querySelector('[data-field="power"]');
+            if (powerNode) {
+                powerNode.textContent = newPowerState;
+                applyPowerBadge(powerNode.closest("[data-role='power-badge']"), newPowerState);
+            }
+            const formattedTime = dateTimeFormat.format(new Date());
+            ["power-updated", "power-updated-inline"].forEach((selector) => {
+                const node = hostSection?.querySelector(`[data-field="${selector}"]`);
+                if (node) node.textContent = `As of ${formattedTime}`;
+            });
+        }
+
         closeAllMenus();
     } catch (err) {
         console.error(err);
+        if (errorBox) {
+            errorBox.textContent = "Failed to change power state.";
+            errorBox.classList.remove("hidden");
+        } else {
+            alert("Failed to change power state.");
+        }
+    } finally {
+        menuButtons.forEach((btn) => {
+            btn.disabled = false;
+        });
+        setPowerButtonLoading(button, false);
     }
 }
+
 window.powerControl = powerControl;
 
 async function unenrollHost(button) {
