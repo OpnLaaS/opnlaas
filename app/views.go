@@ -9,15 +9,15 @@ func showLanding(c *fiber.Ctx) error {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 
 	return c.Render("landing", bindWithLocals(c, fiber.Map{
-		"Title": "Welcome", 
+		"Title":    "Welcome",
 		"LoggedIn": user != nil}),
-		 "layout")
+		"layout")
 }
 
 func showLogin(c *fiber.Ctx) error {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 	return c.Render("login", fiber.Map{
-		"Title": "Login",
+		"Title":    "Login",
 		"LoggedIn": user != nil,
 	}, "layout")
 }
@@ -29,29 +29,32 @@ func showLogout(c *fiber.Ctx) error {
 
 func showDashboard(c *fiber.Ctx) (err error) {
 	var (
-		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
-		displayName string
+		user        *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		displayName string         = "Guest"
+		username    string
 	)
 
-	if user != nil && user.LDAPConn != nil {
-		if displayName, err = user.LDAPConn.DisplayName(); err != nil {
-			return c.Render("dashboard", bindWithLocals(c, fiber.Map{
-				"Title": "Dashboard",
-				"User":  user.LDAPConn.Username,
-				"LoggedIn": user != nil,
-				"Error": err.Error(),
-			}), "layout")
+	if user != nil {
+		username = user.Username
+		displayName = user.Username
+		if user.LDAPConn != nil {
+			if displayName, err = user.LDAPConn.DisplayName(); err != nil {
+				return c.Render("dashboard", bindWithLocals(c, fiber.Map{
+					"Title":    "Dashboard",
+					"User":     user.Username,
+					"LoggedIn": user != nil,
+					"Error":    err.Error(),
+				}), "layout")
+			}
 		}
-	} else {
-		displayName = "Guest"
 	}
 
 	return c.Render("dashboard", bindWithLocals(c, fiber.Map{
 		"Title":    "Dashboard",
 		"User":     displayName,
+		"Username": username,
 		"LoggedIn": user != nil,
 		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
 	}), "layout")
 
-	
 }

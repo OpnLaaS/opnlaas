@@ -29,6 +29,8 @@ func InitDB() (err error) {
 		return
 	}
 
+	BeginPeriodicRefreshes()
+
 	dbLog.Success("Database initialized!")
 	return
 }

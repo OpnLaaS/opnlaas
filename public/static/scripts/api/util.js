@@ -15,6 +15,7 @@ import { URL } from "../lib/constants.js";
 
 export const known_uri = {
     auth_login: () => "/api/auth/login?",
+    auth_me: () => "/api/auth/me",
     auth_logout: () => "/api/auth/logout",
     enum_vendors: () => "/api/enums/vendors",
     enum_formFactors: () => "/api/enums/form-factors",

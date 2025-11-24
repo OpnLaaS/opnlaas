@@ -20,10 +20,22 @@ const (
 	AuthPermsAdministrator                  // Can do everything
 )
 
+func (p authPerms) String() string {
+	switch p {
+	case AuthPermsAdministrator:
+		return "administrator"
+	case AuthPermsUser:
+		return "user"
+	default:
+		return "none"
+	}
+}
+
 type AuthUser struct {
 	LDAPConn *LDAPConn
 	Token    *jwt.Token
 	Expiry   time.Time
+	Username string
 	perms    authPerms
 }
 
@@ -163,6 +175,7 @@ func Authenticate(username, password string) (*AuthUser, error) {
 			LDAPConn: nil,
 			Token:    jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"username": username}),
 			Expiry:   time.Now().Add(time.Hour),
+			Username: username,
 			perms:    injection.Permissions,
 		}
 
@@ -186,6 +199,7 @@ func Authenticate(username, password string) (*AuthUser, error) {
 		LDAPConn: ldapConn,
 		Token:    jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"username": username}),
 		Expiry:   time.Now().Add(time.Hour),
+		Username: username,
 	}
 
 	if user.Permissions() == AuthPermsNone {
@@ -206,7 +220,9 @@ func Logout(username string) {
 	defer usersLock.Unlock()
 
 	if user, ok := activeUsers[username]; ok {
-		user.LDAPConn.Close()
+		if user.LDAPConn != nil {
+			user.LDAPConn.Close()
+		}
 		delete(activeUsers, username)
 	}
 }

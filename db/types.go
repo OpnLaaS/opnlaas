@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/bougou/go-ipmi"
 	"github.com/stmcginnis/gofish"
@@ -62,14 +63,15 @@ type (
 	}
 
 	Host struct {
-		ManagementIP        string                `gomysql:"management_ip,primary,unique" json:"management_ip"`
-		Vendor              VendorID              `gomysql:"vendor" json:"vendor"`
-		FormFactor          FormFactor            `gomysql:"form_factor" json:"form_factor"`
-		ManagementType      ManagementType        `gomysql:"management_type" json:"management_type"`
-		Model               string                `gomysql:"model" json:"model"`
-		LastKnownPowerState PowerState            `gomysql:"last_known_power_state" json:"last_known_power_state"`
-		Specs               HostSpecs             `gomysql:"specs" json:"specs"`
-		Management          *HostManagementClient `json:"-"`
+		ManagementIP            string                `gomysql:"management_ip,primary,unique" json:"management_ip"`
+		Vendor                  VendorID              `gomysql:"vendor" json:"vendor"`
+		FormFactor              FormFactor            `gomysql:"form_factor" json:"form_factor"`
+		ManagementType          ManagementType        `gomysql:"management_type" json:"management_type"`
+		Model                   string                `gomysql:"model" json:"model"`
+		LastKnownPowerState     PowerState            `gomysql:"last_known_power_state" json:"last_known_power_state"`
+		LastKnownPowerStateTime time.Time             `gomysql:"last_known_power_state_time" json:"last_known_power_state_time"`
+		Specs                   HostSpecs             `gomysql:"specs" json:"specs"`
+		Management              *HostManagementClient `json:"-"`
 	}
 
 	StoredISOImage struct {

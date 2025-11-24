@@ -1,9 +1,36 @@
 import { reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
 
+// MM/DD/YYYY 24HR:MM
+const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+});
+
 const list = document.getElementById("host-list");
 const template = document.getElementById("host-item-template");
 const emptyState = document.getElementById("empty");
+const forms = {
+    host: document.getElementById("newHostForm"),
+    iso: document.getElementById("uploadISOPopup"),
+};
+
+const formTriggers = {
+    host: document.getElementById("addHostBtn"),
+    iso: document.getElementById("uploadISOBtn"),
+};
+
+const cancelButtons = {
+    host: document.getElementById("cancelHostBtn"),
+    iso: document.getElementById("cancelISOBtn"),
+};
+
+const hostFormElement = document.getElementById("hostForm");
+const isoForm = document.getElementById("uploadISOForm");
 
 function toggleItem(button) {
     const section = button.closest("section");
@@ -29,15 +56,17 @@ function togglePowerMenu(button) {
 
     closeAllMenus();
     if (isClosed) {
+        resetPowerMenu(menu);
         menu.classList.remove("max-h-0", "opacity-0");
-        menu.classList.add("max-h-70", "opacity-100");
+        menu.classList.add("max-h-96", "opacity-100");
     }
 }
 
 function closeAllMenus() {
     document.querySelectorAll(".power-menu").forEach(menu => {
+        resetPowerMenu(menu);
         menu.classList.add("max-h-0", "opacity-0");
-        menu.classList.remove("max-h-70", "opacity-100");
+        menu.classList.remove("max-h-96", "opacity-100");
     });
 }
 
@@ -73,29 +102,87 @@ function renderStorageLine(dev) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    await renderHosts();
+});
+
+// expose to template
+
+function resolveEnum(maybeMap, value) {
+    if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
+    return (value ?? "—");
+}
+
+function cleanSku(manufacturer, sku) {
+    if (!sku) return sku;
+    const man = (manufacturer || "").toLowerCase().trim();
+    const s = String(sku).trim();
+    if (man && s.toLowerCase().startsWith(man)) {
+        return s.slice(man.length).trim().replace(/^[-,\s]+/, "");
+    }
+    return s;
+}
+
+
+window.toggleItem = toggleItem;
+window.togglePowerMenu = togglePowerMenu;
+window.closeAllMenus = closeAllMenus;
+
+function applyPowerBadge(badgeEl, stateLabel) {
+    if (!badgeEl) return;
+    const normalized = String(stateLabel || "").toLowerCase();
+    badgeEl.classList.remove("power-on", "power-off", "power-unknown");
+    if (normalized.includes("on")) {
+        badgeEl.classList.add("power-on");
+    } else if (normalized.includes("off")) {
+        badgeEl.classList.add("power-off");
+    } else {
+        badgeEl.classList.add("power-unknown");
+    }
+}
+
+async function renderHosts() {
     try {
         const hostData = await API.getHostsAll();
-        // get enums
-        const vendorsRes = await API.getVendors();
+        const [vendorsRes, formFactorsRes, mgmtTypesRes, powerStatesRes] = await Promise.all([
+            API.getVendors(),
+            API.getFormFactors(),
+            API.getManagementTypes(),
+            API.getPowerStates(),
+        ]);
+
         const vendorNames = reverseObject(vendorsRes.body || {});
-
-        const formFactorsRes = await API.getFormFactors();
         const formFactors = reverseObject(formFactorsRes.body || {});
-
-        const mgmtTypesRes = await API.getManagementTypes();
         const mgmtTypes = reverseObject(mgmtTypesRes.body || {});
-
-        const powerStatesRes = await API.getPowerStates();
         const powerStates = reverseObject(powerStatesRes.body || {});
 
         list.innerHTML = "";
-        hostData.body.forEach((host) => {
+        const hosts = Array.isArray(hostData.body) ? hostData.body : [];
+
+        if (!hosts.length) {
+            emptyState?.classList.remove("hidden");
+            return;
+        }
+
+        emptyState?.classList.add("hidden");
+        hosts.forEach((host) => {
             const frag = template.content.cloneNode(true);
 
             // header
             frag.querySelector('[data-field="name"]').textContent = host.model;
             frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
-            frag.querySelector('[data-field="power"]').textContent = resolveEnum(powerStates, host.last_known_power_state);
+            const powerLabel = resolveEnum(powerStates, host.last_known_power_state);
+            const powerNode = frag.querySelector('[data-field="power"]');
+            powerNode.textContent = powerLabel;
+            powerNode.classList.add("power-state");
+            applyPowerBadge(powerNode.closest("[data-role='power-badge']"), powerLabel);
+            const powerTime = host.last_known_power_state_time ? new Date(host.last_known_power_state_time) : null;
+            if (powerTime) {
+                const formattedTime = dateTimeFormat.format(powerTime);
+                ["power-updated", "power-updated-inline"].forEach((selector) => {
+                    const node = frag.querySelector(`[data-field="${selector}"]`);
+                    if (node) node.textContent = `As of ${formattedTime}`;
+                });
+            }
 
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
@@ -141,33 +228,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
         console.error(err);
     }
-});
-
-// expose to template
-
-function resolveEnum(maybeMap, value) {
-    if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
-    return (value ?? "—");
 }
 
-function cleanSku(manufacturer, sku) {
-    if (!sku) return sku;
-    const man = (manufacturer || "").toLowerCase().trim();
-    const s = String(sku).trim();
-    if (man && s.toLowerCase().startsWith(man)) {
-        return s.slice(man.length).trim().replace(/^[-,\s]+/, "");
-    }
-    return s;
-}
-
-
-window.toggleItem = toggleItem;
-window.togglePowerMenu = togglePowerMenu;
-window.closeAllMenus = closeAllMenus;
-
-const addHostBtn = document.getElementById("addHostBtn");
-const newHostForm = document.getElementById("newHostForm");
-const hostFormElement = document.getElementById("hostForm");
 let hostFormError = null;
 
 if (hostFormElement) {
@@ -187,21 +249,60 @@ function setHostFormError(message) {
         hostFormError.style.display = "none";
     }
 }
-function hideForm(form) {
-    console.log(form);
-    if (form.classList.contains("max-h-0")) {
-        form.classList.remove("max-h-0", "opacity-0");
-        form.classList.add("max-h-80", "opacity-100");
-    } else {
-        form.classList.remove("max-h-80", "opacity-100");
-        form.classList.add("max-h-0", "opacity-0");
+
+function setFormVisibility(formKey, shouldShow) {
+    const form = forms[formKey];
+    if (!form) return;
+
+    form.classList.toggle("hidden", !shouldShow);
+}
+
+function resetHostForm() {
+    if (hostFormElement) {
+        hostFormElement.reset();
+    }
+    const spinner = document.getElementById("host-spinner");
+    spinner?.classList.add("hidden");
+    setHostFormError("");
+}
+
+function resetISOForm() {
+    isoForm?.reset();
+}
+
+function closeForm(formKey) {
+    setFormVisibility(formKey, false);
+    if (formKey === "host") {
+        resetHostForm();
+    }
+    if (formKey === "iso") {
+        resetISOForm();
     }
 }
-window.hideForm = hideForm;
 
-if (addHostBtn) {
-    addHostBtn.addEventListener('click', hideForm);
+function toggleAdminForm(formKey) {
+    const targetForm = forms[formKey];
+    const shouldOpen = targetForm ? targetForm.classList.contains("hidden") : false;
+
+    Object.keys(forms).forEach((key) => {
+        setFormVisibility(key, shouldOpen && key === formKey);
+        if (!(shouldOpen && key === formKey)) {
+            closeForm(key);
+        }
+    });
 }
+
+Object.entries(formTriggers).forEach(([key, trigger]) => {
+    if (trigger) {
+        trigger.addEventListener("click", () => toggleAdminForm(key));
+    }
+});
+
+Object.entries(cancelButtons).forEach(([key, btn]) => {
+    if (btn) {
+        btn.addEventListener("click", () => closeForm(key));
+    }
+});
 
 function getDeviceIP(element) {
     if (!element) return null;
@@ -210,54 +311,189 @@ function getDeviceIP(element) {
     return section.querySelector('[data-field="ip"]');
 }
 
-async function powerControl(button) {
-    const btnText = button.textContent;
-    const device_address = getDeviceIP(button).textContent;
-
-    const powerActions = (await API.getPowerActions()).body;
-    const power_action = powerActions[btnText];
-    
-    API.postHostPowerControl(device_address, power_action);
+function resetPowerMenu(menu) {
+    if (!menu) return;
+    const errorBox = menu.querySelector('[data-role="power-error"]');
+    if (errorBox) {
+        errorBox.textContent = "";
+        errorBox.classList.add("hidden");
+    }
+    menu.querySelectorAll('button[aria-busy="true"]').forEach(btn => setPowerButtonLoading(btn, false));
 }
+
+function setPowerButtonLoading(button, isLoading, txt) {
+    // const { label, spinner } = ensurePowerButtonStructure(button);
+
+    // if (isLoading) {
+    //     spinner.classList.remove("invisible");
+    //     spinner.classList.add("is-active");
+    //     button.setAttribute("aria-busy", "true");
+    // } else {
+    //     spinner.classList.add("invisible");
+    //     spinner.classList.remove("is-active");
+    //     button.removeAttribute("aria-busy");
+    // }
+
+    if (isLoading) {
+        button.dataset.originalLabel = button.textContent;
+        button.textContent = txt || "Processing...";
+        button.disabled = true;
+    } else {
+        if (button.dataset.originalLabel) {
+            button.textContent = button.dataset.originalLabel;
+            delete button.dataset.originalLabel;
+        }
+
+        button.disabled = false;
+    }
+}
+
+async function powerControl(button) {
+    const btnText = (button.dataset.originalLabel || button.textContent || "").trim();
+    const ipNode = getDeviceIP(button);
+    if (!ipNode) return;
+    const deviceAddress = ipNode.textContent;
+    const menu = button.closest(".power-menu");
+    const menuButtons = menu ? Array.from(menu.querySelectorAll("button")) : [];
+    const errorBox = menu?.querySelector('[data-role="power-error"]');
+
+    if (errorBox) {
+        errorBox.textContent = "";
+        errorBox.classList.add("hidden");
+    }
+
+    try {
+        menuButtons.forEach((btn) => btn.disabled = true);
+
+        setPowerButtonLoading(button, true, "Processing...");
+
+        const powerActions = (await API.getPowerActions()).body;
+        const powerAction = powerActions[btnText];
+        const response = await API.postHostPowerControl(deviceAddress, powerAction);
+
+        const message = response?.body?.message;
+        const isOK = response.status_code === 200;
+        if (!isOK) {
+            const fallback = message || "Failed to change power state.";
+            if (errorBox) {
+                errorBox.textContent = fallback;
+                errorBox.classList.remove("hidden");
+            } else {
+                alert(fallback);
+            }
+            return;
+        } else {
+            // body.power_state is new
+            const newPowerState = resolveEnum(reverseObject((await API.getPowerStates()).body), response.body.power_state);
+            const hostSection = button.closest("section");
+            const powerNode = hostSection?.querySelector('[data-field="power"]');
+            if (powerNode) {
+                powerNode.textContent = newPowerState;
+                applyPowerBadge(powerNode.closest("[data-role='power-badge']"), newPowerState);
+            }
+            const formattedTime = dateTimeFormat.format(new Date());
+            ["power-updated", "power-updated-inline"].forEach((selector) => {
+                const node = hostSection?.querySelector(`[data-field="${selector}"]`);
+                if (node) node.textContent = `As of ${formattedTime}`;
+            });
+        }
+
+        closeAllMenus();
+    } catch (err) {
+        console.error(err);
+        if (errorBox) {
+            errorBox.textContent = "Failed to change power state.";
+            errorBox.classList.remove("hidden");
+        } else {
+            alert("Failed to change power state.");
+        }
+    } finally {
+        menuButtons.forEach((btn) => {
+            btn.disabled = false;
+        });
+        setPowerButtonLoading(button, false);
+    }
+}
+
 window.powerControl = powerControl;
 
-const addHostForm = newHostForm;
-addHostForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const address = document.getElementById("addressInput").value;
-    const managementType = document.getElementById("managementSelect").value;
-    setHostFormError("");
+async function unenrollHost(button) {
+    const ipNode = getDeviceIP(button);
+    if (!ipNode) return;
+    const deviceAddress = ipNode.textContent;
 
-    if (!validateIP(address)) {
-        setHostFormError("Please enter a valid IPv4 address.");
-        return;
+    const confirmRemoval = window.confirm(`Remove host ${deviceAddress} from inventory?`);
+    if (!confirmRemoval) return;
+
+    const defaultText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Removing...";
+
+    try {
+        const response = await API.deleteHostByManagementIp(deviceAddress);
+        if (response.status_code === 200) {
+            const section = button.closest("section");
+            section?.remove();
+            if (!list.children.length) {
+                emptyState?.classList.remove("hidden");
+            }
+        } else {
+            alert(response?.body?.message || "Failed to remove host.");
+            button.disabled = false;
+            button.textContent = defaultText;
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Failed to remove host.");
+        button.disabled = false;
+        button.textContent = defaultText;
+    } finally {
+        closeAllMenus();
     }
+}
+window.unenrollHost = unenrollHost;
 
-    const mgmtTypes = (await API.getManagementTypes()).body;
-    const m = mgmtTypes[managementType];
+if (hostFormElement) {
+    hostFormElement.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const address = document.getElementById("addressInput").value;
+        const managementType = document.getElementById("managementSelect").value;
+        setHostFormError("");
 
-    // Wait for host creation request then reload page
-    document.getElementById("host-spinner").classList.toggle("hidden");
-    const response = await API.postHostCreate(address, m);
-    if (response.status_code !== 200) {
+        if (!validateIP(address)) {
+            setHostFormError("Please enter a valid IPv4 address.");
+            return;
+        }
+
+        const mgmtTypes = (await API.getManagementTypes()).body;
+        const m = mgmtTypes[managementType];
+
+        // Wait for host creation request then reload page
         document.getElementById("host-spinner").classList.toggle("hidden");
-        console.log(response.body);
-        const message = response?.body?.message || "Failed to add host. Please try again.";
-        setHostFormError(message);
-        return;
-    }
+        const response = await API.postHostCreate(address, m);
+        if (response.status_code !== 200) {
+            document.getElementById("host-spinner").classList.toggle("hidden");
+            console.log(response.body);
+            const message = response?.body?.message || "Failed to add host. Please try again.";
+            setHostFormError(message);
+            return;
+        }
 
-    window.location.reload();
-});
+        window.location.reload();
+    });
+}
 
 function validateIP(address) {
     return /^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$/.test(address);
 }
 
-const isoForm = document.getElementById("uploadISOForm");
+if (isoForm) {
+    isoForm.addEventListener("submit", uploadISO);
+}
 
-function uploadISO(e) {
+async function uploadISO(e) {
     e.preventDefault();
+    if (!isoForm) return;
     const input = isoForm.querySelector('[name="iso-input"]');
     const file = input?.files?.[0];
     const fd = new FormData();
@@ -267,9 +503,11 @@ function uploadISO(e) {
     }
 
     fd.append("iso_image", file, file.name);
-    API.postIsoImage(fd);
+    const response = await API.postIsoImage(fd);
+    if (response.status_code === 200) {
+        resetISOForm();
+        closeForm("iso");
+    } else {
+        alert(response?.body?.message || "Failed to upload ISO.");
+    }
 }
-
-window.uploadISO = uploadISO;
-
-document.getElementById("submitISOBtn").addEventListener('click', uploadISO);

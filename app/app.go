@@ -16,7 +16,7 @@ func CreateApp() (app *fiber.App) {
 	templateEngine.Reload(config.Config.WebServer.ReloadTemplatesOnEachRender)
 
 	app = fiber.New(fiber.Config{
-		Views: templateEngine,
+		Views:     templateEngine,
 		BodyLimit: 10 * 1024 * 1024 * 1024, // i think thats 10 GB
 	})
 
@@ -30,6 +30,7 @@ func CreateApp() (app *fiber.App) {
 
 	// Auth API
 	app.Post("/api/auth/login", apiLogin)
+	app.Get("/api/auth/me", apiMustBeLoggedIn, apiAuthMe)
 	app.Post("/api/auth/logout", apiMustBeLoggedIn, apiLogout)
 
 	// Enums API
@@ -117,7 +118,7 @@ func fileExists(p string) bool {
 func StartApp() (err error) {
 	var app *fiber.App = CreateApp()
 
-	if len(config.Config.WebServer.RedirectAddresses) > 0 {
+	if len(config.Config.WebServer.RedirectAddresses) > 0 && len(config.Config.WebServer.RedirectAddresses[0]) > 0 {
 		for _, redirectAddress := range config.Config.WebServer.RedirectAddresses {
 			runHttpRedirectServer(redirectAddress, config.Config.WebServer.Address, config.Config.WebServer.TlsDir != "")
 		}

@@ -19,14 +19,15 @@
 <body class="bg-background-primary antialiased overflow-x-hidden">
     <a href="#main" class="skip-link bg-sky-600 text-white rounded">Skip to content</a>
 
-    <header
-        class="sticky top-0 z-40 bg-background-primary border-b border-background-muted">
-        <div class="py-4 shell">
-            <h1 class="text-2xl">
-                <a href="/">OpnLaaS</a>
-            </h1>
+    <header class="sticky top-0 z-40 bg-background-primary/95 border-b border-background-muted backdrop-blur">
+        <div class="py-4 shell flex items-center justify-between gap-6">
+            <div class="flex items-center gap-6">
+                <h1 class="text-2xl font-semibold">
+                    <a href="/">OpnLaaS</a>
+                </h1>
+            </div>
 
-            <nav class="flex items-center gap-3 navbar">
+            <nav class="flex items-center gap-6 navbar">
                 <a href="/" id="home">Home</a>
                 {{if not .LoggedIn}}
                 <a href="/login" id="login">Log In</a>
@@ -34,37 +35,60 @@
                 {{if .LoggedIn}}
                 <a href="/dashboard" id="dashboard">My Dashboard</a>
                 {{else}}
-
                 <a href="/dashboard" id="dashboard">Public Dashboard</a>
                 {{end}}
-
             </nav>
 
-            <button id="theme-toggle"
-                class="navbar"
-                aria-label="Toggle color theme">
-                <span aria-hidden="true" id="theme-icon">🌙</span>
-            </button>
+            <div class="flex items-center gap-3 relative">
+                <button id="theme-toggle" class="navbar" aria-label="Toggle color theme">
+                    <span aria-hidden="true" id="theme-icon">🌙</span>
+                </button>
+
+                {{if .LoggedIn}}
+                <div class="relative">
+                    <button id="user-chip"
+                        class="flex items-center gap-2 bg-background-secondary hover:bg-background-muted border border-background-muted rounded-lg pl-2 pr-3 py-1 shadow-sm transition text-xs">
+                        <span id="navUserName" class="block font-semibold text-sm">Loading…</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-font-muted" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.154l3.71-3.924a.75.75 0 1 1 1.08 1.04l-4.24 4.483a.75.75 0 0 1-1.08 0L5.25 8.27a.75.75 0 0 1-.02-1.06Z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <div id="user-dropdown"
+                        class="hidden absolute right-0 mt-2 w-52 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden">
+                        <div class="px-3 py-2.5 border-b border-background-muted">
+                            <p id="navUserNameMenu" class="font-semibold text-sm leading-tight">Loading…</p>
+                            <p id="navUserFullName" class="text-xs text-font-muted truncate leading-tight mt-1"></p>
+                            <p id="navUserRole" class="text-xs text-font-muted truncate leading-tight mt-1"></p>
+                            <p id="navUserEmail" class="text-xs text-font-muted truncate leading-tight mt-1"></p>
+                        </div>
+                        <button id="logoutBtnNav"
+                            class="w-full text-left px-3 py-2.5 hover:bg-background-muted text-sm">Log Out</button>
+                    </div>
+                </div>
+                {{end}}
+            </div>
         </div>
     </header>
 
     {{if .Error}}
-    <div
-        class="w-full max-w-2xl p-6 bg-background-secondary rounded-xl shadow-md mx-auto my-12">
+    <div class="w-full max-w-2xl p-6 bg-background-secondary rounded-xl shadow-md mx-auto my-12">
         <h2>A Critical Error Occurred:</h2>
         <p class="bg-red-100 text-red-700 p-3 rounded">{{.Error}}</p>
     </div>
     {{else}}
-        <main class="min-h-[87vh] shell">
-            {{embed}}
-        </main>
+    <main class="min-h-[87vh] shell">
+        {{embed}}
+    </main>
     {{end}}
 
-    <footer
-        class="w-full border-t bg-background-primary border-background-muted">
+    <footer class="w-full border-t bg-background-primary border-background-muted">
         <div class="py-4 shell footer">
             <span class="mr-max">
-                <a href="https://github.com/opnlaas/opnlaas" target="_blank" class="hover:underline">Source Code (GitHub)</a>
+                <a href="https://github.com/opnlaas/opnlaas" target="_blank" class="hover:underline">Source Code
+                    (GitHub)</a>
             </span>
             <ul class="flex flex-wrap items-center mt-3 sm:mt-0 footer">
                 <li>

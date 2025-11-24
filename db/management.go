@@ -167,6 +167,7 @@ func (c *HostManagementClient) PowerState(forcePoll bool) (state PowerState, err
 	}
 
 	c.Host.LastKnownPowerState = state
+	c.Host.LastKnownPowerStateTime = time.Now()
 	return
 }
 
