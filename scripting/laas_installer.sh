@@ -115,9 +115,15 @@ EOL
         sudo su - "$laas_user" -s /bin/bash -c "cd ${install_dir} && ./opnlaas" &> /dev/null || true
     fi
 
-    echo "Please configure the .env file now. After exiting the editor, the OpnLaaS service will start."
-    read -rp "Press Enter to continue..."
-    sudo nano "${install_dir}/.env"
+    # echo "Please configure the .env file now. After exiting the editor, the OpnLaaS service will start."
+    # read -rp "Press Enter to continue..."
+    # sudo nano "${install_dir}/.env"
+
+    # Ask to configure the .env file (y/n)
+    read -rp "Would you like to configure the .env file now? (y/n) (If this is an initial setup, this is highly recommended!): " configure_env
+    if [[ "$configure_env" =~ ^[Yy]$ ]]; then
+        sudo nano "${install_dir}/.env"
+    fi
 
     sudo systemctl enable --now opnlaas.service
 
