@@ -149,7 +149,8 @@ func apiHostCreate(c *fiber.Ctx) (err error) {
 	}
 
 	if newHost.Management, err = db.NewHostManagementClient(newHost); err != nil {
-		log.Errorf("Failed to create management client for new host, internal error: %v", err.Error())
+		err = fiber.NewError(fiber.StatusInternalServerError, "failed to create management client: "+err.Error())
+		log.Errorf("failed to create management client for host %s: %v", newHost.ManagementIP, err)
 		return c.SendStatus(500)
 	} else {
 		defer newHost.Management.Close()

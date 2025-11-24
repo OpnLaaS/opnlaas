@@ -167,7 +167,26 @@ window.closeAllMenus = closeAllMenus;
 
 const addHostBtn = document.getElementById("addHostBtn");
 const newHostForm = document.getElementById("newHostForm");
+const hostFormElement = document.getElementById("hostForm");
+let hostFormError = null;
 
+if (hostFormElement) {
+    hostFormError = document.createElement("p");
+    hostFormError.className = "text-red-600 text-sm mb-1";
+    hostFormError.style.display = "none";
+    hostFormElement.prepend(hostFormError);
+}
+
+function setHostFormError(message) {
+    if (!hostFormError) return;
+    if (message) {
+        hostFormError.textContent = message;
+        hostFormError.style.display = "block";
+    } else {
+        hostFormError.textContent = "";
+        hostFormError.style.display = "none";
+    }
+}
 function hideForm(form) {
     console.log(form);
     if (form.classList.contains("max-h-0")) {
@@ -207,9 +226,10 @@ addHostForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const address = document.getElementById("addressInput").value;
     const managementType = document.getElementById("managementSelect").value;
+    setHostFormError("");
 
     if (!validateIP(address)) {
-        //TODO add error message on webpage
+        setHostFormError("Please enter a valid IPv4 address.");
         return;
     }
 
@@ -220,7 +240,10 @@ addHostForm.addEventListener("submit", async (e) => {
     document.getElementById("host-spinner").classList.toggle("hidden");
     const response = await API.postHostCreate(address, m);
     if (response.status_code !== 200) {
-        // TODO show error message on webpage
+        document.getElementById("host-spinner").classList.toggle("hidden");
+        console.log(response.body);
+        const message = response?.body?.message || "Failed to add host. Please try again.";
+        setHostFormError(message);
         return;
     }
 
