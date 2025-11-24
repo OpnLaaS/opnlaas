@@ -218,7 +218,12 @@ addHostForm.addEventListener("submit", async (e) => {
 
     // Wait for host creation request then reload page
     document.getElementById("host-spinner").classList.toggle("hidden");
-    await API.postHostCreate(address, m);
+    const response = await API.postHostCreate(address, m);
+    if (response.status_code !== 200) {
+        // TODO show error message on webpage
+        return;
+    }
+
     window.location.reload();
 });
 
