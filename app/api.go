@@ -51,7 +51,9 @@ func apiLogin(c *fiber.Ctx) (err error) {
 
 func apiLogout(c *fiber.Ctx) (err error) {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
-	auth.Logout(user.LDAPConn.Username)
+	if user != nil {
+		auth.Logout(user.Username)
+	}
 
 	// Must replace cookie as some browsers require a valid replacement before deletion
 	c.Cookie(&fiber.Cookie{
@@ -60,6 +62,46 @@ func apiLogout(c *fiber.Ctx) (err error) {
 		Expires: time.Now().Add(-time.Hour),
 	})
 	return
+}
+
+type authProfile struct {
+	Username    string   `json:"username"`
+	DisplayName string   `json:"display_name"`
+	Email       string   `json:"email,omitempty"`
+	Groups      []string `json:"groups,omitempty"`
+	Permissions string   `json:"permissions"`
+	IsAdmin     bool     `json:"is_admin"`
+}
+
+func apiAuthMe(c *fiber.Ctx) (err error) {
+	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	perms := user.Permissions()
+	profile := authProfile{
+		Username:    user.Username,
+		DisplayName: user.Username,
+		Permissions: perms.String(),
+		IsAdmin:     perms >= auth.AuthPermsAdministrator,
+	}
+
+	if user.LDAPConn != nil {
+		if displayName, err := user.LDAPConn.DisplayName(); err == nil && displayName != "" {
+			profile.DisplayName = displayName
+		}
+
+		if email, err := user.LDAPConn.Email(); err == nil && email != "" {
+			profile.Email = email
+		}
+
+		if groups, err := user.LDAPConn.Groups(); err == nil && len(groups) > 0 {
+			profile.Groups = groups
+		}
+	}
+
+	return c.JSON(profile)
 }
 
 // Enums API

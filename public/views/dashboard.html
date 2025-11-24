@@ -1,12 +1,13 @@
-<div class="py-6 md:py-8 w-full">
+<div class="py-4 md:py-6 w-full space-y-6">
     {{if .IsAdmin}}
-    <div id="newHost" class="pb-10">
-        <button id="addHostBtn" onclick="hideForm(this.closest('div').querySelector('#newHostForm'))"
-            class="my-6 bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
+    <div id="newHost" class="pb-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <button id="addHostBtn"
+            class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
             + Add New Host
         </button>
-        <button id="uploadISOBtn" onclick="hideForm(this.closest('div').querySelector('#uploadISOPopup'))"
-            class="my-6 bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
+            <button id="uploadISOBtn"
+            class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline" viewBox="0 0 16 16">
                 <path
                     d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5" />
@@ -14,9 +15,10 @@
             </svg>
             Upload ISO
         </button>
+        </div>
 
         <div id="newHostForm"
-            class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
+            class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-200 ease-in-out hidden">
             <a class="font-bold text-2xl strong">New Host</a>
             <form id="hostForm" class="space-y-4">
                 <div>
@@ -47,17 +49,20 @@
                 </div>
             </form>
         </div>
-        <div id="uploadISOPopup" class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
+        <div id="uploadISOPopup" class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-200 ease-in-out hidden">
             <form id="uploadISOForm">
                 <label for="iso-input" class="font-bold text-xl">Choose File:</label>
-                <input name="iso-input" type="file" accept=".iso"class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3 mx-4" required/> <br>
-                <button type="submit" id="submitISOBtn" class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3">Upload</button>
+                <input name="iso-input" type="file" accept=".iso" class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3 mx-4" required/> <br>
+                <div class="flex items-center gap-3 mt-3">
+                    <button type="submit" id="submitISOBtn" class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3">Upload</button>
+                    <button type="button" id="cancelISOBtn" class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
+                </div>
             </form>
         </div>
     </div>
     <!-- i dont give a care how this looks rn just that it works -->
     {{end}}
-    <div class="flex items-center justify-between mb-4 transition-color">
+    <div class="flex items-center justify-between mb-2 transition-color">
         <h2>Hosts</h2>
     </div>
 
@@ -105,6 +110,10 @@
                             </button>
                             <button id="hPowerOff" onclick="powerControl(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted">
                                 Force Restart
+                            </button>
+                            <div class="border-t border-background-muted"></div>
+                            <button onclick="unenrollHost(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted text-red-600">
+                                Unenroll Host
                             </button>
                         </div>
                         {{end}}

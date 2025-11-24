@@ -1,4 +1,4 @@
-import { apiPostGeneric, apiPostJSON, known_uri } from "./util.js";
+import { apiGet, apiPostGeneric, apiPostJSON, known_uri } from "./util.js";
 
 export async function postLogin(username, password) {
 
@@ -14,4 +14,8 @@ export async function postLogin(username, password) {
 
 export async function postLogout() {
     return await apiPostJSON(known_uri.auth_logout());
+}
+
+export async function getCurrentUser() {
+    return await apiGet(known_uri.auth_me());
 }
