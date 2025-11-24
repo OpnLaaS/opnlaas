@@ -167,15 +167,18 @@ window.closeAllMenus = closeAllMenus;
 
 const addHostBtn = document.getElementById("addHostBtn");
 const newHostForm = document.getElementById("newHostForm");
-function hideForm() {
-    if (newHostForm.classList.contains("max-h-0")) {
-        newHostForm.classList.remove("max-h-0", "opacity-0");
-        newHostForm.classList.add("max-h-80", "opacity-100");
+
+function hideForm(form) {
+    console.log(form);
+    if (form.classList.contains("max-h-0")) {
+        form.classList.remove("max-h-0", "opacity-0");
+        form.classList.add("max-h-80", "opacity-100");
     } else {
-        newHostForm.classList.remove("max-h-80", "opacity-100");
-        newHostForm.classList.add("max-h-0", "opacity-0");
+        form.classList.remove("max-h-80", "opacity-100");
+        form.classList.add("max-h-0", "opacity-0");
     }
 }
+window.hideForm = hideForm;
 
 if (addHostBtn) {
     addHostBtn.addEventListener('click', hideForm);
@@ -220,3 +223,24 @@ addHostForm.addEventListener("submit", async (e) => {
 function validateIP(address) {
     return /^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$/.test(address);
 }
+
+const isoForm = document.getElementById("uploadISOForm");
+
+function uploadISO(e) {
+    e.preventDefault();
+    const input = isoForm.querySelector('[name="iso-input"]');
+    const file = input?.files?.[0];
+    const fd = new FormData();
+
+    if (!file) {
+        return;
+    }
+
+    fd.append("iso_image", file, file.name);
+    console.log("come on bruj")
+    API.postIsoImage(fd);
+}
+
+window.uploadISO = uploadISO;
+
+document.getElementById("submitISOBtn").addEventListener('click', uploadISO);
