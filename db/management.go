@@ -49,6 +49,8 @@ func (c *HostManagementClient) redfishInit() (err error) {
 		Username: config.Config.Management.DefaultIPMIUser,
 		Password: config.Config.Management.DefaultIPMIPass,
 		Insecure: true,
+		// High handshake timeout
+		TLSHandshakeTimeout: 60,
 	}); err != nil {
 		return
 	}

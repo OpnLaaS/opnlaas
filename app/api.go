@@ -310,6 +310,7 @@ func apiHostPowerControl(c *fiber.Ctx) (err error) {
 
 	// Wait for desired power state
 	if err = host.Management.WaitSystemPowerState(waitPowerState, 120); err != nil {
+		fmt.Println(err)
 		return sendPowerError(fiber.StatusGatewayTimeout, fmt.Sprintf("Timed out waiting for host to reach %s power state", waitPowerState.String()), err)
 	}
 
