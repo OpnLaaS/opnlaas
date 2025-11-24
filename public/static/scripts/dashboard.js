@@ -1,5 +1,5 @@
 import { reverseObject } from "./lib/util.js";
-import { URL } from "./lib/constants.js";
+import * as API from "./api/api.js";
 
 const list = document.getElementById("host-list");
 const template = document.getElementById("host-item-template");
@@ -7,20 +7,48 @@ const emptyState = document.getElementById("empty");
 
 function toggleItem(button) {
     const section = button.closest("section");
-    const collapsible = section.querySelector(".transition-all");
+    const collapsible = section.querySelector(".transition-all:not(.power-menu)");
     const arrow = button.querySelector("svg");
     const isCollapsed = collapsible.classList.contains("max-h-0");
 
     if (isCollapsed) {
         collapsible.classList.remove("max-h-0", "opacity-0");
-        collapsible.classList.add("max-h-[1200px]", "opacity-100");
+        collapsible.classList.add("max-h-100", "opacity-100");
         arrow.style.transform = "rotate(180deg)";
     } else {
         collapsible.classList.add("max-h-0", "opacity-0");
-        collapsible.classList.remove("max-h-[1200px]", "opacity-100");
+        collapsible.classList.remove("max-h-100", "opacity-100");
         arrow.style.transform = "";
     }
 }
+
+function togglePowerMenu(button) {
+    const wrapper = button.closest("div.relative");
+    const menu = wrapper.querySelector(".power-menu");
+    const isClosed = menu.classList.contains("max-h-0");
+
+    closeAllMenus();
+    if (isClosed) {
+        menu.classList.remove("max-h-0", "opacity-0");
+        menu.classList.add("max-h-70", "opacity-100");
+    }
+}
+
+function closeAllMenus() {
+    document.querySelectorAll(".power-menu").forEach(menu => {
+        menu.classList.add("max-h-0", "opacity-0");
+        menu.classList.remove("max-h-70", "opacity-100");
+    });
+}
+
+document.addEventListener("click", function (event) {
+    if (event.target.closest(".power-menu") || event.target.closest(".power-button")) {
+        return;
+    }
+
+    closeAllMenus();
+});
+
 
 // Pretty-print capacity in GB/TB
 function prettyCapacityGB(gb) {
@@ -44,31 +72,24 @@ function renderStorageLine(dev) {
     return parts.filter(Boolean).join(" • ");
 }
 
-async function getEnums(name) {
-    const res = await fetch(`${URL}/api/enums/${name}`);
-    if (!res.ok) throw new Error(`Failed to load enum: ${name}`);
-    const obj = await res.json();
-    return reverseObject(obj);
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        const res = await fetch(`${URL}/api/hosts`);
-        if (!res.ok) throw new Error("Failed to load hosts");
-        const data = await res.json();
+        const hostData = await API.getHostsAll();
+        // get enums
+        const vendorsRes = await API.getVendors();
+        const vendorNames = reverseObject(vendorsRes.body || {});
 
-        if (!Array.isArray(data) || data.length === 0) {
-            emptyState?.classList.remove("hidden");
-            return;
-        }
+        const formFactorsRes = await API.getFormFactors();
+        const formFactors = reverseObject(formFactorsRes.body || {});
 
-        const vendorNames = await getEnums("vendors");
-        const formFactors = await getEnums("form-factors");
-        const mgmtTypes = await getEnums("management-types");
-        const powerStates = await getEnums("power-states");
+        const mgmtTypesRes = await API.getManagementTypes();
+        const mgmtTypes = reverseObject(mgmtTypesRes.body || {});
+
+        const powerStatesRes = await API.getPowerStates();
+        const powerStates = reverseObject(powerStatesRes.body || {});
 
         list.innerHTML = "";
-        data.forEach((host) => {
+        hostData.body.forEach((host) => {
             const frag = template.content.cloneNode(true);
 
             // header
@@ -78,7 +99,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
-            frag.querySelector('[data-field="mgmt-type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
+            frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
             frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
 
             // memory
@@ -128,6 +149,7 @@ function resolveEnum(maybeMap, value) {
     if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
     return (value ?? "—");
 }
+
 function cleanSku(manufacturer, sku) {
     if (!sku) return sku;
     const man = (manufacturer || "").toLowerCase().trim();
@@ -140,16 +162,114 @@ function cleanSku(manufacturer, sku) {
 
 
 window.toggleItem = toggleItem;
+window.togglePowerMenu = togglePowerMenu;
+window.closeAllMenus = closeAllMenus;
 
+const addHostBtn = document.getElementById("addHostBtn");
+const newHostForm = document.getElementById("newHostForm");
+const hostFormElement = document.getElementById("hostForm");
+let hostFormError = null;
 
-const addHostBtn = document.getElementById("addHostBtn")
-const addHostForm = document.getElementById("newHostForm")
-function hideForm() {
-    if (newHostForm.classList.contains("hidden")) {
-        newHostForm.classList.remove("hidden");
-    } else {
-        newHostForm.classList.add("hidden")
-    }
+if (hostFormElement) {
+    hostFormError = document.createElement("p");
+    hostFormError.className = "text-red-600 text-sm mb-1";
+    hostFormError.style.display = "none";
+    hostFormElement.prepend(hostFormError);
 }
 
-addHostBtn.addEventListener('click', hideForm)
+function setHostFormError(message) {
+    if (!hostFormError) return;
+    if (message) {
+        hostFormError.textContent = message;
+        hostFormError.style.display = "block";
+    } else {
+        hostFormError.textContent = "";
+        hostFormError.style.display = "none";
+    }
+}
+function hideForm(form) {
+    console.log(form);
+    if (form.classList.contains("max-h-0")) {
+        form.classList.remove("max-h-0", "opacity-0");
+        form.classList.add("max-h-80", "opacity-100");
+    } else {
+        form.classList.remove("max-h-80", "opacity-100");
+        form.classList.add("max-h-0", "opacity-0");
+    }
+}
+window.hideForm = hideForm;
+
+if (addHostBtn) {
+    addHostBtn.addEventListener('click', hideForm);
+}
+
+function getDeviceIP(element) {
+    if (!element) return null;
+    const section = element.closest("section");
+    if (!section) return null;
+    return section.querySelector('[data-field="ip"]');
+}
+
+async function powerControl(button) {
+    const btnText = button.textContent;
+    const device_address = getDeviceIP(button).textContent;
+
+    const powerActions = (await API.getPowerActions()).body;
+    const power_action = powerActions[btnText];
+    
+    API.postHostPowerControl(device_address, power_action);
+}
+window.powerControl = powerControl;
+
+const addHostForm = newHostForm;
+addHostForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const address = document.getElementById("addressInput").value;
+    const managementType = document.getElementById("managementSelect").value;
+    setHostFormError("");
+
+    if (!validateIP(address)) {
+        setHostFormError("Please enter a valid IPv4 address.");
+        return;
+    }
+
+    const mgmtTypes = (await API.getManagementTypes()).body;
+    const m = mgmtTypes[managementType];
+
+    // Wait for host creation request then reload page
+    document.getElementById("host-spinner").classList.toggle("hidden");
+    const response = await API.postHostCreate(address, m);
+    if (response.status_code !== 200) {
+        document.getElementById("host-spinner").classList.toggle("hidden");
+        console.log(response.body);
+        const message = response?.body?.message || "Failed to add host. Please try again.";
+        setHostFormError(message);
+        return;
+    }
+
+    window.location.reload();
+});
+
+function validateIP(address) {
+    return /^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$/.test(address);
+}
+
+const isoForm = document.getElementById("uploadISOForm");
+
+function uploadISO(e) {
+    e.preventDefault();
+    const input = isoForm.querySelector('[name="iso-input"]');
+    const file = input?.files?.[0];
+    const fd = new FormData();
+
+    if (!file) {
+        return;
+    }
+
+    fd.append("iso_image", file, file.name);
+    API.postIsoImage(fd);
+}
+
+window.uploadISO = uploadISO;
+
+document.getElementById("submitISOBtn").addEventListener('click', uploadISO);

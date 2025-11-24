@@ -1,44 +1,63 @@
 <div class="py-6 md:py-8 w-full">
     {{if .IsAdmin}}
     <div id="newHost" class="pb-10">
-        <button id="addHostBtn"
-            class="my-6 bg-background-secondary hover:bg-background-muted border border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition">
+        <button id="addHostBtn" onclick="hideForm(this.closest('div').querySelector('#newHostForm'))"
+            class="my-6 bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
             + Add New Host
         </button>
+        <button id="uploadISOBtn" onclick="hideForm(this.closest('div').querySelector('#uploadISOPopup'))"
+            class="my-6 bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline" viewBox="0 0 16 16">
+                <path
+                    d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5" />
+                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z" />
+            </svg>
+            Upload ISO
+        </button>
 
-        <!-- TODO: Is this in use? -->
-        <div id="newHostForm" class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary">
-            <a class="font-bold text-2      xl strong">New Host</a>
+        <div id="newHostForm"
+            class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
+            <a class="font-bold text-2xl strong">New Host</a>
             <form id="hostForm" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Management IPv4</label>
-                    <input type="text" name="managementAddress" required
-                        class="focus-ring mt-1 block w-full border border-background-muted  rounded-lg shadow-sm py-2 px-3 placeholder-gray-400"
-                        placeholder="0.0.0.0">
+                    <input id="addressInput" type="text" name="managementAddress" required
+                        class="focus-ring mt-1 block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 placeholder-gray-400"
+                        placeholder="0.0.0.0" />
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Management Type</label>
-                    <select name="managementType" required
-                        class="focus-ring mt-1 block w-full border border-background-muted  rounded-lg shadow-sm py-2 px-3 placeholder-gray-400">
-                        <option value="ipmi">IPMI</option>
-                        <option value="redfish">Redfish</option>
+                    <select id="managementSelect" name="managementType" required
+                        class="focus-ring mt-1 block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 placeholder-gray-400">
+                        <option value="IPMI">IPMI</option>
+                        <option value="Redfish">Redfish</option>
                     </select>
                 </div>
 
                 <div class="flex items-center space-x-3">
                     <button type="submit"
-                        class="focus-ring bg-background-muted hover:bg-background-secondary text-font-secondary  py-2 px-4 rounded-lg font-medium  transition">
+                        class="focus-ring flex items-center justify-center bg-background-muted hover:bg-background-secondary text-font-secondary py-2 px-4 rounded-lg font-medium transition">
+                        <div id="host-spinner" class="w-4 h-4 mr-4 border-2 border-white/50 border-t-white rounded-full animate-spin hidden"></div>
                         Add Host
                     </button>
-                    <button type="button" id="cancelHostBtn"
-                        class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
+                    <button type="button" id="cancelHostBtn" class="text-gray-600 hover:underline focus:outline-none">
+                        Cancel
+                    </button>
                 </div>
             </form>
         </div>
+        <div id="uploadISOPopup" class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
+            <form id="uploadISOForm">
+                <label for="iso-input" class="font-bold text-xl">Choose File:</label>
+                <input name="iso-input" type="file" accept=".iso"class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3 mx-4" required/> <br>
+                <button type="submit" id="submitISOBtn" class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3">Upload</button>
+            </form>
+        </div>
     </div>
+    <!-- i dont give a care how this looks rn just that it works -->
     {{end}}
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 transition-color">
         <h2>Hosts</h2>
     </div>
 
@@ -47,8 +66,7 @@
     <div id="host-list" class="w-full flex flex-col space-y-4"></div>
 
     <template id="host-item-template">
-        <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm overflow-hidden">
-
+        <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4">
                 <div class="min-w-0">
@@ -59,32 +77,62 @@
                 </div>
                 <div class="flex items-center space-x-2">
                     <span class="inline-block px-2 py-1 rounded text-xs bg-background-muted" data-field="power"></span>
-                    <button class="text-blue-500 hover:cursor-pointer" onclick="toggleItem(this)"
-                        aria-label="Toggle details">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                            stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
+                    <!-- Three dots + dropdown -->
+                    <div class="relative">
+                        {{if .IsAdmin}}
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer power-button" onclick="togglePowerMenu(this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                class="bi bi-three-dots-vertical text-font-primary" viewBox="0 0 16 16">
+                                <path
+                                    d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
+                            </svg>
+                        </button>
+
+                        <!-- Powercontrols -->
+                        <div
+                            class="power-menu absolute right-0 mt-2 w-45 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0 z-100">
+                            <button id="powerOn" onclick="powerControl(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Power On
+                            </button>
+                            <button id="powerOff" onclick="powerControl(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Power Off
+                            </button>
+                            <button id="reset" onclick="powerControl(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Graceful Shutdown
+                            </button>
+                            <button id="hPowerOn" onclick="powerControl(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Graceful Restart
+                            </button>
+                            <button id="hPowerOff" onclick="powerControl(this)" class="block w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Force Restart
+                            </button>
+                        </div>
+                        {{end}}
+                    </div>
+                    <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer" onclick="toggleItem(this)" aria-label="Toggle details">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+                            class="w-5 h-5 transition-transform duration-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                 </div>
             </div>
 
-            <!-- Details -->
+            <!-- Details Drop Down-->
             <div class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
                 <div class="px-6 pt-3 pb-5 border-t border-background-muted">
-
                     <div class="py-3">
                         <span class="m-3 h-20">
                             <span class="opacity-70">IP: </span>
                             <span data-field="ip"></span>
                         </span>
 
-                        <span class="m-3 ">
+                        <span class="m-3">
                             <span class="opacity-70">Mgmt: </span>
-                            <span data-field="mgmt-type"></span>
+                            <span data-field="mgmt_type"></span>
                         </span>
 
-                        <span class="m-3 ">
+                        <span class="m-3">
                             <span class="opacity-70">Vendor: </span>
                             <span data-field="vendor"></span>
                         </span>
@@ -92,7 +140,6 @@
 
                     <!-- Stat cards grid -->
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs [&_dt]:text-font-secondary">
-
                         <!-- Processor -->
                         <div class="rounded-lg border border-background-muted p-4">
                             <div class="mb-2">
@@ -166,7 +213,6 @@
                             </p>
                             <ul class="list-disc pl-6 space-y-1" data-field="storage_list"></ul>
                         </div>
-
                     </div>
                 </div>
             </div>

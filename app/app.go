@@ -17,6 +17,7 @@ func CreateApp() (app *fiber.App) {
 
 	app = fiber.New(fiber.Config{
 		Views: templateEngine,
+		BodyLimit: 10 * 1024 * 1024 * 1024, // i think thats 10 GB
 	})
 
 	// Pages
