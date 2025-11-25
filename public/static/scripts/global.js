@@ -20,7 +20,7 @@ async function hydrateNavUser() {
         if (!res || res.status_code !== 200) return;
 
         const profile = res.body || {};
-        const name =  profile.username || profile.display_name || "User";
+        const name = profile.username || profile.display_name || "User";
         const email = profile.email || profile.username || "";
         const role = profile.permissions
             ? `${profile.permissions.charAt(0).toUpperCase()}${profile.permissions.slice(1)}`
