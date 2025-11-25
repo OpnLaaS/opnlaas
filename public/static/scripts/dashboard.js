@@ -71,13 +71,16 @@ function closeAllMenus() {
 }
 
 document.addEventListener("click", function (event) {
-    if (event.target.closest(".power-menu") || event.target.closest(".power-button")) {
+    const isPowerMenu = event.target.closest(".power-menu") || event.target.closest(".power-button");
+    const isMgmtMenu = event.target.closest("#mgmtTypeMenu") || event.target.closest("#mgmtMenuBtn");
+
+    if (isPowerMenu || isMgmtMenu) {
         return;
     }
 
     closeAllMenus();
+    if (typeof closeMgmtMenu === "function") closeMgmtMenu();
 });
-
 
 // Pretty-print capacity in GB/TB
 function prettyCapacityGB(gb) {
@@ -260,10 +263,21 @@ function setFormVisibility(formKey, shouldShow) {
 function resetHostForm() {
     if (hostFormElement) {
         hostFormElement.reset();
+
+        const labelSpan = document.getElementById("mgmtSelectedLabel");
+        const hiddenInput = document.getElementById("managementSelect");
+        if (labelSpan) {
+            labelSpan.textContent = "Select Management Type";
+            labelSpan.classList.add("text-gray-400");
+            labelSpan.classList.remove("text-font-primary");
+        }
+        if (hiddenInput) hiddenInput.value = "";
     }
     const spinner = document.getElementById("host-spinner");
     spinner?.classList.add("hidden");
     setHostFormError("");
+
+    if (typeof closeMgmtMenu === "function") closeMgmtMenu();
 }
 
 function resetISOForm() {
@@ -511,3 +525,51 @@ async function uploadISO(e) {
         alert(response?.body?.message || "Failed to upload ISO.");
     }
 }
+
+
+function toggleMgmtMenu(btn) {
+    const menu = document.getElementById("mgmtTypeMenu");
+    const arrow = btn.querySelector("svg");
+
+    closeAllMenus();
+
+    const isClosed = menu.classList.contains("max-h-0");
+    if (isClosed) {
+        menu.classList.remove("max-h-0", "opacity-0");
+        menu.classList.add("max-h-40", "opacity-100"); 
+        arrow.style.transform = "rotate(180deg)";
+    } else {
+        closeMgmtMenu();
+    }
+}
+
+function closeMgmtMenu() {
+    const menu = document.getElementById("mgmtTypeMenu");
+    const btn = document.getElementById("mgmtMenuBtn");
+
+    if (menu && btn) {
+        menu.classList.add("max-h-0", "opacity-0");
+        menu.classList.remove("max-h-40", "opacity-100");
+
+        const arrow = btn.querySelector("svg");
+        if (arrow) arrow.style.transform = "";
+    }
+}
+
+function selectMgmtType(value) {
+    const hiddenInput = document.getElementById("managementSelect");
+    const labelSpan = document.getElementById("mgmtSelectedLabel");
+
+    if (hiddenInput && labelSpan) {
+        hiddenInput.value = value;
+        labelSpan.textContent = value;
+
+        labelSpan.classList.remove("text-gray-400");
+        labelSpan.classList.add("text-font-primary");
+    }
+
+    closeMgmtMenu();
+}
+
+window.toggleMgmtMenu = toggleMgmtMenu;
+window.selectMgmtType = selectMgmtType;
