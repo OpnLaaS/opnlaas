@@ -21,8 +21,10 @@
 }
 
 @layer theme {
+
     :root,
     :host {
+
         /*
          * Dark mode varient is based on .dark class
          */
@@ -73,7 +75,8 @@
             @apply mt-8 scroll-m-20 text-2xl font-semibold tracking-tight;
         }
 
-        p, span {
+        p,
+        span {
             @apply leading-7 text-lg [&:not(:first-child)]:mt-6;
         }
     }
@@ -93,6 +96,7 @@
  * Define component classes
  */
 @layer components {
+
     /* Navbar/footer items */
     .navbar>* {
         @apply font-medium text-sm px-3 py-2 rounded-lg hover:bg-background-muted focus:outline-none
@@ -105,7 +109,7 @@
     /* text input boxes */
     .text-input {
         @apply w-100 m-5;
-    }  
+    }
 
     .text-input>label {
         @apply text-sm font-medium;
@@ -167,10 +171,12 @@
         width: 1.5ch;
     }
 
-    /* Power badge */
-    .power-pill {
-        @apply text-xs text-font-primary border border-background-muted rounded-md;
 
+    /* this is for the power status on the dashbaord */
+
+    .power-pill {
+        @apply inline-flex items-center text-font-primary border border-background-muted rounded-md;
+        margin-top: 24px;
         gap: 0.45rem;
         padding: 0.35rem 0.95rem;
         min-width: 140px;
@@ -179,38 +185,46 @@
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 2px rgba(0, 0, 0, 0.25);
     }
 
+
+
+    .power-dot {
+        @apply w-2 h-2 rounded-full transition-colors duration-200;
+    }
+
+    .power-pill.power-on .power-dot {
+        @apply bg-green-500;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+    }
+
+    .power-pill.power-off .power-dot {
+        @apply bg-red-500;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+
+    }
+
+    .power-pill.power-unknown .power-dot {
+        @apply bg-yellow-400;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+
+    }
+
+    .power-pill>span {
+        @apply mt-0;
+    }
+
+
     .power-pill .power-state {
-        @apply font-semibold;
+        @apply font-medium;
     }
 
-    .power-pill.power-on .power-state {
-        @apply text-green-300;
-        animation: power-text-pulse 1.4s ease-out infinite;
-    }
 
-    .power-pill.power-off .power-state {
-        @apply text-gray-300;
-    }
-
-    .power-pill.power-unknown .power-state {
-        @apply text-amber-300;
-        animation: power-text-pulse 1.4s ease-out infinite;
-    }
-
-    .power-stack {
-        @apply flex items-center leading-tight;
-    }
-
-    .power-updated-label {
-        @apply text-[11px] text-font-muted;
-        white-space: nowrap;
-    }
 }
 
 @keyframes power-ellipsis {
     0% {
         width: 0;
     }
+
     100% {
         width: 1.5ch;
     }
@@ -221,10 +235,12 @@
         transform: scale(0.9);
         box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
     }
+
     70% {
         transform: scale(1.15);
         box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
     }
+
     100% {
         transform: scale(1.15);
         box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
@@ -235,9 +251,11 @@
     0% {
         text-shadow: 0 0 2px rgba(34, 197, 94, 0.45);
     }
+
     60% {
         text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
     }
+
     100% {
         text-shadow: 0 0 2px rgba(34, 197, 94, 0.2);
     }
@@ -442,14 +460,15 @@
     /* blue-300 */
 
     /* Markdown List Elements */
-    .markdown-body ul, .markdown-body ol {
+    .markdown-body ul,
+    .markdown-body ol {
         margin-left: 1.25rem;
         margin-top: .5rem;
         margin-bottom: .5rem;
         padding-left: 1rem;
     }
 
-    .markdown-body li + li {
+    .markdown-body li+li {
         margin-top: .25rem;
     }
 
@@ -506,3 +525,4 @@
         /* gray-700 */
     }
 }
+

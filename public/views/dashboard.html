@@ -18,22 +18,25 @@
                 Upload ISO
             </button>
         </div>
-
         <div id="newHostForm"
-            class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-200 ease-in-out hidden">
-            <a class="font-bold text-2xl strong">New Host</a>
+            class="mt-4 p-4 border border-background-muted rounded-xl shadow-sm bg-background-secondary transition-all duration-200 ease-in-out hidden">
+            <h3 class="font-bold text-2xl text-font-primary mb-4">New Host</h3>
+
             <form id="hostForm" class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Management IPv4</label>
+                    <label class="block text-sm font-medium text-font-secondary">Management IPv4</label>
+
                     <input id="addressInput" type="text" name="managementAddress" required
-                        class="focus-ring mt-1 block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 placeholder-gray-400"
+                        class="focus-ring mt-1 block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary placeholder-gray-400"
                         placeholder="0.0.0.0" />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Management Type</label>
+                    <label class="block text-sm font-medium text-font-secondary">Management Type</label>
+
                     <select id="managementSelect" name="managementType" required
-                        class="focus-ring mt-1 block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 placeholder-gray-400">
+                        class="focus-ring block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary">
+                        <option value="" disabled selected>Select Management Type</option>
                         <option value="IPMI">IPMI</option>
                         <option value="Redfish">Redfish</option>
                     </select>
@@ -41,13 +44,14 @@
 
                 <div class="flex items-center space-x-3">
                     <button type="submit"
-                        class="focus-ring flex items-center justify-center bg-background-muted hover:bg-background-secondary text-font-secondary py-2 px-4 rounded-lg font-medium transition">
+                        class="focus-ring flex items-center justify-center bg-background-muted hover:bg-background-secondary border border-transparent hover:border-background-muted text-font-primary py-2 px-4 rounded-lg font-medium transition">
                         <div id="host-spinner"
-                            class="w-4 h-4 mr-4 border-2 border-white/50 border-t-white rounded-full animate-spin hidden">
+                            class="w-4 h-4 mr-4 border-2 border-font-secondary/50 border-t-font-secondary rounded-full animate-spin hidden">
                         </div>
                         Add Host
                     </button>
-                    <button type="button" id="cancelHostBtn" class="text-gray-600 hover:underline focus:outline-none">
+                    <button type="button" id="cancelHostBtn"
+                        class="text-font-muted hover:text-font-secondary hover:underline focus:outline-none transition-colors">
                         Cancel
                     </button>
                 </div>
@@ -91,6 +95,7 @@
                 <div class="flex items-center space-x-3">
                     <div class="power-stack">
                         <span class="power-pill" data-role="power-badge">
+                            <span class="power-dot "></span>
                             <span data-field="power"></span>
                             <span class="power-updated-label" data-field="power-updated-inline">(last known)</span>
                         </span>
