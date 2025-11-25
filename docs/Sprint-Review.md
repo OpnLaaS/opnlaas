@@ -57,7 +57,9 @@
 
 Below is the link to our demo video:
 
-...
+https://universitysystemnh.sharepoint.com/:v:/t/UNHCybersecurityClub/EWciRNk3bqNCmmbuOla_vwwB5d1j6d_u7dLiylZ53k18UQ?e=aD9Aga
+
+If this link is not functional, please email `csc@cs.unh.edu` to fix the issue on our Sharepoint.
 
 ## Next Steps
 
