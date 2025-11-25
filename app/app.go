@@ -43,6 +43,8 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/api/enums/architectures", apiEnumsArchitectureNames)
 	app.Get("/api/enums/distro-types", apiEnumsDistroTypeNames)
 	app.Get("/api/enums/preconfigure-types", apiEnumsPreConfigureTypeNames)
+	app.Get("/api/enums/booking-permission-levels", apiEnumsBookingPermissionLevelNames)
+	app.Get("/api/enums/booking-statuses", apiEnumsBookingStatusNames)
 
 	// Hosts API
 	app.Get("/api/hosts", apiHostsAll)

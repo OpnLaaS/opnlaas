@@ -11,15 +11,17 @@ import (
 )
 
 type (
-	VendorID         int
-	FormFactor       int
-	ManagementType   int
-	PowerState       int
-	BootMode         int
-	PowerAction      int
-	Architecture     string
-	DistroType       int
-	PreConfigureType int
+	VendorID               int
+	FormFactor             int
+	ManagementType         int
+	PowerState             int
+	BootMode               int
+	PowerAction            int
+	Architecture           string
+	DistroType             int
+	PreConfigureType       int
+	BookingPermissionLevel int
+	BookingStatus          int
 
 	HostCPUSpecs struct {
 		Manufacturer string `json:"manufacturer"`
@@ -71,6 +73,8 @@ type (
 		LastKnownPowerState     PowerState            `gomysql:"last_known_power_state" json:"last_known_power_state"`
 		LastKnownPowerStateTime time.Time             `gomysql:"last_known_power_state_time" json:"last_known_power_state_time"`
 		Specs                   HostSpecs             `gomysql:"specs" json:"specs"`
+		IsBooked                bool                  `gomysql:"is_booked" json:"is_booked"`
+		ActiveBookingID         int                   `gomysql:"active_booking_id" json:"active_booking_id"`
 		Management              *HostManagementClient `json:"-"`
 	}
 
@@ -85,6 +89,45 @@ type (
 		Architecture Architecture     `gomysql:"architecture" json:"architecture"`
 		DistroType   DistroType       `gomysql:"distro_type" json:"distro_type"`
 		PreConfigure PreConfigureType `gomysql:"preconfigure_type" json:"preconfigure_type"`
+	}
+
+	BookingPerson struct {
+		Username        string                 `json:"username"`
+		PermissionLevel BookingPermissionLevel `json:"permission_level"`
+	}
+
+	BookingContainer struct {
+		ProxmoxID           int        `gomysql:"proxmox_id,primary,unique" json:"proxmox_id"`
+		BookingID           int        `gomysql:"booking_id" json:"booking_id"`
+		Template            string     `gomysql:"template" json:"template"`
+		Cores               int        `gomysql:"cores" json:"cores"`
+		MemoryMB            int        `gomysql:"memory_mb" json:"memory_mb"`
+		DiskGB              int        `gomysql:"disk_gb" json:"disk_gb"`
+		NetworkAddresses    []string   `gomysql:"network_addresses,json" json:"network_addresses"`
+		LastKnownPowerState PowerState `gomysql:"last_known_power_state" json:"last_known_power_state"`
+		LastKnownPowerTime  time.Time  `gomysql:"last_known_power_time" json:"last_known_power_time"`
+	}
+
+	BookingVM struct {
+		ProxmoxID       int    `gomysql:"proxmox_id,primary,unique" json:"proxmox_id"`
+		BookingID       int    `gomysql:"booking_id" json:"booking_id"`
+		OperatingSystem string `gomysql:"operating_system" json:"operating_system"`
+		Cores           int    `gomysql:"cores" json:"cores"`
+		MemoryMB        int    `gomysql:"memory_mb" json:"memory_mb"`
+		DiskGB          int    `gomysql:"disk_gb" json:"disk_gb"`
+	}
+
+	Booking struct {
+		ID                     int             `gomysql:"id,primary,auto_increment" json:"id"`
+		Name                   string          `gomysql:"name" json:"name"`
+		Description            string          `gomysql:"description" json:"description"`
+		Status                 BookingStatus   `gomysql:"status" json:"status"`
+		StartTime              time.Time       `gomysql:"start_time" json:"start_time"`
+		EndTime                time.Time       `gomysql:"end_time" json:"end_time"`
+		People                 []BookingPerson `gomysql:"people,json" json:"people"`
+		OwnedHostManagementIPs []string        `gomysql:"owned_host_management_ips,json" json:"owned_host_management_ips"`
+		OwnedBookingCTIDs      []int           `gomysql:"owned_booking_ctids,json" json:"owned_booking_ctids"`
+		OwnedBookingVMIDs      []int           `gomysql:"owned_booking_vmids,json" json:"owned_booking_vmids"`
 	}
 )
 
@@ -155,6 +198,21 @@ const (
 	PreConfigureTypePreseed
 	PreConfigureTypeAutoYaST
 	PreConfigureTypeArchInstallAuto
+)
+
+const (
+	BookingPermissionLevelNone BookingPermissionLevel = iota
+	BookingPermissionLevelUser
+	BookingPermissionLevelOperator
+	BookingPermissionLevelOwner
+)
+
+const (
+	BookingStatusPendingApproval BookingStatus = iota
+	BookingStatusApproved
+	BookingStatusActive
+	BookingStatusDone
+	BookingStatusRejected
 )
 
 var (
@@ -244,6 +302,25 @@ var (
 	}
 
 	PreConfigureTypeNameReverses = map[string]PreConfigureType{}
+
+	BookingPermissionLevelNames = map[BookingPermissionLevel]string{
+		BookingPermissionLevelNone:     "None",
+		BookingPermissionLevelUser:     "User",
+		BookingPermissionLevelOperator: "Operator",
+		BookingPermissionLevelOwner:    "Owner",
+	}
+
+	BookingPermissionLevelNameReverses = map[string]BookingPermissionLevel{}
+
+	BookingStatusNames = map[BookingStatus]string{
+		BookingStatusPendingApproval: "Pending Approval",
+		BookingStatusApproved:        "Approved",
+		BookingStatusActive:          "Active",
+		BookingStatusDone:            "Done",
+		BookingStatusRejected:        "Rejected",
+	}
+
+	BookingStatusNameReverses = map[string]BookingStatus{}
 )
 
 func (v VendorID) String() string {
@@ -318,6 +395,22 @@ func (p PreConfigureType) String() string {
 	return "None"
 }
 
+func (b BookingPermissionLevel) String() string {
+	if name, exists := BookingPermissionLevelNames[b]; exists {
+		return name
+	}
+
+	return "None"
+}
+
+func (b BookingStatus) String() string {
+	if name, exists := BookingStatusNames[b]; exists {
+		return name
+	}
+
+	return "Unknown Status"
+}
+
 func (specs HostSpecs) String() string {
 	var (
 		specsBytes []byte
@@ -366,5 +459,13 @@ func init() {
 
 	for k, v := range PreConfigureTypeNames {
 		PreConfigureTypeNameReverses[v] = k
+	}
+
+	for k, v := range BookingPermissionLevelNames {
+		BookingPermissionLevelNameReverses[v] = k
+	}
+
+	for k, v := range BookingStatusNames {
+		BookingStatusNameReverses[v] = k
 	}
 }

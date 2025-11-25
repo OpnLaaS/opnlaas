@@ -142,6 +142,14 @@ func apiEnumsPreConfigureTypeNames(c *fiber.Ctx) (err error) {
 	return c.JSON(db.PreConfigureTypeNameReverses)
 }
 
+func apiEnumsBookingPermissionLevelNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.BookingPermissionLevelNameReverses)
+}
+
+func apiEnumsBookingStatusNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.BookingStatusNameReverses)
+}
+
 // Hosts API
 
 func apiHostsAll(c *fiber.Ctx) (err error) {
