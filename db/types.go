@@ -92,8 +92,10 @@ type (
 	}
 
 	BookingPerson struct {
-		Username        string                 `json:"username"`
-		PermissionLevel BookingPermissionLevel `json:"permission_level"`
+		ID              int                    `gomysql:"id,primary,auto_increment" json:"id"`
+		Username        string                 `gomysql:"username" json:"username"`
+		BookingID       int                    `gomysql:"booking_id" json:"booking_id"`
+		PermissionLevel BookingPermissionLevel `gomysql:"permission_level" json:"permission_level"`
 	}
 
 	BookingContainer struct {
@@ -118,16 +120,18 @@ type (
 	}
 
 	Booking struct {
-		ID                     int             `gomysql:"id,primary,auto_increment" json:"id"`
-		Name                   string          `gomysql:"name" json:"name"`
-		Description            string          `gomysql:"description" json:"description"`
-		Status                 BookingStatus   `gomysql:"status" json:"status"`
-		StartTime              time.Time       `gomysql:"start_time" json:"start_time"`
-		EndTime                time.Time       `gomysql:"end_time" json:"end_time"`
-		People                 []BookingPerson `gomysql:"people,json" json:"people"`
-		OwnedHostManagementIPs []string        `gomysql:"owned_host_management_ips,json" json:"owned_host_management_ips"`
-		OwnedBookingCTIDs      []int           `gomysql:"owned_booking_ctids,json" json:"owned_booking_ctids"`
-		OwnedBookingVMIDs      []int           `gomysql:"owned_booking_vmids,json" json:"owned_booking_vmids"`
+		ID                     int           `gomysql:"id,primary,auto_increment" json:"id"`
+		Name                   string        `gomysql:"name" json:"name"`
+		Description            string        `gomysql:"description" json:"description"`
+		Status                 BookingStatus `gomysql:"status" json:"status"`
+		StartTime              time.Time     `gomysql:"start_time" json:"start_time"`
+		EndTime                time.Time     `gomysql:"end_time" json:"end_time"`
+		DNSName                string        `gomysql:"dns_name,unique" json:"dns_name"`
+		CIDRBlock              string        `gomysql:"cidr_block,unique" json:"cidr_block"`
+		People                 []int         `gomysql:"people,json" json:"people"`
+		OwnedHostManagementIPs []string      `gomysql:"owned_host_management_ips,json" json:"owned_host_management_ips"`
+		OwnedBookingCTIDs      []int         `gomysql:"owned_booking_ctids,json" json:"owned_booking_ctids"`
+		OwnedBookingVMIDs      []int         `gomysql:"owned_booking_vmids,json" json:"owned_booking_vmids"`
 	}
 )
 
