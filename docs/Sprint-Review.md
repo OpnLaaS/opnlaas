@@ -63,4 +63,4 @@ Below is the link to our demo video:
 
 - Integrate virtualization to the frontend
 - Create booking system
-- Add permission system for user accounts
+- Expand permission system for user accounts
