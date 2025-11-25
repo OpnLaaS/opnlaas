@@ -22,6 +22,7 @@ type (
 	PreConfigureType       int
 	BookingPermissionLevel int
 	BookingStatus          int
+	BookingRequestStatus   int
 
 	HostCPUSpecs struct {
 		Manufacturer string `json:"manufacturer"`
@@ -92,7 +93,7 @@ type (
 	}
 
 	BookingPerson struct {
-		ID              int                    `gomysql:"id,primary,auto_increment" json:"id"`
+		ID              int                    `gomysql:"id,primary,increment" json:"id"`
 		Username        string                 `gomysql:"username" json:"username"`
 		BookingID       int                    `gomysql:"booking_id" json:"booking_id"`
 		PermissionLevel BookingPermissionLevel `gomysql:"permission_level" json:"permission_level"`
@@ -105,7 +106,7 @@ type (
 		Cores               int        `gomysql:"cores" json:"cores"`
 		MemoryMB            int        `gomysql:"memory_mb" json:"memory_mb"`
 		DiskGB              int        `gomysql:"disk_gb" json:"disk_gb"`
-		NetworkAddresses    []string   `gomysql:"network_addresses,json" json:"network_addresses"`
+		NetworkAddresses    []string   `gomysql:"network_addresses" json:"network_addresses"`
 		LastKnownPowerState PowerState `gomysql:"last_known_power_state" json:"last_known_power_state"`
 		LastKnownPowerTime  time.Time  `gomysql:"last_known_power_time" json:"last_known_power_time"`
 	}
@@ -119,8 +120,41 @@ type (
 		DiskGB          int    `gomysql:"disk_gb" json:"disk_gb"`
 	}
 
+	BookingRequestHost struct {
+		ManagementIP string `json:"management_ip"`
+		ISOSelection string `json:"iso_selection"`
+	}
+
+	BookingRequestCT struct {
+		Template string `json:"template"`
+		Cores    int    `json:"cores"`
+		MemoryMB int    `json:"memory_mb"`
+		DiskGB   int    `json:"disk_gb"`
+	}
+
+	BookingRequestVM struct {
+		ISOSelection string `json:"iso_selection"`
+		Cores        int    `json:"cores"`
+		MemoryMB     int    `json:"memory_mb"`
+		DiskGB       int    `json:"disk_gb"`
+	}
+
+	BookingRequest struct {
+		ID              int                  `gomysql:"id,primary,increment" json:"id"`
+		BookingID       int                  `gomysql:"booking_id" json:"booking_id"`
+		RequestedAt     time.Time            `gomysql:"requested_at" json:"requested_at"`
+		RequestedBy     string               `gomysql:"requested_by" json:"requested_by"`
+		Justification   string               `gomysql:"justification" json:"justification"`
+		Reviewer        string               `gomysql:"reviewer" json:"reviewer"`
+		ReviewerComment string               `gomysql:"reviewer_comment" json:"reviewer_comment"`
+		Status          BookingRequestStatus `gomysql:"status" json:"status"`
+		Hosts           []BookingRequestHost `gomysql:"hosts" json:"hosts"`
+		Containers      []BookingRequestCT   `gomysql:"containers" json:"containers"`
+		VMs             []BookingRequestVM   `gomysql:"vms" json:"vms"`
+	}
+
 	Booking struct {
-		ID                     int           `gomysql:"id,primary,auto_increment" json:"id"`
+		ID                     int           `gomysql:"id,primary,increment" json:"id"`
 		Name                   string        `gomysql:"name" json:"name"`
 		Description            string        `gomysql:"description" json:"description"`
 		Status                 BookingStatus `gomysql:"status" json:"status"`
@@ -128,10 +162,10 @@ type (
 		EndTime                time.Time     `gomysql:"end_time" json:"end_time"`
 		DNSName                string        `gomysql:"dns_name,unique" json:"dns_name"`
 		CIDRBlock              string        `gomysql:"cidr_block,unique" json:"cidr_block"`
-		People                 []int         `gomysql:"people,json" json:"people"`
-		OwnedHostManagementIPs []string      `gomysql:"owned_host_management_ips,json" json:"owned_host_management_ips"`
-		OwnedBookingCTIDs      []int         `gomysql:"owned_booking_ctids,json" json:"owned_booking_ctids"`
-		OwnedBookingVMIDs      []int         `gomysql:"owned_booking_vmids,json" json:"owned_booking_vmids"`
+		People                 []int         `gomysql:"people" json:"people"`
+		OwnedHostManagementIPs []string      `gomysql:"owned_host_management_ips" json:"owned_host_management_ips"`
+		OwnedBookingCTIDs      []int         `gomysql:"owned_booking_ctids" json:"owned_booking_ctids"`
+		OwnedBookingVMIDs      []int         `gomysql:"owned_booking_vmids" json:"owned_booking_vmids"`
 	}
 )
 
@@ -206,17 +240,21 @@ const (
 
 const (
 	BookingPermissionLevelNone BookingPermissionLevel = iota
-	BookingPermissionLevelUser
+	BookingPermissionLevelViewer
 	BookingPermissionLevelOperator
 	BookingPermissionLevelOwner
 )
 
 const (
-	BookingStatusPendingApproval BookingStatus = iota
-	BookingStatusApproved
+	BookingStatusActiveWithRequestPending BookingStatus = iota
 	BookingStatusActive
 	BookingStatusDone
-	BookingStatusRejected
+)
+
+const (
+	BookingRequestStatusPending BookingRequestStatus = iota
+	BookingRequestStatusApproved
+	BookingRequestStatusRejected
 )
 
 var (
@@ -309,7 +347,7 @@ var (
 
 	BookingPermissionLevelNames = map[BookingPermissionLevel]string{
 		BookingPermissionLevelNone:     "None",
-		BookingPermissionLevelUser:     "User",
+		BookingPermissionLevelViewer:   "Viewer",
 		BookingPermissionLevelOperator: "Operator",
 		BookingPermissionLevelOwner:    "Owner",
 	}
@@ -317,14 +355,20 @@ var (
 	BookingPermissionLevelNameReverses = map[string]BookingPermissionLevel{}
 
 	BookingStatusNames = map[BookingStatus]string{
-		BookingStatusPendingApproval: "Pending Approval",
-		BookingStatusApproved:        "Approved",
-		BookingStatusActive:          "Active",
-		BookingStatusDone:            "Done",
-		BookingStatusRejected:        "Rejected",
+		BookingStatusActiveWithRequestPending: "Active (Request Pending)",
+		BookingStatusActive:                   "Active",
+		BookingStatusDone:                     "Done",
 	}
 
 	BookingStatusNameReverses = map[string]BookingStatus{}
+
+	BookingRequestStatusNames = map[BookingRequestStatus]string{
+		BookingRequestStatusPending:  "Pending",
+		BookingRequestStatusApproved: "Approved",
+		BookingRequestStatusRejected: "Rejected",
+	}
+
+	BookingRequestStatusNameReverses = map[string]BookingRequestStatus{}
 )
 
 func (v VendorID) String() string {

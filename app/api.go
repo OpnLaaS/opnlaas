@@ -150,6 +150,10 @@ func apiEnumsBookingStatusNames(c *fiber.Ctx) (err error) {
 	return c.JSON(db.BookingStatusNameReverses)
 }
 
+func apiEnumsBookingRequestStatusNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.BookingRequestStatusNameReverses)
+}
+
 // Hosts API
 
 func apiHostsAll(c *fiber.Ctx) (err error) {
