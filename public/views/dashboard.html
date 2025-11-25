@@ -7,7 +7,7 @@
                 + Add New Host
             </button>
             <button id="uploadISOBtn"
-                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
+                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform ">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline"
                     viewBox="0 0 16 16">
                     <path
@@ -19,7 +19,7 @@
             </button>
         </div>
         <div id="newHostForm"
-            class="mt-4 p-4 border border-background-muted rounded-xl shadow-sm bg-background-secondary transition-all duration-200 ease-in-out hidden">
+            class="mt-4 p-4 border border-background-muted rounded-xl shadow-sm bg-background-secondary transition-transform duration-200 ease-in-out hidden">
             <h3 class="font-bold text-2xl text-font-primary mb-4">New Host</h3>
 
             <form id="hostForm" class="space-y-4">
@@ -38,7 +38,7 @@
                         <input type="hidden" id="managementSelect" name="managementType" required>
 
                         <button type="button" id="mgmtMenuBtn" onclick="toggleMgmtMenu(this)"
-                            class="focus-ring flex w-full items-center justify-between border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary transition-colors">
+                            class="focus-ring flex w-full items-center justify-between border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary ">
                             <span id="mgmtSelectedLabel" class="text-gray-400">Select Management Type</span>
 
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -48,15 +48,15 @@
                         </button>
 
                         <div id="mgmtTypeMenu"
-                            class="absolute z-50 w-full mt-1 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0">
+                            class="absolute z-50 w-full mt-1 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-transform duration-300 ease-in-out max-h-0 opacity-0">
 
                             <button type="button" onclick="selectMgmtType('IPMI')"
-                                class="w-full text-left px-4 py-2 hover:bg-background-muted text-font-primary transition-colors">
+                                class="w-full text-left px-4 py-2 hover:bg-background-muted text-font-primary ">
                                 IPMI
                             </button>
 
                             <button type="button" onclick="selectMgmtType('Redfish')"
-                                class="w-full text-left px-4 py-2 hover:bg-background-muted text-font-primary transition-colors">
+                                class="w-full text-left px-4 py-2 hover:bg-background-muted text-font-primary ">
                                 Redfish
                             </button>
                         </div>
@@ -65,14 +65,14 @@
 
                 <div class="flex items-center space-x-3">
                     <button type="submit"
-                        class="focus-ring flex items-center justify-center bg-background-muted hover:bg-background-secondary border border-transparent hover:border-background-muted text-font-primary py-2 px-4 rounded-lg font-medium transition">
+                        class="focus-ring flex items-center justify-center bg-background-muted hover:bg-background-secondary border border-transparent hover:border-background-muted text-font-primary py-2 px-4 rounded-lg font-medium ">
                         <div id="host-spinner"
                             class="w-4 h-4 mr-4 border-2 border-font-secondary/50 border-t-font-secondary rounded-full animate-spin hidden">
                         </div>
                         Add Host
                     </button>
                     <button type="button" id="cancelHostBtn"
-                        class="text-font-muted hover:text-font-secondary hover:underline focus:outline-none transition-colors">
+                        class="text-font-muted hover:text-font-secondary hover:underline focus:outline-none ">
                         Cancel
                     </button>
                 </div>
