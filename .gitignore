@@ -4,6 +4,8 @@
 
 public/static/dist
 
+tailwind.css
+
 isos
 
 package-lock.json
