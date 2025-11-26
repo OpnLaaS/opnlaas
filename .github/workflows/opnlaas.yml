@@ -36,7 +36,7 @@ jobs:
             echo "package-lock.json not found; using npm i"
             npm i --no-audit --no-fund
           fi
-      - name: Build Tailwind CSS
+      - name: Build Tailwind CSS and Webpack assets; verify CSS output
         run: |
           npm run build
           test -s "$CSS_OUTPUT" || (echo "ERROR: $CSS_OUTPUT not generated" && exit 1)
@@ -72,7 +72,7 @@ jobs:
             echo "package-lock.json not found; using npm i"
             npm i --no-audit --no-fund
           fi
-      - name: Build Tailwind CSS
+      - name: Build Tailwind CSS and Webpack assets
         run: npm run build
       - name: Build Go binary (linux/amd64)
         run: |

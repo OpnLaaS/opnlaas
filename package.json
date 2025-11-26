@@ -14,8 +14,7 @@
         "devel": "npm-run-all --parallel tailwind:watch webpack:watch",
         "tailwind:watch": "npx @tailwindcss/cli -i ./public/styles/main.css -o ./public/static/dist/styles/main.css --watch",
         "webpack:watch": "npx webpack --watch",
-
-        "build": "npx @tailwindcss/cli -i ./public/styles/main.css -o ./public/static/dist/styles/main.css --minify; npx webpack"
+        "build": "npx @tailwindcss/cli -i ./public/styles/main.css -o ./public/static/dist/styles/main.css --minify; npx webpack --mode production"
     },
     "devDependencies": {
         "tailwindcss": "^4.1.16"
