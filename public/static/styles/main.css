@@ -1,8 +1,7 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* 
- * Define custom colors for Tailwind
+/* * Define custom colors for Tailwind
  */
 @theme {
     /* Colors for page background/borders*/
@@ -179,13 +178,18 @@
         margin-top: 24px;
         gap: 0.45rem;
         padding: 0.35rem 0.95rem;
-        min-width: 140px;
+        min-width: auto; /* Changed: Auto width on mobile */
         line-height: 1.2;
         background: var(--color-background-secondary);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 2px rgba(0, 0, 0, 0.25);
     }
-
-
+    
+    /* Only force width on tablet/desktop */
+    @media (min-width: 768px) {
+        .power-pill {
+            min-width: 140px;
+        }
+    }
 
     .power-dot {
         @apply w-2 h-2 rounded-full transition-colors duration-200;
@@ -210,7 +214,20 @@
 
     .power-pill>span {
         @apply mt-0;
+        font-size: 14px;
     }
+
+    .power-pill>span {
+        @apply mt-0;
+        font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+        .power-pill>span {
+            font-size: 10px;
+        }
+    }
+
 
 
     .power-pill .power-state {
@@ -525,4 +542,3 @@
         /* gray-700 */
     }
 }
-

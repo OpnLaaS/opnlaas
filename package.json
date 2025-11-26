@@ -11,6 +11,6 @@
         "build": "npx @tailwindcss/cli -i ./public/static/styles/main.css -o ./public/static/styles/tailwind.css --minify"
     },
     "devDependencies": {
-        "tailwindcss": "^4.1.16"
+        "tailwindcss": "^4.1.17"
     }
 }
