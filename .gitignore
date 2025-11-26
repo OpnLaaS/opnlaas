@@ -2,11 +2,11 @@
 *.env
 *.db
 
+public/static/dist
+
 tailwind.css
 
 isos
 
 package-lock.json
 node_modules/
-
-tailwind.css
