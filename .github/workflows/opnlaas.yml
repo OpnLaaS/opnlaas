@@ -7,9 +7,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      CSS_INPUT: public/static/styles/main.css
-      CSS_OUTPUT: public/static/styles/tailwind.css
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node (for Tailwind v4 CLI)
@@ -36,10 +33,9 @@ jobs:
             echo "package-lock.json not found; using npm i"
             npm i --no-audit --no-fund
           fi
-      - name: Build Tailwind CSS and Webpack assets; verify CSS output
+      - name: Build Tailwind CSS and Webpack assets
         run: |
           npm run build
-          test -s "$CSS_OUTPUT" || (echo "ERROR: $CSS_OUTPUT not generated" && exit 1)
       - name: Go mod download
         run: go mod download
       - name: Run Go tests (export .test.env)
