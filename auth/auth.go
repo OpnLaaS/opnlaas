@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,9 +138,13 @@ func WithAuth(w http.ResponseWriter, r *http.Request, jwtSecret []byte) bool {
 
 func IsAuthenticated(r *fiber.Ctx, jwtSecret []byte) *AuthUser {
 	var authToken string = r.Cookies("Authorization")
-
 	if authToken == "" {
-		return nil
+		if header := r.Get("Authorization"); header != "" {
+			authToken = strings.TrimSpace(strings.TrimPrefix(header, "Bearer"))
+		}
+		if authToken == "" {
+			return nil
+		}
 	}
 
 	parsedToken, err := jwt.Parse(authToken, func(token *jwt.Token) (any, error) {

@@ -126,6 +126,7 @@ type (
 	}
 
 	BookingRequestCT struct {
+		Name     string `json:"name"`
 		Template string `json:"template"`
 		Cores    int    `json:"cores"`
 		MemoryMB int    `json:"memory_mb"`
@@ -133,6 +134,7 @@ type (
 	}
 
 	BookingRequestVM struct {
+		Name         string `json:"name"`
 		ISOSelection string `json:"iso_selection"`
 		Cores        int    `json:"cores"`
 		MemoryMB     int    `json:"memory_mb"`
@@ -166,6 +168,7 @@ type (
 		OwnedHostManagementIPs []string      `gomysql:"owned_host_management_ips" json:"owned_host_management_ips"`
 		OwnedBookingCTIDs      []int         `gomysql:"owned_booking_ctids" json:"owned_booking_ctids"`
 		OwnedBookingVMIDs      []int         `gomysql:"owned_booking_vmids" json:"owned_booking_vmids"`
+		Requests               []int         `gomysql:"requests" json:"requests"`
 	}
 )
 

@@ -17,6 +17,8 @@ var (
 	// You should not be calling this api directly for lock safety
 	bookingVMs *gomysql.RegisteredStruct[BookingVM]
 	// You should not be calling this api directly for lock safety
+	bookingRequests *gomysql.RegisteredStruct[BookingRequest]
+	// You should not be calling this api directly for lock safety
 	bookings *gomysql.RegisteredStruct[Booking]
 )
 
@@ -40,6 +42,11 @@ func InitDB() (err error) {
 
 	if bookings, err = gomysql.Register(Booking{}); err != nil {
 		dbLog.Errorf("Failed to register Booking struct: %v\n", err)
+		return
+	}
+
+	if bookingRequests, err = gomysql.Register(BookingRequest{}); err != nil {
+		dbLog.Errorf("Failed to register BookingRequest struct: %v\n", err)
 		return
 	}
 

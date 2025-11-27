@@ -10,3 +10,6 @@ isos
 
 package-lock.json
 node_modules/
+
+.cache
+.gocache

@@ -13,7 +13,6 @@ require (
 	github.com/kdomanski/iso9660 v0.4.0
 	github.com/luthermonson/go-proxmox v0.2.3
 	github.com/stmcginnis/gofish v0.20.0
-	github.com/stretchr/testify v1.10.0
 	github.com/z46-dev/go-logger v0.0.0-20250326164502-928461111cea
 	github.com/z46-dev/gomysql v0.0.0-20251125024913-d4c93b06ec11
 	golang.org/x/crypto v0.36.0
@@ -23,7 +22,6 @@ require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/diskfs/go-diskfs v1.5.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -45,7 +43,6 @@ require (
 	github.com/olekukonko/errors v1.1.0 // indirect
 	github.com/olekukonko/ll v0.0.9 // indirect
 	github.com/olekukonko/tablewriter v1.0.9 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
@@ -55,7 +52,6 @@ require (
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.65.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

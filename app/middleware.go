@@ -21,6 +21,11 @@ func init() {
 	}
 }
 
+// GetJWTSigningKey exposes the current JWT signing key (useful for testing).
+func GetJWTSigningKey() []byte {
+	return jwtSigningKey
+}
+
 // Separate api and routes middleware to have api return status code while routes redirects client
 func apiMustBeLoggedIn(c *fiber.Ctx) error {
 	if auth.IsAuthenticated(c, jwtSigningKey) == nil {
