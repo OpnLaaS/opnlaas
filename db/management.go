@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bougou/go-ipmi"
 	"github.com/opnlaas/opnlaas/config"
@@ -48,6 +49,8 @@ func (c *HostManagementClient) redfishInit() (err error) {
 		Username: config.Config.Management.DefaultIPMIUser,
 		Password: config.Config.Management.DefaultIPMIPass,
 		Insecure: true,
+		// High handshake timeout
+		TLSHandshakeTimeout: 60,
 	}); err != nil {
 		return
 	}
@@ -103,15 +106,31 @@ func (c *HostManagementClient) Close() {
 
 // ---------- POWER MANAGEMENT ----------
 
-func (c *HostManagementClient) redfishPowerState() PowerState {
-	switch c.redfishPrimaryChassis.PowerState {
-	case redfish.OnPowerState:
-		return PowerStateOn
-	case redfish.OffPowerState:
-		return PowerStateOff
-	default:
-		return PowerStateUnknown
+func (c *HostManagementClient) redfishPowerState(forcePoll bool) (state PowerState, err error) {
+	if forcePoll {
+		if c.redfishService == nil {
+			err = ErrNotConnected
+			return
+		}
+
+		var systems []*redfish.ComputerSystem
+		if systems, err = c.redfishService.Systems(); err == nil && len(systems) > 0 {
+			c.redfishPrimarySystem = systems[0]
+		} else if err != nil {
+			return
+		}
 	}
+
+	switch c.redfishPrimarySystem.PowerState {
+	case redfish.OnPowerState:
+		state = PowerStateOn
+	case redfish.OffPowerState:
+		state = PowerStateOff
+	default:
+		state = PowerStateUnknown
+	}
+
+	return
 }
 
 func (c *HostManagementClient) ipmiPowerState() (state PowerState, err error) {
@@ -129,7 +148,7 @@ func (c *HostManagementClient) ipmiPowerState() (state PowerState, err error) {
 	return
 }
 
-func (c *HostManagementClient) PowerState() (state PowerState, err error) {
+func (c *HostManagementClient) PowerState(forcePoll bool) (state PowerState, err error) {
 	if !c.connected {
 		err = ErrNotConnected
 		return
@@ -137,14 +156,20 @@ func (c *HostManagementClient) PowerState() (state PowerState, err error) {
 
 	switch c.Host.ManagementType {
 	case ManagementTypeRedfish:
-		state = c.redfishPowerState()
+		state, err = c.redfishPowerState(forcePoll)
 	case ManagementTypeIPMI:
+		if forcePoll {
+			err = fmt.Errorf("forcePoll not implemented for IPMI")
+			return
+		}
+
 		state, err = c.ipmiPowerState()
 	default:
 		err = ErrBadManagementType
 	}
 
 	c.Host.LastKnownPowerState = state
+	c.Host.LastKnownPowerStateTime = time.Now()
 	return
 }
 
@@ -153,9 +178,6 @@ func (c *HostManagementClient) redfishSetPowerState(desiredState PowerState, for
 	switch desiredState {
 	case PowerStateOn:
 		action = redfish.OnResetType
-		if force {
-			action = redfish.ForceOnResetType
-		}
 	case PowerStateOff:
 		action = redfish.GracefulShutdownResetType
 		if force {
@@ -166,7 +188,7 @@ func (c *HostManagementClient) redfishSetPowerState(desiredState PowerState, for
 		return
 	}
 
-	err = c.redfishPrimaryChassis.Reset(action)
+	err = c.redfishPrimarySystem.Reset(action)
 	return
 }
 
@@ -211,12 +233,14 @@ func (c *HostManagementClient) SetPowerState(desiredState PowerState, force bool
 func (c *HostManagementClient) redfishResetPowerState(force bool) (err error) {
 	var action redfish.ResetType
 	if force {
-		action = redfish.ForceRestartResetType
+		// action = redfish.ForceRestartResetType
+		action = redfish.OnResetType
 	} else {
-		action = redfish.PowerCycleResetType
+		// action = redfish.PowerCycleResetType
+		action = redfish.OnResetType
 	}
 
-	err = c.redfishPrimaryChassis.Reset(action)
+	err = c.redfishPrimarySystem.Reset(action)
 	return
 }
 
@@ -367,6 +391,60 @@ func (c *HostManagementClient) UpdateSystemInfo() (err error) {
 	switch c.Host.ManagementType {
 	case ManagementTypeRedfish:
 		err = c.redfishUpdateSystemInfo()
+	default:
+		err = ErrBadManagementType
+	}
+
+	return
+}
+
+func (c *HostManagementClient) redfishWaitSystemPowerState(desiredState PowerState, timeoutSeconds int) (err error) {
+	var currentState PowerState
+	for range timeoutSeconds {
+		if currentState, err = c.redfishPowerState(true); err != nil {
+			return
+		}
+
+		if currentState == desiredState {
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	err = fmt.Errorf("timeout waiting for desired power state %v", desiredState)
+	return
+}
+
+func (c *HostManagementClient) ipmiWaitSystemPowerState(desiredState PowerState, timeoutSeconds int) (err error) {
+	var currentState PowerState
+	for range timeoutSeconds {
+		if currentState, err = c.ipmiPowerState(); err != nil {
+			return
+		}
+
+		if currentState == desiredState {
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	err = fmt.Errorf("timeout waiting for desired power state %v", desiredState)
+	return
+}
+
+func (c *HostManagementClient) WaitSystemPowerState(desiredState PowerState, timeoutSeconds int) (err error) {
+	if !c.connected {
+		err = ErrNotConnected
+		return
+	}
+
+	switch c.Host.ManagementType {
+	case ManagementTypeRedfish:
+		err = c.redfishWaitSystemPowerState(desiredState, timeoutSeconds)
+	case ManagementTypeIPMI:
+		err = c.ipmiWaitSystemPowerState(desiredState, timeoutSeconds)
 	default:
 		err = ErrBadManagementType
 	}

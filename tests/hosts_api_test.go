@@ -46,7 +46,7 @@ func TestHostsAPI(t *testing.T) {
 		t.Run("Add a host", func(t *testing.T) {
 			var (
 				newHost *db.Host = &db.Host{ManagementIP: config.Config.Management.TestingManagementIPs[0], ManagementType: db.ManagementTypeRedfish}
-				user    string      = "alice"
+				user    string   = "alice"
 			)
 
 			if cookies, err := loginAndGetCookies(t, user, user); err != nil {

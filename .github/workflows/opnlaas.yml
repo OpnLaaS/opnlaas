@@ -7,9 +7,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      CSS_INPUT: public/static/styles/main.css
-      CSS_OUTPUT: public/static/styles/tailwind.css
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node (for Tailwind v4 CLI)
@@ -36,10 +33,9 @@ jobs:
             echo "package-lock.json not found; using npm i"
             npm i --no-audit --no-fund
           fi
-      - name: Build Tailwind CSS
+      - name: Build Tailwind CSS and Webpack assets
         run: |
           npm run build
-          test -s "$CSS_OUTPUT" || (echo "ERROR: $CSS_OUTPUT not generated" && exit 1)
       - name: Go mod download
         run: go mod download
       - name: Run Go tests (export .test.env)
@@ -72,7 +68,7 @@ jobs:
             echo "package-lock.json not found; using npm i"
             npm i --no-audit --no-fund
           fi
-      - name: Build Tailwind CSS
+      - name: Build Tailwind CSS and Webpack assets
         run: npm run build
       - name: Build Go binary (linux/amd64)
         run: |
@@ -87,6 +83,7 @@ jobs:
           cp -r public/views  dist/linux-amd64/public/
           cp README.md dist/linux-amd64/
           cp LICENSE   dist/linux-amd64/
+          cp go.mod    dist/linux-amd64/
       - name: Create tarball
         run: |
           tar -czf opnlaas-linux-amd64.tar.gz -C dist/linux-amd64 .

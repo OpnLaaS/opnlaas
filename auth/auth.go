@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,10 +21,22 @@ const (
 	AuthPermsAdministrator                  // Can do everything
 )
 
+func (p authPerms) String() string {
+	switch p {
+	case AuthPermsAdministrator:
+		return "administrator"
+	case AuthPermsUser:
+		return "user"
+	default:
+		return "none"
+	}
+}
+
 type AuthUser struct {
 	LDAPConn *LDAPConn
 	Token    *jwt.Token
 	Expiry   time.Time
+	Username string
 	perms    authPerms
 }
 
@@ -125,9 +138,13 @@ func WithAuth(w http.ResponseWriter, r *http.Request, jwtSecret []byte) bool {
 
 func IsAuthenticated(r *fiber.Ctx, jwtSecret []byte) *AuthUser {
 	var authToken string = r.Cookies("Authorization")
-
 	if authToken == "" {
-		return nil
+		if header := r.Get("Authorization"); header != "" {
+			authToken = strings.TrimSpace(strings.TrimPrefix(header, "Bearer"))
+		}
+		if authToken == "" {
+			return nil
+		}
 	}
 
 	parsedToken, err := jwt.Parse(authToken, func(token *jwt.Token) (any, error) {
@@ -163,6 +180,7 @@ func Authenticate(username, password string) (*AuthUser, error) {
 			LDAPConn: nil,
 			Token:    jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"username": username}),
 			Expiry:   time.Now().Add(time.Hour),
+			Username: username,
 			perms:    injection.Permissions,
 		}
 
@@ -186,6 +204,7 @@ func Authenticate(username, password string) (*AuthUser, error) {
 		LDAPConn: ldapConn,
 		Token:    jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"username": username}),
 		Expiry:   time.Now().Add(time.Hour),
+		Username: username,
 	}
 
 	if user.Permissions() == AuthPermsNone {
@@ -206,7 +225,9 @@ func Logout(username string) {
 	defer usersLock.Unlock()
 
 	if user, ok := activeUsers[username]; ok {
-		user.LDAPConn.Close()
+		if user.LDAPConn != nil {
+			user.LDAPConn.Close()
+		}
 		delete(activeUsers, username)
 	}
 }

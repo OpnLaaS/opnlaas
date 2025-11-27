@@ -1,101 +1,280 @@
-<div class="py-6 md:py-8 w-100">
-    <div class="flex items-center justify-between">
-        <h2>Hosts</h2>
-    </div>
-
-
+<div class="py-4 md:py-6 w-full space-y-6 mx-4">
     {{if .IsAdmin}}
-    <div id="newHost">
-        <button id="addHostBtn" class="my-6 bg-green-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-700 transition">
-            + Add New Host
-        </button>
+    <div id="newHost" class="pb-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <button id="addHostBtn"
+                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
+                + Add New Host
+            </button>
+            <button id="uploadISOBtn"
+                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform ">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline"
+                    viewBox="0 0 16 16">
+                    <path
+                        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5" />
+                    <path
+                        d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z" />
+                </svg>
+                Upload ISO
+            </button>
+        </div>
+        <div id="newHostForm"
+            class="mt-4 p-4 border border-background-muted rounded-xl shadow-sm bg-background-secondary transition-transform duration-200 ease-in-out hidden">
+            <h3 class="font-bold text-2xl text-font-primary mb-4">New Host</h3>
 
-        <!-- TODO: Is this in use? -->
-        <div id="newHostForm" class="mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
             <form id="hostForm" class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Management IPv4</label>
-                    <input type="text" name="managementAddress" required class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 placeholder-gray-400" placeholder="0.0.0.0">
+                    <label class="block text-sm font-medium text-font-secondary">Management IPv4</label>
+
+                    <input id="addressInput" type="text" name="managementAddress" required
+                        class="focus-ring mt-1 block w-full border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary placeholder-gray-400"
+                        placeholder="0.0.0.0" />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Management Type</label>
-                    <select name="managementType" required class="focus-ring mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 placeholder-gray-400">
-                        <option value="ipmi">IPMI</option>
-                        <option value="redfish">Redfish</option>
-                    </select>
+                    <label class="block text-sm font-medium text-font-secondary">Management Type</label>
+
+                    <div class="relative mt-">
+                        <input type="hidden" id="managementSelect" name="managementType" required>
+
+                        <button type="button" id="mgmtMenuBtn" onclick="toggleMgmtMenu(this)"
+                            class="focus-ring flex w-full items-center justify-between border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary ">
+                            <span id="mgmtSelectedLabel" class="text-gray-400">Select Management Type</span>
+
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                stroke="currentColor" class="w-4 h-4 ml-2 transition-transform duration-200">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </button>
+
+                        <div id="mgmtTypeMenu"
+                            class="absolute z-50 w-full mt-1 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-transform duration-300 ease-in-out max-h-0 opacity-0">
+
+                            <button type="button" onclick="selectMgmtType('IPMI')"
+                                class="w-full text-left px-4 py-2 hover:bg-background-muted text-font-primary ">
+                                IPMI
+                            </button>
+
+                            <button type="button" onclick="selectMgmtType('Redfish')"
+                                class="w-full text-left px-4 py-2 hover:bg-background-muted text-font-primary ">
+                                Redfish
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="flex items-center space-x-3">
-                    <button type="submit" class="focus-ring bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition">
+                    <button type="submit"
+                        class="focus-ring flex items-center justify-center bg-background-muted hover:bg-background-secondary border border-transparent hover:border-background-muted text-font-primary py-2 px-4 rounded-lg font-medium ">
+                        <div id="host-spinner"
+                            class="w-4 h-4 mr-4 border-2 border-font-secondary/50 border-t-font-secondary rounded-full animate-spin hidden">
+                        </div>
                         Add Host
                     </button>
-                    <button type="button" id="cancelHostBtn" class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
+                    <button type="button" id="cancelHostBtn"
+                        class="text-font-muted hover:text-font-secondary hover:underline focus:outline-none ">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div id="uploadISOPopup"
+            class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-200 ease-in-out hidden">
+            <form id="uploadISOForm">
+                <label for="iso-input" class="font-bold text-xl">Choose File:</label>
+                <input name="iso-input" type="file" accept=".iso"
+                    class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3 mx-4" required /> <br>
+                <div class="flex items-center gap-3 mt-3">
+                    <button type="submit" id="submitISOBtn"
+                        class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3">Upload</button>
+                    <button type="button" id="cancelISOBtn"
+                        class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
+    <!-- i dont give a care how this looks rn just that it works -->
     {{end}}
+    <div class="flex items-center justify-between mb-2 transition-color">
+        <h2>Hosts</h2>
+    </div>
 
     <div id="empty" class="hidden mt-2">No hosts yet.</div>
 
-    <table id="hosts" class="w-5xl table-auto border-collapse">
-        <thead class="bg-background-muted">
-            <tr>
-                <th class="px-4 py-3 text-left">Name</th>
-                <th class="px-4 py-3 text-left">Status</th>
-                <th class="px-4 py-3">Details</th>
-            </tr>
-        </thead>
+    <div id="host-list" class="w-full flex flex-col space-y-4"></div>
 
-        <tbody id="host-table">
-            <template id="host-row-template">
-                <!-- Dropdown Header -->
-                <tr class="bg-background-secondary hover:bg-background-muted">
-                    <td class="table-cell" data-field="name"></td>
-                    <td class="table-cell" data-field="power"></td>
-                    <td class="table-cell text-center">
-                        <button class="text-blue-500 hover:cursor-pointer" onclick="toggleRow(this)" aria-label="Toggle details">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+    <template id="host-item-template">
+        <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm">
+            <!-- Header -->
+            <div class="flex items-start justify-between px-6 py-4 gap-4">
+                <div class="min-w-0">
+                    <div class="truncate font-semibold text-base" data-field="name"></div>
+                    <div class="text-xs text-font-secondary mt-0.5">
+                        <span data-field="form_factor"></span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 ">
+                    <div class="power-stack mb-5 text-">
+                        <span class="power-pill" data-role="power-badge">
+                            <span class="power-dot"></span>
+                            <span data-field="power"></span>
+                            <span class="power-updated-label md:inline" data-field="power-updated-inline">(last known)</span>
+                        </span>
+                    </div>
+                    <!-- Three dots + dropdown -->
+                    <div class="relative">
+                        {{if .IsAdmin}}
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer power-button"
+                            onclick="togglePowerMenu(this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                class="bi bi-three-dots-vertical text-font-primary" viewBox="0 0 16 16">
+                                <path
+                                    d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
                             </svg>
                         </button>
-                    </td>
-                </tr>
 
-                <!-- Dropdown Container -->
-                <tr class="bg-background-secondary">
-                    <td colspan="3" class="p-0">
-                        <div class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden px-4">
-                            <div class="py-3 text-sm [&_span]:text-font-secondary">
-                                <p><strong>Form Factor:</strong> <span data-field="form_factor"></span></p>
-                                <p><strong>Address:</strong> <span data-field="ip"></span></p>
-                                <p><strong>Management Type:</strong> <span data-field="mgmt-type"></span></p>
-                                <!-- specs: probably displayed differently -->
-                                <!-- memory: -->
-                                <p><strong>Num Memory DIMMs:</strong> <span data-field="num_dimms"></span></p>
-                                <p><strong>Memory Capacity:</strong> <span data-field="size_gb"></span></p>
-                                <p><strong>Memory Speed (MHz):</strong> <span data-field="speed_mhz"></span></p>
-                                <!-- processor: -->
-                                <p><strong>Manufacturer:</strong> <span data-field="manufacturer"></span></p>
-                                <p><strong>SKU:</strong> <span data-field="sku"></span></p>
-                                <p><strong>Cores:</strong> <span data-field="cores"></span></p>
-                                <p><strong>Count:</strong> <span data-field="count"></span></p>
-                                <p><strong>Threads:</strong> <span data-field="threads"></span></p>
-                                <p><strong>Processor Speed (Base/Turbo):</strong> <span data-field="processor_speed_mhz"></span></p>
-                                <!-- storage: another forEach needed-->
-                                <!-- TODO: forEach -->
-                                <p><strong>Capacity:</strong> <span data-field="capacity_gb"></span></p>
-                                <p><strong>Media Type:</strong> <span data-field="media_type"></span></p>
-
-                                <p><strong>Vendor:</strong> <span data-field="vendor"></span></p>
-                            </div>
+                        <!-- Powercontrols -->
+                        <div
+                            class="power-menu absolute right-0 mt-2 w-48 bg-background-secondary border border-background-muted rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0 z-100">
+                            <button onclick="powerControl(this)"
+                                class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Power On
+                            </button>
+                            <button onclick="powerControl(this)"
+                                class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Power Off
+                            </button>
+                            <button onclick="powerControl(this)"
+                                class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Graceful Shutdown
+                            </button>
+                            <button onclick="powerControl(this)"
+                                class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Graceful Restart
+                            </button>
+                            <button onclick="powerControl(this)"
+                                class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                Force Restart
+                            </button>
+                            <div class="border-t border-background-muted"></div>
+                            <button onclick="unenrollHost(this)"
+                                class="block w-full text-left px-4 py-2 hover:bg-background-muted text-red-600">
+                                Unenroll Host
+                            </button>
+                            <div class="px-4 py-2 text-xs text-red-600 hidden" data-role="power-error"></div>
                         </div>
-                    </td>
-                </tr>
-            </template>
-        </tbody>
-    </table>
+                        {{end}}
+                    </div>
+                    <button class="text-font-primary mb-2 hover:text-font-secondary hover:cursor-pointer"
+                        onclick="toggleItem(this)" aria-label="Toggle details">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Details Drop Down-->
+            <div class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
+                <div class="px-6 pt-3 pb-5 border-t border-background-muted">
+                    <div class="py-3">
+                        <span class="m-3 h-20">
+                            <span class="opacity-70">IP: </span>
+                            <span data-field="ip"></span>
+                        </span>
+
+                        <span class="m-3">
+                            <span class="opacity-70">Mgmt: </span>
+                            <span data-field="mgmt_type"></span>
+                        </span>
+
+                        <span class="m-3">
+                            <span class="opacity-70">Vendor: </span>
+                            <span data-field="vendor"></span>
+                        </span>
+                    </div>
+
+                    <!-- Stat cards grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs [&_dt]:text-font-secondary">
+                        <!-- Processor -->
+                        <div class="rounded-lg border border-background-muted p-4">
+                            <div class="mb-2">
+                                <span class="text-[15px] tracking-wider px-2 py-1 rounded bg-background-muted">
+                                    Processor(s)
+                                </span>
+                            </div>
+                            <dl class="grid grid-cols-2 gap-x-4 gap-y-2">
+                                <div>
+                                    <dt>Manufacturer</dt>
+                                    <dd class="font-medium" data-field="manufacturer"></dd>
+                                </div>
+                                <div>
+                                    <dt>SKU</dt>
+                                    <dd class="font-medium" data-field="sku"></dd>
+                                </div>
+                                <div>
+                                    <dt>Cores</dt>
+                                    <dd class="font-medium" data-field="cores"></dd>
+                                </div>
+                                <div>
+                                    <dt>Threads</dt>
+                                    <dd class="font-medium" data-field="threads"></dd>
+                                </div>
+                                <div>
+                                    <dt>Count</dt>
+                                    <dd class="font-medium" data-field="count"></dd>
+                                </div>
+                                <div>
+                                    <dt>Base/Turbo</dt>
+                                    <dd class="font-medium" data-field="processor_speed_mhz"></dd>
+                                </div>
+                            </dl>
+                        </div>
+
+                        <!-- Memory -->
+                        <div class="rounded-lg border border-background-muted p-4">
+                            <div class="mb-2">
+                                <span class="text-[15px] tracking-wider px-2 py-1 rounded bg-background-muted">
+                                    Memory
+                                </span>
+                            </div>
+                            <dl class="grid grid-cols-2 gap-x-4 gap-y-2">
+                                <div>
+                                    <dt>DIMMs</dt>
+                                    <dd class="font-medium" data-field="num_dimms"></dd>
+                                </div>
+                                <div>
+                                    <dt>Capacity (GB)</dt>
+                                    <dd class="font-medium" data-field="size_gb"></dd>
+                                </div>
+                                <div>
+                                    <dt>Speed (MHz)</dt>
+                                    <dd class="font-medium" data-field="speed_mhz"></dd>
+                                </div>
+                            </dl>
+                        </div>
+
+                        <!-- Storage -->
+                        <div class="rounded-lg border border-background-muted p-4 lg:col-span-1">
+                            <div class="mb-2">
+                                <span class="text-[15px] tracking-wider px-2 py-1 rounded bg-background-muted">
+                                    Storage
+                                </span>
+                            </div>
+                            <p class="text-md mb-2">
+                                <span data-field="storage_summary"></span>
+                                <span class="opacity-70">•</span>
+                                <span class="opacity-70">Total</span>
+                                <span class="font-medium" data-field="storage_total"></span>
+                            </p>
+                            <ul class="list-disc pl-6 space-y-1" data-field="storage_list"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </template>
 </div>
 
-<script src="/static/scripts/dashboard.js" type="module" defer></script>
+<script src="/static/dist/scripts/dashboard.js" type="module" defer></script>

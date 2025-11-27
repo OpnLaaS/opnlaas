@@ -21,7 +21,31 @@ func init() {
 	}
 }
 
-func mustBeLoggedIn(c *fiber.Ctx) error {
+// GetJWTSigningKey exposes the current JWT signing key (useful for testing).
+func GetJWTSigningKey() []byte {
+	return jwtSigningKey
+}
+
+// Separate api and routes middleware to have api return status code while routes redirects client
+func apiMustBeLoggedIn(c *fiber.Ctx) error {
+	if auth.IsAuthenticated(c, jwtSigningKey) == nil {
+		return c.SendStatus(401)
+	}
+
+	return c.Next()
+}
+
+func apiMustBeAdmin(c *fiber.Ctx) error {
+	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+
+	if user == nil || user.Permissions() < auth.AuthPermsAdministrator {
+		return c.SendStatus(403)
+	}
+
+	return c.Next()
+}
+
+func routesMustBeLoggedIn(c *fiber.Ctx) error {
 	if auth.IsAuthenticated(c, jwtSigningKey) == nil {
 		return c.Redirect("/login")
 	}
@@ -29,7 +53,7 @@ func mustBeLoggedIn(c *fiber.Ctx) error {
 	return c.Next()
 }
 
-func mustBeAdmin(c *fiber.Ctx) error {
+func routesMustBeAdmin(c *fiber.Ctx) error {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
 
 	if user == nil || user.Permissions() < auth.AuthPermsAdministrator {

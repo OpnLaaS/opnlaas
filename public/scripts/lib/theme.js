@@ -3,7 +3,7 @@ function setTheme(darkMode = true) {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
     
     const themeIcon = document.getElementById("theme-icon");
-    if (themeIcon) { 
+    if (themeIcon) {
         themeIcon.textContent = darkMode ? "☀️" : "🌙";
     }
 
@@ -21,7 +21,7 @@ export function initTheming() {
     }
 
     const toggle = document.getElementById("theme-toggle");
-    if (toggle) { 
+    if (toggle) {
         toggle.addEventListener("click", () => setTheme(!document.documentElement.classList.contains("dark")));
     }
 
@@ -38,19 +38,19 @@ export function changeDashboard() {
     
     if (currentPath.includes("/dashboard")) {
         const navButton = document.getElementById("dashboard");
-        if (navButton) { 
+        if (navButton) {
             navButton.classList.add("bg-background-muted");
         }
     
     } else if (currentPath === "/") {
         const navButton = document.getElementById("home");
-        if (navButton) { 
+        if (navButton) {
             navButton.classList.add("bg-background-muted");
         }
         
     } else if (currentPath.includes("/login")) {
         const navButton = document.getElementById("login");
-        if (navButton) { 
+        if (navButton) {
             navButton.classList.add("bg-background-muted");
         }
     }

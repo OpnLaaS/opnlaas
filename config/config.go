@@ -45,6 +45,8 @@ type Configuration struct {
 		Address                     string `env:"WEB_ADDRESS,default=:8080"`
 		TlsDir                      string `env:"WEB_TLS_DIR"`
 		ReloadTemplatesOnEachRender bool   `env:"WEB_RELOAD_TEMPLATES_ON_EACH_RENDER,default=false"`
+		// Array values are separated with "|" in the .env file (e.g. WEB_REDIRECT_ADDRESSES=:80|:80)
+		RedirectAddresses []string `env:"WEB_REDIRECT_ADDRESSES,default="`
 	}
 
 	Management struct {
@@ -52,8 +54,28 @@ type Configuration struct {
 		DefaultIPMIPass string `env:"MGMT_DEFAULT_IPMI_PASS,default=ipmiUserPassword"`
 
 		// Array values are separated with "|" in the .env file (e.g. LDAP_ADMIN_GROUPS=admins|laasAdmins)
-		TestingManagementIPs []string `env:"MGMT_TESTING_IPS,default="`
-		TestingRunManagement bool     `env:"MGMT_TESTING_RUN_MGMT,default=false"`
+		TestingManagementIPs     []string `env:"MGMT_TESTING_IPS,default="`
+		TestingRunManagement     bool     `env:"MGMT_TESTING_RUN_MGMT,default=false"`
+		TestingRunLongManagement bool     `env:"MGMT_TESTING_RUN_LONG_MGMT,default=false"`
+		TestingLongManagementIP  string   `env:"MGMT_TESTING_LONG_MGMT_IP,default="`
+	}
+
+	Proxmox struct {
+		Enabled bool   `env:"PROXMOX_ENABLED,default=false"`
+		Host    string `env:"PROXMOX_HOST,default=proxmox.local"`
+		Port    string `env:"PROXMOX_PORT,default=8006"`
+		TokenID string `env:"PROXMOX_API_TOKEN_ID,default=root@pam!laas-api-token"`
+		Secret  string `env:"PROXMOX_API_TOKEN_SECRET,default=supersecretproxmoxapitokensecret"`
+
+		Testing struct {
+			Enabled        bool   `env:"PROXMOX_TESTING_ENABLED,default=false"`
+			Subnet         string `env:"PROXMOX_TESTING_SUBNET,default=10.255.255.0/24"`
+			Storage        string `env:"PROXMOX_TESTING_STORAGE,default=local-lvm"`
+			UbuntuTemplate string `env:"PROXMOX_TESTING_UBUNTU_TEMPLATE,default=local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"`
+			Gateway        string `env:"PROXMOX_TESTING_GATEWAY,default=10.0.0.1"`
+			DNS            string `env:"PROXMOX_TESTING_DNS,default=10.0.0.2"`
+			SearchDomain   string `env:"PROXMOX_TESTING_SEARCH_DOMAIN,default=local"`
+		}
 	}
 
 	JWT struct {
