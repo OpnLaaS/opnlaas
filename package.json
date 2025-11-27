@@ -17,6 +17,6 @@
         "build": "npx @tailwindcss/cli -i ./public/styles/main.css -o ./public/static/dist/styles/main.css --minify; npx webpack --mode production"
     },
     "devDependencies": {
-        "tailwindcss": "^4.1.16"
+        "tailwindcss": "^4.1.17"
     }
 }

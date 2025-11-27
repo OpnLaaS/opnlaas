@@ -1,4 +1,4 @@
-<div class="py-4 md:py-6 w-full space-y-6">
+<div class="py-4 md:py-6 w-full space-y-6 mx-4">
     {{if .IsAdmin}}
     <div id="newHost" class="pb-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -34,7 +34,7 @@
                 <div>
                     <label class="block text-sm font-medium text-font-secondary">Management Type</label>
 
-                    <div class="relative mt-1">
+                    <div class="relative mt-">
                         <input type="hidden" id="managementSelect" name="managementType" required>
 
                         <button type="button" id="mgmtMenuBtn" onclick="toggleMgmtMenu(this)"
@@ -114,11 +114,11 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-3 ">
-                    <div class="power-stack mb-5">
+                    <div class="power-stack mb-5 text-">
                         <span class="power-pill" data-role="power-badge">
-                            <span class="power-dot "></span>
+                            <span class="power-dot"></span>
                             <span data-field="power"></span>
-                            <span class="power-updated-label" data-field="power-updated-inline">(last known)</span>
+                            <span class="power-updated-label hidden md:block" data-field="power-updated-inline">(last known)</span>
                         </span>
                     </div>
                     <!-- Three dots + dropdown -->
