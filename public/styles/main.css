@@ -105,9 +105,14 @@
         @apply text-font-muted text-sm hover:underline me-4 md:me-6;
     }
 
+    /* Desktop nav should only show at md+ */
+    .nav-desktop {
+        @apply hidden md:flex;
+    }
+
     /* text input boxes */
     .text-input {
-        @apply w-100 m-5;
+        @apply w-full max-w-md mx-auto my-5;
     }
 
     .text-input>label {
@@ -175,6 +180,8 @@
 
     .power-pill {
         @apply inline-flex items-center text-font-primary border border-background-muted rounded-md;
+        --power-glow: rgba(34, 197, 94, 0.6);
+        flex-wrap: wrap;
         margin-top: 24px;
         gap: 0.45rem;
         padding: 0.35rem 0.95rem;
@@ -188,6 +195,7 @@
     @media (min-width: 768px) {
         .power-pill {
             min-width: 140px;
+            row-gap: 0.15rem;
         }
     }
 
@@ -197,19 +205,24 @@
 
     .power-pill.power-on .power-dot {
         @apply bg-green-500;
-        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+        --power-glow: rgba(34, 197, 94, 0.6);
     }
 
     .power-pill.power-off .power-dot {
         @apply bg-red-500;
-        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+        --power-glow: rgba(239, 68, 68, 0.6);
 
     }
 
     .power-pill.power-unknown .power-dot {
         @apply bg-yellow-400;
-        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+        --power-glow: rgba(250, 204, 21, 0.6);
 
+    }
+
+    .power-dot {
+        box-shadow: 0 0 8px var(--power-glow);
+        animation: power-pulse 2s ease-in-out infinite;
     }
 
     .power-pill>span {
@@ -234,6 +247,16 @@
         @apply font-medium;
     }
 
+    /* Show power timestamp only on md+ */
+    .power-updated-label {
+        display: none;
+    }
+    @media (min-width: 768px) {
+        .power-updated-label {
+            display: inline;
+        }
+    }
+
 
 }
 
@@ -250,17 +273,17 @@
 @keyframes power-pulse {
     0% {
         transform: scale(0.9);
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 0 0 var(--power-glow);
     }
 
     70% {
         transform: scale(1.15);
-        box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+        box-shadow: 0 0 0 8px color-mix(in oklab, var(--power-glow) 30%, transparent);
     }
 
     100% {
         transform: scale(1.15);
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        box-shadow: 0 0 0 0 color-mix(in oklab, var(--power-glow) 0%, transparent);
     }
 }
 

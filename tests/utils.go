@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -54,8 +55,15 @@ func cleanup(t *testing.T) {
 func setupAppServer(t *testing.T) (fiberApp *fiber.App) {
 	fiberApp = app.CreateApp()
 
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+
+	config.Config.WebServer.Address = listener.Addr().String()
+
 	go func(t *testing.T) {
-		if err := fiberApp.Listen(config.Config.WebServer.Address); err != nil {
+		if err := fiberApp.Listener(listener); err != nil {
 			t.Errorf("Failed to start app: %v", err)
 			panic(err)
 		}

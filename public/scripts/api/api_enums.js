@@ -35,3 +35,11 @@ export async function getDistroTypes() {
 export async function getPreconfigureTypes() {
     return await apiGet(known_uri.enum_preconfigureTypes());
 }
+
+export async function getBookingPermissionLevels() {
+    return await apiGet(known_uri.enum_bookingPermissionLevels());
+}
+
+export async function getBookingStatuses() {
+    return await apiGet(known_uri.enum_bookingStatuses());
+}

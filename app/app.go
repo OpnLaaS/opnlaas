@@ -43,6 +43,9 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/api/enums/architectures", apiEnumsArchitectureNames)
 	app.Get("/api/enums/distro-types", apiEnumsDistroTypeNames)
 	app.Get("/api/enums/preconfigure-types", apiEnumsPreConfigureTypeNames)
+	app.Get("/api/enums/booking-permission-levels", apiEnumsBookingPermissionLevelNames)
+	app.Get("/api/enums/booking-statuses", apiEnumsBookingStatusNames)
+	app.Get("/api/enums/booking-request-statuses", apiEnumsBookingRequestStatusNames)
 
 	// Hosts API
 	app.Get("/api/hosts", apiHostsAll)
@@ -54,6 +57,17 @@ func CreateApp() (app *fiber.App) {
 	// ISO Images API
 	app.Post("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesCreate)
 	app.Get("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesList)
+
+	// Booking API
+	app.Post("/api/bookings", apiMustBeLoggedIn, apiBookingCreate)
+	app.Get("/api/bookings", apiMustBeLoggedIn, apiBookingList)
+	app.Post("/api/bookings/:booking_id/requests", apiMustBeLoggedIn, apiBookingCreateRequest)
+	app.Get("/api/bookings/cart", apiMustBeLoggedIn, apiBookingCartSnapshot)
+	app.Post("/api/bookings/cart/hosts", apiMustBeLoggedIn, apiBookingCartAddHost)
+	app.Delete("/api/bookings/cart/hosts/:management_ip", apiMustBeLoggedIn, apiBookingCartRemoveHost)
+	app.Get("/api/bookings/cart/counts", apiMustBeLoggedIn, apiBookingCartCounts)
+	app.Get("/api/bookings/cart/hosts/available", apiMustBeLoggedIn, apiBookingCartAvailableHosts)
+
 	return
 }
 

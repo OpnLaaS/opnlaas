@@ -6,15 +6,16 @@ require (
 	github.com/Netflix/go-env v0.1.2
 	github.com/bougou/go-ipmi v0.7.8
 	github.com/go-ldap/ldap/v3 v3.4.12
-	github.com/gofiber/fiber/v2 v2.52.9
+	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/gofiber/template/html/v2 v2.1.3
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/joho/godotenv v1.5.1
-	github.com/luthermonson/go-proxmox v0.2.3
 	github.com/kdomanski/iso9660 v0.4.0
+	github.com/luthermonson/go-proxmox v0.2.3
 	github.com/stmcginnis/gofish v0.20.0
 	github.com/z46-dev/go-logger v0.0.0-20250326164502-928461111cea
-	github.com/z46-dev/gomysql v0.0.0-20250730173740-0092accd5936
+	github.com/z46-dev/gomysql v0.0.0-20251125024913-d4c93b06ec11
+	golang.org/x/crypto v0.36.0
 )
 
 require (
@@ -48,7 +49,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect

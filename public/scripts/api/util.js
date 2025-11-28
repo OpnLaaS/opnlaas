@@ -25,20 +25,22 @@ export const known_uri = {
     enum_powerActions: () => "/api/enums/power-actions",
     enum_architectures: () => "/api/enums/architectures",
     enum_distroTypes: () => "/api/enums/architectures",
-    enum_preconfigureTypes: () => "/api/enums/preconfigure-types", 
+    enum_preconfigureTypes: () => "/api/enums/preconfigure-types",
+    enum_bookingPermissionLevels: () => "/api/enums/booking-permission-levels",
+    enum_bookingStatuses: () => "/api/enums/booking-statuses",
     hosts_hosts: () => "/api/hosts",
-	hosts_hostByManagementIP: (management_ip) =>  `${known_uri.hosts_hosts()}/${management_ip}`,
-	hosts_hostPowerAction: (management_ip, power_action) => `${known_uri.hosts_hostByManagementIP(management_ip)}/power/${power_action}`,
+    hosts_hostByManagementIP: (management_ip) => `${known_uri.hosts_hosts()}/${management_ip}`,
+    hosts_hostPowerAction: (management_ip, power_action) => `${known_uri.hosts_hostByManagementIP(management_ip)}/power/${power_action}`,
     iso_images: () => "/api/iso-images",
 };
 
 export async function apiGet(URI, params) {
     let url = URL + URI;
 
-    let response =  await (fetch (
+    let response = await (fetch(
         url + new URLSearchParams(params).toString(), {
-            credentials: 'include',
-        }
+        credentials: 'include',
+    }
     ));
 
     try {
@@ -56,16 +58,16 @@ export async function apiGet(URI, params) {
 export async function apiPostJSON(URI, params) {
     let url = URL + URI;
 
-    let response =  await (fetch(
+    let response = await (fetch(
         url, {
-            credentials: 'include',
-            method: "POST",
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: params,
-        }
+        credentials: 'include',
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: params,
+    }
     ));
 
     try {
@@ -85,12 +87,12 @@ export async function apiPostJSON(URI, params) {
 export async function apiPostGeneric(URI, params) {
     let url = URL + URI;
 
-    let response =  await (fetch(
+    let response = await (fetch(
         url, {
-            credentials: 'include',
-            method: "POST",
-            body: params,
-        }
+        credentials: 'include',
+        method: "POST",
+        body: params,
+    }
     ));
 
     try {
@@ -110,14 +112,14 @@ export async function apiDelete(URI, params) {
 
     let response = await (fetch(
         url, {
-            credentials: 'include',
-            method: "DELETE",
-            headers: {
+        credentials: 'include',
+        method: "DELETE",
+        headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-            },
-            body: params
-        }
+        },
+        body: params
+    }
     ));
 
     try {

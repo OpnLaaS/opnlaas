@@ -40,11 +40,11 @@ function toggleItem(button) {
 
     if (isCollapsed) {
         collapsible.classList.remove("max-h-0", "opacity-0");
-        collapsible.classList.add("max-h-100", "opacity-100");
+        collapsible.classList.add("collapsible-open", "opacity-100");
         arrow.style.transform = "rotate(180deg)";
     } else {
         collapsible.classList.add("max-h-0", "opacity-0");
-        collapsible.classList.remove("max-h-100", "opacity-100");
+        collapsible.classList.remove("collapsible-open", "opacity-100");
         arrow.style.transform = "";
     }
 }

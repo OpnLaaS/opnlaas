@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"os"
@@ -140,6 +141,18 @@ func apiEnumsDistroTypeNames(c *fiber.Ctx) (err error) {
 
 func apiEnumsPreConfigureTypeNames(c *fiber.Ctx) (err error) {
 	return c.JSON(db.PreConfigureTypeNameReverses)
+}
+
+func apiEnumsBookingPermissionLevelNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.BookingPermissionLevelNameReverses)
+}
+
+func apiEnumsBookingStatusNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.BookingStatusNameReverses)
+}
+
+func apiEnumsBookingRequestStatusNames(c *fiber.Ctx) (err error) {
+	return c.JSON(db.BookingRequestStatusNameReverses)
 }
 
 // Hosts API
@@ -365,4 +378,218 @@ func apiISOImagesList(c *fiber.Ctx) (err error) {
 	}
 
 	return c.JSON(isoList)
+}
+
+// Booking API
+
+func apiBookingCreate(c *fiber.Ctx) (err error) {
+	var (
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		body struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Duration    int    `json:"duration_days"`
+		}
+		newBooking db.Booking
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if err = c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid body"})
+	}
+
+	if len(body.Name) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "name is required"})
+	}
+
+	now := time.Now()
+	newBooking = db.Booking{
+		Name:        body.Name,
+		Description: body.Description,
+		Status:      db.BookingStatusActive,
+		StartTime:   now,
+	}
+
+	if body.Duration > 0 {
+		newBooking.EndTime = now.Add(time.Duration(body.Duration) * 24 * time.Hour)
+	}
+
+	if err = db.CreateBooking(&newBooking); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to create booking"})
+	}
+
+	owner := &db.BookingPerson{
+		Username:        user.Username,
+		BookingID:       newBooking.ID,
+		PermissionLevel: db.BookingPermissionLevelOwner,
+	}
+
+	if err = db.AddBookingPerson(owner); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to set booking owner"})
+	}
+
+	newBooking.People = append(newBooking.People, owner.ID)
+
+	return c.JSON(newBooking)
+}
+
+func apiBookingList(c *fiber.Ctx) (err error) {
+	var (
+		bookings []*db.Booking
+		user     *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if bookings, err = db.BookingList(); err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.JSON(bookings)
+}
+
+func apiBookingCartSnapshot(c *fiber.Ctx) (err error) {
+	var (
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		cart *db.BookingCart
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if cart, err = db.BookingCartSnapshot(user.Username); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "cart not found"})
+	}
+
+	return c.JSON(cart)
+}
+
+func apiBookingCartCounts(c *fiber.Ctx) (err error) {
+	var (
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if hosts, virtual, errCount := db.CartCounts(user.Username); errCount != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "cart not found"})
+	} else {
+		return c.JSON(fiber.Map{
+			"hosts":    hosts,
+			"virtual":  virtual,
+			"total":    hosts + virtual,
+			"has_cart": true,
+		})
+	}
+}
+
+func apiBookingCartAddHost(c *fiber.Ctx) (err error) {
+	var (
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		body db.BookingRequestHost
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if err = c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid body"})
+	}
+
+	if len(body.ManagementIP) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "management_ip is required"})
+	}
+
+	if err = db.AddHostToCart(user.Username, body); err != nil {
+		status := fiber.StatusInternalServerError
+		if errors.Is(err, db.ErrHostAlreadyBooked) {
+			status = fiber.StatusConflict
+		} else if errors.Is(err, db.ErrCartNotFound) {
+			status = fiber.StatusNotFound
+		}
+		return c.Status(status).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func apiBookingCartRemoveHost(c *fiber.Ctx) (err error) {
+	var (
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	db.RemoveHostFromCart(user.Username, c.Params("management_ip"))
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func apiBookingCartAvailableHosts(c *fiber.Ctx) (err error) {
+	var (
+		user  *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		hosts []*db.Host
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if hosts, err = db.AvailableHostsForCart(user.Username); err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.JSON(hosts)
+}
+
+func apiBookingCreateRequest(c *fiber.Ctx) (err error) {
+	var (
+		user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		body struct {
+			Justification string                `json:"justification"`
+			Containers    []db.BookingRequestCT `json:"containers"`
+			VMs           []db.BookingRequestVM `json:"vms"`
+		}
+		bookingID int
+		request   *db.BookingRequest
+	)
+
+	if user == nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if bookingID64, errConv := strconv.ParseInt(c.Params("booking_id"), 10, 32); errConv != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid booking id"})
+	} else {
+		bookingID = int(bookingID64)
+	}
+
+	if err = c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid body"})
+	}
+
+	if request, err = db.BuildBookingRequestFromCart(user.Username, bookingID, body.Justification, user.Username, body.Containers, body.VMs); err != nil {
+		status := fiber.StatusInternalServerError
+		if errors.Is(err, db.ErrCartNotFound) {
+			status = fiber.StatusNotFound
+		}
+		return c.Status(status).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	if err = db.AddBookingRequest(request); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to add booking request"})
+	}
+
+	db.ResetBookingCart(user.Username)
+	return c.JSON(request)
 }
