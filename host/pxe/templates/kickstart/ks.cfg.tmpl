@@ -1,0 +1,43 @@
+lang {{ default .Templates.Common.Locale "en_US" }}
+keyboard {{ default .Templates.Common.KeyboardLayout "us" }}
+timezone {{ default .Templates.Common.Timezone "UTC" }} --utc
+network --bootproto=dhcp --hostname={{ .Identifiers.Hostname }}
+url --url={{ .Artifacts.ISOHTTP }}
+rootpw --iscrypted {{ .Templates.Kickstart.RootPasswordHash }}
+authconfig --enableshadow --passalgo=sha512
+firewall --disabled
+selinux --permissive
+text
+install
+zerombr
+clearpart --all --initlabel
+autopart --type=lvm
+poweroff
+reboot
+
+user --name={{ .Templates.Kickstart.UserName }} --password={{ .Templates.Kickstart.UserPasswordHash }} --iscrypted --groups=wheel
+%packages
+@^minimal-environment
+{{- range .Templates.Common.Packages }}
+{{ . }}
+{{- end }}
+%end
+
+%pre
+{{ .Templates.Kickstart.PreScript }}
+%end
+
+%post --log=/root/ks-post.log
+{{- if .Templates.Kickstart.SSHAuthorizedKeys }}
+mkdir -p /home/{{ .Templates.Kickstart.UserName }}/.ssh
+cat <<'EOF' >/home/{{ .Templates.Kickstart.UserName }}/.ssh/authorized_keys
+{{- range .Templates.Kickstart.SSHAuthorizedKeys }}
+{{ . }}
+{{- end }}
+EOF
+chown -R {{ .Templates.Kickstart.UserName }}:{{ .Templates.Kickstart.UserName }} /home/{{ .Templates.Kickstart.UserName }}/.ssh
+chmod 700 /home/{{ .Templates.Kickstart.UserName }}/.ssh
+chmod 600 /home/{{ .Templates.Kickstart.UserName }}/.ssh/authorized_keys
+{{ end }}
+{{ .Templates.Kickstart.PostScript }}
+%end

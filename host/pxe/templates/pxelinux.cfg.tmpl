@@ -1,0 +1,8 @@
+DEFAULT install
+PROMPT 0
+TIMEOUT 50
+
+LABEL install
+  MENU LABEL {{ .ISO.DistroName }} {{ .ISO.Version }} ({{ .ISO.Architecture }})
+  KERNEL {{ .Artifacts.KernelRelative }}
+  APPEND initrd={{ .Artifacts.InitrdRelative }}{{ if .KernelArgsJoined }} {{ .KernelArgsJoined }}{{ end }}

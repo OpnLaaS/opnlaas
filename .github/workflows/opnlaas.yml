@@ -50,6 +50,9 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare PXE host prerequisites
+        run: |
+          bash scripting/setup_host.sh || true
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

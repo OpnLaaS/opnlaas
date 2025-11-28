@@ -1,12 +1,13 @@
 package iso
 
 import (
-	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kdomanski/iso9660"
+	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
 )
 
@@ -60,42 +61,99 @@ func last(s string, sep string) string {
 }
 
 func createOutputs(extracted *db.StoredISOImage, img *iso9660.Image, sourceImage, outputStorageDirectory string) (err error) {
+	storageDir := filepath.Clean(outputStorageDirectory)
+	kernelISOPath := extracted.KernelPath
+	initrdISOPath := extracted.InitrdPath
+
+	if err = os.MkdirAll(storageDir, 0755); err != nil {
+		return
+	}
+
 	var (
-		reader        io.Reader
-		newImagePath  string = fmt.Sprintf("%s/%s", outputStorageDirectory, last(sourceImage, "/"))
-		newKernelPath string = fmt.Sprintf("%s/%s", outputStorageDirectory, last(extracted.KernelPath, "/"))
-		newInitrdPath string = fmt.Sprintf("%s/%s", outputStorageDirectory, last(extracted.InitrdPath, "/"))
+		httpArtifacts = ""
+		tftpArtifacts = ""
 	)
+	if root := strings.TrimSpace(config.Config.TFTP.HTTP_RootDir); root != "" {
+		httpArtifacts = filepath.Join(root, "artifacts", extracted.Name)
+		if err = os.MkdirAll(httpArtifacts, 0755); err != nil {
+			return
+		}
+	}
+	if root := strings.TrimSpace(config.Config.TFTP.TFTP_RootDir); root != "" {
+		tftpArtifacts = filepath.Join(root, "artifacts", extracted.Name)
+		if err = os.MkdirAll(tftpArtifacts, 0755); err != nil {
+			return
+		}
+	}
 
-	if err = os.MkdirAll(outputStorageDirectory, 0755); err != nil {
+	isoFilename := last(sourceImage, "/")
+	storageISO := filepath.Join(storageDir, isoFilename)
+	if err = copyFile(sourceImage, storageISO); err != nil {
+		return
+	}
+	if err = copyToTargets(sourceImage, filepath.Join(httpArtifacts, "image.iso"), filepath.Join(tftpArtifacts, "image.iso")); err != nil {
 		return
 	}
 
-	// Copy the ISO image to the output storage directory
-	if err = copyFile(sourceImage, newImagePath); err != nil {
+	if err = copyISOEntry(img, kernelISOPath, filepath.Join(storageDir, filepath.Base(kernelISOPath))); err != nil {
+		return
+	}
+	if err = copyISOEntry(img, kernelISOPath, filepath.Join(httpArtifacts, "kernel"), filepath.Join(tftpArtifacts, "kernel")); err != nil {
 		return
 	}
 
-	// Copy the kernel to the output storage directory
-	if reader, err = openPath(img, extracted.KernelPath); err != nil {
+	if err = copyISOEntry(img, initrdISOPath, filepath.Join(storageDir, filepath.Base(initrdISOPath))); err != nil {
+		return
+	}
+	if err = copyISOEntry(img, initrdISOPath, filepath.Join(httpArtifacts, "initrd"), filepath.Join(tftpArtifacts, "initrd")); err != nil {
 		return
 	}
 
-	if err = pipeReaderToFile(reader, newKernelPath); err != nil {
-		return
-	}
-
-	// Copy the initrd to the output storage directory
-	if reader, err = openPath(img, extracted.InitrdPath); err != nil {
-		return
-	}
-
-	if err = pipeReaderToFile(reader, newInitrdPath); err != nil {
-		return
-	}
-
-	extracted.FullISOPath = newImagePath
-	extracted.KernelPath = newKernelPath
-	extracted.InitrdPath = newInitrdPath
+	extracted.FullISOPath = chooseFirstNonEmpty(filepath.Join(httpArtifacts, "image.iso"), filepath.Join(tftpArtifacts, "image.iso"), storageISO)
+	extracted.KernelPath = chooseFirstNonEmpty(filepath.Join(tftpArtifacts, "kernel"), filepath.Join(httpArtifacts, "kernel"), filepath.Join(storageDir, filepath.Base(kernelISOPath)))
+	extracted.InitrdPath = chooseFirstNonEmpty(filepath.Join(tftpArtifacts, "initrd"), filepath.Join(httpArtifacts, "initrd"), filepath.Join(storageDir, filepath.Base(initrdISOPath)))
 	return
+}
+
+func copyToTargets(src string, dests ...string) error {
+	for _, dst := range dests {
+		if strings.TrimSpace(dst) == "" {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			return err
+		}
+		if err := copyFile(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyISOEntry(img *iso9660.Image, isoPath string, dests ...string) error {
+	for _, dst := range dests {
+		if strings.TrimSpace(dst) == "" {
+			continue
+		}
+		reader, err := openPath(img, isoPath)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			return err
+		}
+		if err := pipeReaderToFile(reader, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func chooseFirstNonEmpty(paths ...string) string {
+	for _, p := range paths {
+		if strings.TrimSpace(p) != "" {
+			return p
+		}
+	}
+	return ""
 }

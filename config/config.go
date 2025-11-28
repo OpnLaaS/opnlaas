@@ -14,11 +14,36 @@ type Configuration struct {
 	}
 
 	TFTP struct {
-		TFTP_RootDir      string `env:"TFTP_ROOT_DIR,default=/var/lib/tftpboot"`
-		TFTP_Address      string `env:"TFTP_ADDRESS,default=:69"`
-		ServeHTTPFallback bool   `env:"TFTP_SERVE_HTTP_FALLBACK,default=true"`
-		HTTP_RootDir      string `env:"TFTP_HTTP_ROOT_DIR,default=/var/www/tftpboot"`
-		HTTP_Address      string `env:"TFTP_HTTP_ADDRESS,default=:8069"`
+		Enabled           bool     `env:"TFTP_ENABLED,default=false"`
+		TFTP_RootDir      string   `env:"TFTP_ROOT_DIR,default=/var/lib/tftpboot"`
+		TFTP_Address      string   `env:"TFTP_ADDRESS,default=:69"`
+		ServeHTTPFallback bool     `env:"TFTP_SERVE_HTTP_FALLBACK,default=true"`
+		HTTP_RootDir      string   `env:"TFTP_HTTP_ROOT_DIR,default=/var/www/tftpboot"`
+		HTTP_Address      string   `env:"TFTP_HTTP_ADDRESS,default=:8069"`
+		HTTP_PublicURL    string   `env:"TFTP_HTTP_PUBLIC_URL,default="`
+		DHCP_Address      string   `env:"TFTP_DHCP_ADDRESS,default="`
+		DHCP_Interface    string   `env:"TFTP_DHCP_INTERFACE,default="`
+		DHCP_ServerIP     string   `env:"TFTP_DHCP_SERVER_IP,default="`
+		DHCP_LeaseSeconds int      `env:"TFTP_DHCP_LEASE_SECONDS,default=7200"`
+		DHCP_SubnetMask   string   `env:"TFTP_DHCP_SUBNET_MASK,default="`
+		DHCP_Router       string   `env:"TFTP_DHCP_ROUTER,default="`
+		DHCP_DNSServers   []string `env:"TFTP_DHCP_DNS_SERVERS,default="`
+		DHCP_AllowedMACs  []string `env:"TFTP_DHCP_ALLOWED_MACS,default="`
+		TemplateDir       string   `env:"PXE_TEMPLATE_DIR,default=./pxe/templates"`
+		TemplateDefaults  string   `env:"TFTP_TEMPLATE_DEFAULTS,default="`
+		DefaultProfile    struct {
+			ISOName      string   `env:"TFTP_DEFAULT_ISO_NAME,default="`
+			BootFilename string   `env:"TFTP_DEFAULT_BOOT_FILENAME,default=pxelinux.0"`
+			KernelParams []string `env:"TFTP_DEFAULT_KERNEL_PARAMS,default="`
+			InitrdParams []string `env:"TFTP_DEFAULT_INITRD_PARAMS,default="`
+			TemplateData []string `env:"TFTP_DEFAULT_TEMPLATE_DATA,default="`
+			IPv4Address  string   `env:"TFTP_DEFAULT_IPV4_ADDRESS,default="`
+			SubnetMask   string   `env:"TFTP_DEFAULT_SUBNET_MASK,default="`
+			Gateway      string   `env:"TFTP_DEFAULT_GATEWAY,default="`
+			DNSServers   []string `env:"TFTP_DEFAULT_DNS_SERVERS,default="`
+			DomainName   string   `env:"TFTP_DEFAULT_DOMAIN_NAME,default="`
+			NextServer   string   `env:"TFTP_DEFAULT_NEXT_SERVER,default="`
+		}
 	}
 
 	LDAP struct {

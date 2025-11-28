@@ -104,6 +104,25 @@ function renderStorageLine(dev) {
     return parts.filter(Boolean).join(" • ");
 }
 
+function prettyNetworkSpeedMbps(mbps) {
+    if (mbps == null || isNaN(mbps)) return null;
+    const n = Number(mbps);
+    if (n <= 0) return null;
+    if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")} Gbps`;
+    return `${n} Mbps`;
+}
+
+function renderNetworkLine(net) {
+    if (!net || typeof net !== "object") return "Unknown interface";
+    const parts = [];
+    if (net.name) parts.push(net.name);
+    const prettySpeed = prettyNetworkSpeedMbps(net.speed_mbps ?? net.speedMbps);
+    if (prettySpeed) parts.push(prettySpeed);
+    const mac = net.mac_address || net.macAddress;
+    if (mac) parts.push(mac);
+    return parts.length ? parts.join(" • ") : "Unknown interface";
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     await renderHosts();
 });
@@ -225,6 +244,33 @@ async function renderHosts() {
             const totalGB = totalCapacityGB(storage);
             frag.querySelector('[data-field="storage_total"]').textContent = prettyCapacityGB(totalGB);
             frag.querySelector('[data-field="storage_summary"]').textContent = `${storage.length} device${storage.length === 1 ? "" : "s"}`;
+
+            // network interfaces
+            const networkList = frag.querySelector('[data-field="network_list"]');
+            const summaryNode = frag.querySelector('[data-field="network_summary"]');
+            const interfaceCandidates = host.mac_addresses ?? host.network_interfaces ?? host.networkInterfaces;
+            const interfaces = Array.isArray(interfaceCandidates) ? interfaceCandidates : [];
+            if (networkList) networkList.innerHTML = "";
+            if (summaryNode) {
+                summaryNode.textContent = interfaces.length
+                    ? `${interfaces.length} interface${interfaces.length === 1 ? "" : "s"}`
+                    : "No network interface data";
+            }
+            if (networkList) {
+                if (interfaces.length) {
+                    interfaces.forEach((iface) => {
+                        const li = document.createElement("li");
+                        li.className = "py-2";
+                        li.textContent = renderNetworkLine(iface);
+                        networkList.appendChild(li);
+                    });
+                } else {
+                    const li = document.createElement("li");
+                    li.className = "py-2 text-font-secondary";
+                    li.textContent = "No network interface info";
+                    networkList.appendChild(li);
+                }
+            }
 
             list.appendChild(frag);
         });

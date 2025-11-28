@@ -1,0 +1,30 @@
+{
+    "common": {
+        "timezone": "UTC",
+        "locale": "en_US",
+        "keyboard_layout": "us",
+        "keyboard_variant": "",
+        "packages": [
+            "openssh-server"
+        ],
+        "mirror": "",
+        "ssh_authorized_keys": []
+    },
+    "autoinstall": {
+        "admin_username": "laas",
+        "admin_password_hash": "$1$BTBLsQj0$pirlnDRx9QIatS/vThk.j1",
+        "disable_root": true,
+        "pre_script": "",
+        "post_script": "",
+        "early_commands": [],
+        "late_commands": ["systemctl enable --now ssh", "apt-get update", "apt-get install neofetch -y"]
+    },
+    "kickstart": {
+        "root_password_hash": "",
+        "user_name": "laas",
+        "user_password_hash": "$1$BTBLsQj0$pirlnDRx9QIatS/vThk.j1",
+        "ssh_authorized_keys": [],
+        "pre_script": "",
+        "post_script": ""
+    }
+}

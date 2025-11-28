@@ -379,6 +379,24 @@ func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
 		}
 	}
 
+	if interfaces, err := c.redfishPrimarySystem.EthernetInterfaces(); err != nil {
+		return err
+	} else {
+		for _, iface := range interfaces {
+			c.Host.NetworkInterfaces = append(c.Host.NetworkInterfaces, HostNetworkInterface{
+				Name: func() string {
+					if iface.ID != "" {
+						return iface.ID
+					}
+
+					return iface.Name
+				}(),
+				MACAddress: iface.MACAddress,
+				SpeedMbps:  iface.SpeedMbps,
+			})
+		}
+	}
+
 	return
 }
 
