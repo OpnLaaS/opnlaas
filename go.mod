@@ -18,6 +18,7 @@ require (
 	github.com/z46-dev/go-logger v0.0.0-20250326164502-928461111cea
 	github.com/z46-dev/gomysql v0.0.0-20251125024913-d4c93b06ec11
 	golang.org/x/crypto v0.45.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

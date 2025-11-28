@@ -23,11 +23,10 @@ user --name={{ .Templates.Kickstart.UserName }} --password={{ .Templates.Kicksta
 {{- end }}
 %end
 
-%pre
-{{ .Templates.Kickstart.PreScript }}
-%end
-
 %post --log=/root/ks-post.log
+{{- if .Templates.Kickstart.PreScript }}
+{{ .Templates.Kickstart.PreScript }}
+{{- end }}
 {{- if .Templates.Kickstart.SSHAuthorizedKeys }}
 mkdir -p /home/{{ .Templates.Kickstart.UserName }}/.ssh
 cat <<'EOF' >/home/{{ .Templates.Kickstart.UserName }}/.ssh/authorized_keys
@@ -39,5 +38,7 @@ chown -R {{ .Templates.Kickstart.UserName }}:{{ .Templates.Kickstart.UserName }}
 chmod 700 /home/{{ .Templates.Kickstart.UserName }}/.ssh
 chmod 600 /home/{{ .Templates.Kickstart.UserName }}/.ssh/authorized_keys
 {{ end }}
+{{- if .Templates.Kickstart.PostScript }}
 {{ .Templates.Kickstart.PostScript }}
+{{- end }}
 %end

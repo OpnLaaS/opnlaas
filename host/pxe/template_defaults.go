@@ -1,48 +1,61 @@
 package pxe
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/opnlaas/opnlaas/config"
 )
 
 // TemplateDefaults represents all configurable bits that the PXE templates can access.
 // Values are loaded from a single environment variable so we can keep .env files tidy.
 type TemplateDefaults struct {
-	Common      TemplateCommonDefaults `json:"common"`
-	Autoinstall AutoinstallDefaults    `json:"autoinstall"`
-	Kickstart   KickstartDefaults      `json:"kickstart"`
+	Common      TemplateCommonDefaults
+	Autoinstall AutoinstallDefaults
+	Kickstart   KickstartDefaults
+	GivenUser   TemplateUser
+	ManagedUser TemplateUser
 }
 
 // TemplateCommonDefaults hosts the knobs that are shared across PreConfig templates.
 type TemplateCommonDefaults struct {
-	Timezone          string   `json:"timezone"`
-	Locale            string   `json:"locale"`
-	KeyboardLayout    string   `json:"keyboard_layout"`
-	KeyboardVariant   string   `json:"keyboard_variant"`
-	Packages          []string `json:"packages"`
-	Mirror            string   `json:"mirror"`
-	SSHAuthorizedKeys []string `json:"ssh_authorized_keys"`
+	Timezone          string
+	Locale            string
+	KeyboardLayout    string
+	KeyboardVariant   string
+	Packages          []string
+	Mirror            string
+	SSHAuthorizedKeys []string
 }
 
 type AutoinstallDefaults struct {
-	AdminUsername     string   `json:"admin_username"`
-	AdminPasswordHash string   `json:"admin_password_hash"`
-	DisableRoot       bool     `json:"disable_root"`
-	PreScript         string   `json:"pre_script"`
-	PostScript        string   `json:"post_script"`
-	EarlyCommands     []string `json:"early_commands"`
-	LateCommands      []string `json:"late_commands"`
+	AdminUsername     string
+	AdminPasswordHash string
+	DisableRoot       bool
+	PreScript         string
+	PostScript        string
+	EarlyCommands     []string
+	LateCommands      []string
 }
 
 type KickstartDefaults struct {
-	RootPasswordHash  string   `json:"root_password_hash"`
-	UserName          string   `json:"user_name"`
-	UserPasswordHash  string   `json:"user_password_hash"`
-	SSHAuthorizedKeys []string `json:"ssh_authorized_keys"`
-	PreScript         string   `json:"pre_script"`
-	PostScript        string   `json:"post_script"`
+	RootPasswordHash  string
+	UserName          string
+	UserPasswordHash  string
+	SSHAuthorizedKeys []string
+	PreScript         string
+	PostScript        string
+}
+
+type TemplateUser struct {
+	Username          string
+	PasswordHash      string
+	SSHAuthorizedKeys []string
+	AllowSudo         bool
 }
 
 func defaultTemplateDefaults() TemplateDefaults {
@@ -59,6 +72,12 @@ func defaultTemplateDefaults() TemplateDefaults {
 		Kickstart: KickstartDefaults{
 			UserName: "admin",
 		},
+		GivenUser: TemplateUser{
+			Username: "ubuntu",
+		},
+		ManagedUser: TemplateUser{
+			Username: "opnadmin",
+		},
 	}
 }
 
@@ -70,6 +89,8 @@ func (d TemplateDefaults) Clone() TemplateDefaults {
 	out.Autoinstall.EarlyCommands = cloneStringSlice(d.Autoinstall.EarlyCommands)
 	out.Autoinstall.LateCommands = cloneStringSlice(d.Autoinstall.LateCommands)
 	out.Kickstart.SSHAuthorizedKeys = cloneStringSlice(d.Kickstart.SSHAuthorizedKeys)
+	out.GivenUser.SSHAuthorizedKeys = cloneStringSlice(d.GivenUser.SSHAuthorizedKeys)
+	out.ManagedUser.SSHAuthorizedKeys = cloneStringSlice(d.ManagedUser.SSHAuthorizedKeys)
 	return out
 }
 
@@ -81,106 +102,106 @@ func parseTemplateDefaults(spec string) (TemplateDefaults, error) {
 		return defaults, nil
 	}
 
-	data, err := readTemplateDefaultsData(spec)
+	cfg, err := config.LoadInstallerConfiguration(spec)
 	if err != nil {
 		return TemplateDefaults{}, err
 	}
-	if len(data) == 0 {
-		return defaults, nil
+	return buildTemplateDefaultsFromInstaller(cfg)
+}
+
+func buildTemplateDefaultsFromInstaller(cfg config.InstallerConfiguration) (TemplateDefaults, error) {
+	defaults := defaultTemplateDefaults()
+	defaults.Common.Timezone = cfg.Timezone
+	defaults.Common.Locale = cfg.Locale
+	defaults.Common.KeyboardLayout = cfg.KeyboardLayout
+	defaults.Common.KeyboardVariant = cfg.KeyboardVariant
+	defaults.Common.Packages = cloneStringSlice(cfg.Packages)
+	defaults.Common.Mirror = cfg.Mirror
+	defaults.Common.SSHAuthorizedKeys = cloneStringSlice(cfg.GivenUser.SSHAuthorizedKeys)
+
+	defaults.Autoinstall.AdminUsername = cfg.GivenUser.Username
+	adminHash, err := hashPassword(cfg.GivenUser.Password)
+	if err != nil {
+		return TemplateDefaults{}, err
+	}
+	defaults.Autoinstall.AdminPasswordHash = adminHash
+	defaults.Autoinstall.DisableRoot = cfg.DisableRoot
+
+	defaults.GivenUser = TemplateUser{
+		Username:          cfg.GivenUser.Username,
+		PasswordHash:      adminHash,
+		SSHAuthorizedKeys: cloneStringSlice(cfg.GivenUser.SSHAuthorizedKeys),
+		AllowSudo:         cfg.GivenUser.AllowSudo,
 	}
 
-	var overrides TemplateDefaults
-	if err := json.Unmarshal(data, &overrides); err != nil {
-		return TemplateDefaults{}, fmt.Errorf("parse template defaults: %w", err)
+	preScript, err := loadScriptFile(cfg.SourcePath, cfg.ScriptingFilePaths.GlobalPreScriptFile)
+	if err != nil {
+		return TemplateDefaults{}, err
 	}
-	mergeTemplateDefaults(&defaults, overrides)
+	postScript, err := loadScriptFile(cfg.SourcePath, cfg.ScriptingFilePaths.GlobalPostScriptFile)
+	if err != nil {
+		return TemplateDefaults{}, err
+	}
+	defaults.Autoinstall.PreScript = preScript
+	defaults.Autoinstall.PostScript = postScript
+
+	rootHash, err := hashPassword(cfg.RootPassword)
+	if err != nil {
+		return TemplateDefaults{}, err
+	}
+	defaults.Kickstart.RootPasswordHash = rootHash
+
+	defaults.Kickstart.UserName = cfg.ManagedUser.Username
+	userHash, err := hashPassword(cfg.ManagedUser.Password)
+	if err != nil {
+		return TemplateDefaults{}, err
+	}
+	defaults.Kickstart.UserPasswordHash = userHash
+	defaults.Kickstart.SSHAuthorizedKeys = cloneStringSlice(cfg.ManagedUser.SSHAuthorizedKeys)
+	defaults.Kickstart.PreScript = preScript
+	defaults.Kickstart.PostScript = postScript
+
+	defaults.ManagedUser = TemplateUser{
+		Username:          cfg.ManagedUser.Username,
+		PasswordHash:      userHash,
+		SSHAuthorizedKeys: cloneStringSlice(cfg.ManagedUser.SSHAuthorizedKeys),
+		AllowSudo:         cfg.ManagedUser.AllowSudo,
+	}
+
 	return defaults, nil
 }
 
-func readTemplateDefaultsData(spec string) ([]byte, error) {
-	if spec == "" {
-		return nil, nil
+func loadScriptFile(configPath, scriptPath string) (string, error) {
+	scriptPath = strings.TrimSpace(scriptPath)
+	if scriptPath == "" {
+		return "", nil
 	}
 
-	if strings.HasPrefix(spec, "@") {
-		path := strings.TrimSpace(strings.TrimPrefix(spec, "@"))
-		return os.ReadFile(path)
+	if !filepath.IsAbs(scriptPath) && configPath != "" {
+		dir := filepath.Dir(configPath)
+		scriptPath = filepath.Join(dir, scriptPath)
 	}
 
-	if strings.HasPrefix(spec, "{") || strings.HasPrefix(spec, "[") {
-		return []byte(spec), nil
+	data, err := os.ReadFile(scriptPath)
+	if err != nil {
+		return "", err
 	}
-
-	if info, err := os.Stat(spec); err == nil && !info.IsDir() {
-		return os.ReadFile(spec)
-	}
-
-	return []byte(spec), nil
+	return strings.TrimSpace(string(data)), nil
 }
 
-func mergeTemplateDefaults(base *TemplateDefaults, overrides TemplateDefaults) {
-	if overrides.Common.Timezone != "" {
-		base.Common.Timezone = overrides.Common.Timezone
+func hashPassword(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
 	}
-	if overrides.Common.Locale != "" {
-		base.Common.Locale = overrides.Common.Locale
+	cmd := exec.Command("openssl", "passwd", "-6", "-stdin")
+	cmd.Stdin = strings.NewReader(value + "\n")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("hash password with openssl: %w", err)
 	}
-	if overrides.Common.KeyboardLayout != "" {
-		base.Common.KeyboardLayout = overrides.Common.KeyboardLayout
-	}
-	if overrides.Common.KeyboardVariant != "" {
-		base.Common.KeyboardVariant = overrides.Common.KeyboardVariant
-	}
-	if len(overrides.Common.Packages) > 0 {
-		base.Common.Packages = cloneStringSlice(overrides.Common.Packages)
-	}
-	if overrides.Common.Mirror != "" {
-		base.Common.Mirror = overrides.Common.Mirror
-	}
-	if len(overrides.Common.SSHAuthorizedKeys) > 0 {
-		base.Common.SSHAuthorizedKeys = cloneStringSlice(overrides.Common.SSHAuthorizedKeys)
-	}
-
-	if overrides.Autoinstall.AdminUsername != "" {
-		base.Autoinstall.AdminUsername = overrides.Autoinstall.AdminUsername
-	}
-	if overrides.Autoinstall.AdminPasswordHash != "" {
-		base.Autoinstall.AdminPasswordHash = overrides.Autoinstall.AdminPasswordHash
-	}
-	if overrides.Autoinstall.DisableRoot {
-		base.Autoinstall.DisableRoot = true
-	}
-	if overrides.Autoinstall.PreScript != "" {
-		base.Autoinstall.PreScript = overrides.Autoinstall.PreScript
-	}
-	if overrides.Autoinstall.PostScript != "" {
-		base.Autoinstall.PostScript = overrides.Autoinstall.PostScript
-	}
-	if len(overrides.Autoinstall.EarlyCommands) > 0 {
-		base.Autoinstall.EarlyCommands = cloneStringSlice(overrides.Autoinstall.EarlyCommands)
-	}
-	if len(overrides.Autoinstall.LateCommands) > 0 {
-		base.Autoinstall.LateCommands = cloneStringSlice(overrides.Autoinstall.LateCommands)
-	}
-
-	if overrides.Kickstart.RootPasswordHash != "" {
-		base.Kickstart.RootPasswordHash = overrides.Kickstart.RootPasswordHash
-	}
-	if overrides.Kickstart.UserName != "" {
-		base.Kickstart.UserName = overrides.Kickstart.UserName
-	}
-	if overrides.Kickstart.UserPasswordHash != "" {
-		base.Kickstart.UserPasswordHash = overrides.Kickstart.UserPasswordHash
-	}
-	if len(overrides.Kickstart.SSHAuthorizedKeys) > 0 {
-		base.Kickstart.SSHAuthorizedKeys = cloneStringSlice(overrides.Kickstart.SSHAuthorizedKeys)
-	}
-	if overrides.Kickstart.PreScript != "" {
-		base.Kickstart.PreScript = overrides.Kickstart.PreScript
-	}
-	if overrides.Kickstart.PostScript != "" {
-		base.Kickstart.PostScript = overrides.Kickstart.PostScript
-	}
+	return strings.TrimSpace(out.String()), nil
 }
 
 func applyLegacyTemplateEnv(base *TemplateDefaults) {

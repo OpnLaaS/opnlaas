@@ -43,23 +43,50 @@ autoinstall:
       name: direct
   user-data:
     disable_root: {{ if .Templates.Autoinstall.DisableRoot }}true{{ else }}false{{ end }}
-{{- if or .Templates.Autoinstall.EarlyCommands .Templates.Autoinstall.PreScript }}
+{{- if .Templates.Autoinstall.PostScript }}
+    runcmd:
+      - |
+          /bin/bash <<'OPN_POST'
+{{ indent 10 .Templates.Autoinstall.PostScript }}
+          OPN_POST
+{{- end }}
+{{- if .Templates.ManagedUser.Username }}
+    users:
+      - name: {{ .Templates.ManagedUser.Username }}
+{{- if .Templates.ManagedUser.AllowSudo }}
+        groups: ['sudo']
+        sudo:
+          - "ALL=(ALL) NOPASSWD:ALL"
+{{- end }}
+        shell: /bin/bash
+{{- if .Templates.ManagedUser.PasswordHash }}
+        passwd: {{ .Templates.ManagedUser.PasswordHash }}
+        lock-passwd: false
+{{- else }}
+        lock-passwd: true
+{{- end }}
+{{- if .Templates.ManagedUser.SSHAuthorizedKeys }}
+        ssh-authorized-keys:
+{{- range .Templates.ManagedUser.SSHAuthorizedKeys }}
+          - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Templates.Autoinstall.EarlyCommands }}
   early-commands:
 {{- range .Templates.Autoinstall.EarlyCommands }}
     - {{ . }}
 {{- end }}
+{{- end }}
+{{- if or .Templates.Autoinstall.PreScript .Templates.Autoinstall.LateCommands }}
+  late-commands:
 {{- if .Templates.Autoinstall.PreScript }}
     - |
-{{ indent 6 .Templates.Autoinstall.PreScript }}
+        curtin in-target -- /bin/bash <<'OPN_PRE'
+{{ indent 8 .Templates.Autoinstall.PreScript }}
+OPN_PRE
 {{- end }}
-{{- end }}
-{{- if or .Templates.Autoinstall.LateCommands .Templates.Autoinstall.PostScript }}
-  late-commands:
 {{- range .Templates.Autoinstall.LateCommands }}
     - {{ . }}
-{{- end }}
-{{- if .Templates.Autoinstall.PostScript }}
-    - |
-        curtin in-target -- /bin/bash -c '{{ .Templates.Autoinstall.PostScript | replace "'" "'\\''" }}'
 {{- end }}
 {{- end }}
