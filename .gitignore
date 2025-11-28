@@ -1,6 +1,7 @@
 .env
 *.env
 *.db
+installer.yaml
 
 public/static/dist
 

@@ -30,7 +30,6 @@ type Configuration struct {
 		DHCP_DNSServers   []string `env:"TFTP_DHCP_DNS_SERVERS,default="`
 		DHCP_AllowedMACs  []string `env:"TFTP_DHCP_ALLOWED_MACS,default="`
 		TemplateDir       string   `env:"PXE_TEMPLATE_DIR,default=./pxe/templates"`
-		TemplateDefaults  string   `env:"TFTP_TEMPLATE_DEFAULTS,default="`
 		DefaultProfile    struct {
 			ISOName      string   `env:"TFTP_DEFAULT_ISO_NAME,default="`
 			BootFilename string   `env:"TFTP_DEFAULT_BOOT_FILENAME,default=pxelinux.0"`

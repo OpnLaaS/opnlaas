@@ -109,7 +109,7 @@ func newService() (*Service, error) {
 
 	log := logger.NewLogger().SetPrefix("[PXE]", logger.BoldBlue).IncludeTimestamp()
 
-	templateDefaults, err := parseTemplateDefaults(cfg.TFTP.TemplateDefaults)
+	templateDefaults, err := parseTemplateDefaults("installer.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("pxe: %w", err)
 	}
