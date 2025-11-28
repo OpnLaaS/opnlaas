@@ -29,8 +29,8 @@ type InstallerConfiguration struct {
 	DisableRoot bool `yaml:"disable_root"`
 
 	ScriptingFilePaths struct {
-		GlobalPreScriptFile  string `yaml:"global_pre_script_file,omitempty"`
-		GlobalPostScriptFile string `yaml:"global_post_script_file,omitempty"`
+		GlobalPreScriptFile  string `yaml:"global_pre_script_file"`
+		GlobalPostScriptFile string `yaml:"global_post_script_file"`
 	} `yaml:"scripting_file_paths"`
 
 	GlobalKernelParams []string `yaml:"global_kernel_params"`
