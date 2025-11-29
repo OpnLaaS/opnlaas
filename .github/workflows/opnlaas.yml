@@ -130,12 +130,9 @@ jobs:
           npm run build
       - name: Go mod download
         run: go mod download
-      - name: Run Go tests (export .test.env)
+      - name: Run Go tests
         shell: bash
         run: |
-          set -a
-          source ./.test.env
-          set +a
           go test ./... -v
   build:
     runs-on: ubuntu-latest

@@ -124,7 +124,6 @@ jobs:
       - name: Run Go tests (with real env)
         shell: bash
         run: |
-          set -a; source ./.test.env; set +a
           go test ./... -v
   test-fork:
     if: ${{ github.event.pull_request.head.repo.fork == true }}
