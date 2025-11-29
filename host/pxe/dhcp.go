@@ -207,7 +207,7 @@ func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile)
 		if strings.TrimSpace(routerIP) == "" {
 			routerIP = s.cfg.PXE.DHCPServer.Router
 		}
-		if router := parseIP(routerIP); router != nil {
+		if router := net.ParseIP(routerIP); router != nil {
 			resp.Options.Update(dhcpv4.Option{Code: dhcpv4.OptionRouter, Value: dhcpv4.IP(router)})
 		}
 		dnsEntries := profile.DNSServers
@@ -216,7 +216,7 @@ func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile)
 		}
 		var dns []net.IP
 		for _, entry := range dnsEntries {
-			if ip := parseIP(entry); ip != nil {
+			if ip := net.ParseIP(entry); ip != nil {
 				dns = append(dns, ip)
 			}
 		}
@@ -234,9 +234,9 @@ func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile)
 	} else {
 		resp.BootFileName = "pxelinux.0"
 	}
-	if next := parseIP(profile.NextServer); next != nil {
+	if next := net.ParseIP(profile.NextServer); next != nil {
 		resp.ServerIPAddr = next
-	} else if ip := parseIP(s.cfg.PXE.DHCPServer.ServerPublicAddress); ip != nil {
+	} else if ip := net.ParseIP(s.cfg.PXE.DHCPServer.ServerPublicAddress); ip != nil {
 		resp.ServerIPAddr = ip
 	}
 	if !s.proxyDHCP {

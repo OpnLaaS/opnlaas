@@ -4,41 +4,46 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
-func (s *Service) handleTFTPRequest(filename string) ([]byte, error) {
-	clean := strings.TrimLeft(filename, "/")
-	if clean == "" {
-		return nil, fmt.Errorf("invalid filename")
-	}
-	if strings.Contains(clean, "..") {
-		return nil, fmt.Errorf("invalid path")
+// handleTFTPRequest processes an incoming TFTP request for the given filename.
+func (s *Service) handleTFTPRequest(filename string) (response []byte, err error) {
+	if filename = strings.TrimLeft(filename, "/"); filename == "" {
+		err = fmt.Errorf("invalid filename")
+		return
 	}
 
-	var remote *net.UDPAddr
-	// pin/tftp does not expose remote info directly; leave nil for now.
-	reqCtx := &tftpRequestContext{
-		filename:   clean,
-		remoteAddr: remote,
+	if strings.Contains(filename, "..") {
+		err = fmt.Errorf("invalid path")
+		return
 	}
 
-	if data, handled, err := s.handlePXELinux(clean, reqCtx); handled {
-		return data, err
+	var (
+		remote *net.UDPAddr
+		ctx    *tftpRequestContext = &tftpRequestContext{
+			filename:   filename,
+			remoteAddr: remote,
+		}
+
+		handled bool
+	)
+
+	if response, handled, err = s.handlePXELinux(filename, ctx); handled {
+		return
 	}
 
-	if strings.HasPrefix(strings.ToLower(clean), "profiles/") {
-		return s.serveProfileFile(clean)
+	if strings.HasPrefix(strings.ToLower(filename), "profiles/") {
+		response, err = s.serveProfileFile(filename)
+		return
 	}
 
-	// Static file fallback.
-	full := filepath.Join(s.tftpRoot, filepath.FromSlash(clean))
-	data, err := os.ReadFile(full)
-	if err != nil {
-		s.log.Errorf("TFTP static miss %s (full=%s): %v\n", clean, full, err)
-		return nil, err
+	var full string = fmt.Sprintf("%s/%s", s.tftpRoot, filename)
+	if response, err = os.ReadFile(full); err != nil {
+		s.log.Errorf("TFTP static miss %s (full=%s): %v\n", filename, full, err)
+		return
 	}
-	s.log.Basicf("TFTP static served %s (%d bytes)\n", clean, len(data))
-	return data, nil
+
+	s.log.Basicf("TFTP static served %s (%d bytes)\n", filename, len(response))
+	return
 }

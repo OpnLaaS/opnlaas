@@ -54,6 +54,7 @@ func main() {
 		log.Errorf("Failed to initialize PXE services: %v\n", err)
 		panic(err)
 	}
+
 	defer pxe.Shutdown()
 
 	if err = app.StartApp(); err != nil {

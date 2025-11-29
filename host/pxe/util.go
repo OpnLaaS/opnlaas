@@ -3,168 +3,202 @@ package pxe
 import (
 	"fmt"
 	"hash/crc32"
+	"maps"
 	"net"
 	"strconv"
 	"strings"
 )
 
-func cloneStringSlice(src []string) []string {
+// cloneStringSlice creates a copy of the given string slice.
+func cloneStringSlice(src []string) (dst []string) {
 	if len(src) == 0 {
-		return nil
+		dst = nil
+		return
 	}
-	out := make([]string, 0, len(src))
-	for _, v := range src {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		out = append(out, v)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+
+	dst = make([]string, len(src))
+	copy(dst, src)
+	return
 }
 
-func cloneMap(src map[string]string) map[string]string {
+// cloneMap creates a copy of the given string map.
+func cloneMap(src map[string]string) (out map[string]string) {
 	if len(src) == 0 {
-		return nil
+		return
 	}
-	out := make(map[string]string, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
-	return out
+
+	out = make(map[string]string, len(src))
+	maps.Copy(out, src)
+	return
 }
 
-func normalizeMAC(mac string) (string, error) {
+// normalizeMAC normalizes a MAC address to lowercase colon-separated format.
+func normalizeMAC(mac string) (normalized string, err error) {
 	mac = strings.TrimSpace(mac)
 	if mac == "" {
-		return "", nil
+		return
 	}
-	cleaned := strings.ToLower(strings.ReplaceAll(mac, "-", ":"))
-	parsed, err := net.ParseMAC(cleaned)
-	if err != nil {
-		return "", err
+
+	var addr net.HardwareAddr
+	normalized = strings.ToLower(strings.ReplaceAll(mac, "-", ":"))
+	if addr, err = net.ParseMAC(normalized); err != nil {
+		return
 	}
-	return strings.ToLower(parsed.String()), nil
+
+	normalized = strings.ToLower(addr.String())
+	return
 }
 
-func makeHostSlug(value string) string {
-	cleaned := strings.TrimSpace(strings.ToLower(value))
-	if cleaned == "" {
-		return ""
+// makeHostSlug creates a slug from the given value suitable for hostnames.
+func makeHostSlug(value string) (slug string) {
+	slug = strings.ToLower(strings.TrimSpace(value))
+	if slug == "" {
+		return
 	}
-	replacer := strings.NewReplacer(".", "-", ":", "-")
-	return replacer.Replace(cleaned)
+
+	var replacer = strings.NewReplacer(".", "-", ":", "-")
+	slug = replacer.Replace(slug)
+	return
 }
 
-func parsePXELinuxHexIP(value string) (string, bool) {
+// parsePXELinuxHexIP parses a PXELinux-style hexadecimal IP address string.
+func parsePXELinuxHexIP(value string) (parsed string, ok bool) {
 	value = strings.TrimSpace(value)
 	if len(value) != 8 {
-		return "", false
+		ok = false
+		return
 	}
-	var parts [4]byte
-	for i := 0; i < 4; i++ {
-		chunk := value[i*2 : i*2+2]
-		num, err := strconv.ParseUint(chunk, 16, 8)
-		if err != nil {
-			return "", false
+
+	var (
+		parts [4]byte
+		num   uint64
+		err   error
+	)
+
+	for i := range 4 {
+		var chunk = value[i*2 : i*2+2]
+		if num, err = strconv.ParseUint(chunk, 16, 8); err != nil {
+			ok = false
+			return
 		}
+
 		parts[i] = byte(num)
 	}
-	return fmt.Sprintf("%d.%d.%d.%d", parts[0], parts[1], parts[2], parts[3]), true
+
+	parsed = fmt.Sprintf("%d.%d.%d.%d", parts[0], parts[1], parts[2], parts[3])
+	ok = true
+	return
 }
 
-func parseMask(value string) net.IPMask {
+// parseMask parses a string representation of an IPv4 netmask.
+func parseMask(value string) (mask net.IPMask) {
 	if value == "" {
-		return nil
+		return
 	}
-	ip := net.ParseIP(value)
+
+	var ip net.IP = net.ParseIP(value)
 	if ip == nil {
-		return nil
+		return
 	}
+
 	ip = ip.To4()
 	if ip == nil {
-		return nil
+		return
 	}
-	return net.IPv4Mask(ip[0], ip[1], ip[2], ip[3])
+
+	mask = net.IPv4Mask(ip[0], ip[1], ip[2], ip[3])
+	return
 }
 
-func parseIP(value string) net.IP {
-	if value == "" {
-		return nil
+// parseIPv4 parses a string representation of an IPv4 address.
+func parseIPv4(value string) (ip net.IP) {
+	if ip = net.ParseIP(strings.TrimSpace(value)); ip != nil {
+		ip = ip.To4()
 	}
-	return net.ParseIP(value)
+
+	return
 }
 
-func parseIPv4(value string) net.IP {
-	ip := net.ParseIP(strings.TrimSpace(value))
-	if ip == nil {
-		return nil
-	}
-	return ip.To4()
-}
+// compareIPv4 compares two IPv4 addresses.
+func compareIPv4(a, b net.IP) (cmp int) {
+	a = a.To4()
+	b = b.To4()
 
-func compareIPv4(a, b net.IP) int {
-	if len(a) < net.IPv4len || len(b) < net.IPv4len {
+	if a == nil || b == nil || len(a) != net.IPv4len || len(b) != net.IPv4len {
 		return 0
 	}
-	for i := 0; i < net.IPv4len; i++ {
-		if a[i] == b[i] {
-			continue
-		}
+
+	for i := range net.IPv4len {
 		if a[i] < b[i] {
-			return -1
+			cmp = -1
+			return
 		}
-		return 1
+
+		if a[i] > b[i] {
+			cmp = 1
+			return
+		}
 	}
-	return 0
+
+	cmp = 0
+	return
 }
 
-func cloneIPv4(ip net.IP) net.IP {
+// cloneIPv4 creates a copy of the given IPv4 address.
+func cloneIPv4(ip net.IP) (clone net.IP) {
 	if ip == nil {
-		return nil
+		return
 	}
-	ip = ip.To4()
-	if ip == nil {
-		return nil
+
+	if ip = ip.To4(); ip == nil {
+		return
 	}
-	out := make(net.IP, net.IPv4len)
-	copy(out, ip)
-	return out
+
+	clone = make(net.IP, net.IPv4len)
+	copy(clone, ip)
+	return
 }
 
-func makeArtifactDirName(name string) string {
+// makeArtifactDirName creates a unique directory name for the given artifact name.
+func makeArtifactDirName(name string) (dir string) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "iso"
 	}
-	base := makeSlug(name)
-	if base == "" {
-		base = "iso"
+
+	if dir = makeSlug(name); dir == "" {
+		dir = "iso"
 	}
-	sum := crc32.ChecksumIEEE([]byte(name))
-	return fmt.Sprintf("%s-%08x", base, sum)
+
+	var sum = crc32.ChecksumIEEE([]byte(name))
+	dir = fmt.Sprintf("%s-%08x", dir, sum)
+	return
 }
 
-func makeSlug(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "" {
-		return ""
+// makeSlug creates a slug from the given value.
+func makeSlug(value string) (slug string) {
+	if value = strings.ToLower(strings.TrimSpace(value)); value == "" {
+		return
 	}
-	var b strings.Builder
-	var lastDash bool
+
+	var (
+		builder  strings.Builder
+		lastDash bool
+	)
+
 	for _, r := range value {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
+			builder.WriteRune(r)
 			lastDash = false
 			continue
 		}
-		if !lastDash && b.Len() > 0 {
-			b.WriteRune('-')
+
+		if !lastDash && builder.Len() > 0 {
+			builder.WriteRune('-')
 			lastDash = true
 		}
 	}
-	return strings.Trim(b.String(), "-")
+
+	slug = strings.Trim(builder.String(), "-")
+	return
 }

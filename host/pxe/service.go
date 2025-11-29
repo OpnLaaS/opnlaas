@@ -612,7 +612,7 @@ func buildPublicURLFromIP(ip string, httpAddr string) string {
 }
 
 func (s *Service) serverIdentifierIP() net.IP {
-	if ip := parseIP(s.cfg.PXE.DHCPServer.ServerPublicAddress); ip != nil {
+	if ip := net.ParseIP(s.cfg.PXE.DHCPServer.ServerPublicAddress); ip != nil {
 		return ip
 	}
 	host, _, err := net.SplitHostPort(s.cfg.PXE.DHCPServer.Address)

@@ -31,6 +31,7 @@ type TemplateCommonDefaults struct {
 	SSHAuthorizedKeys []string
 }
 
+// AutoinstallDefaults hosts the knobs for cloud-init autoinstall templates.
 type AutoinstallDefaults struct {
 	AdminUsername     string
 	AdminPasswordHash string
@@ -41,6 +42,7 @@ type AutoinstallDefaults struct {
 	LateCommands      []string
 }
 
+// KickstartDefaults hosts the knobs for kickstart templates.
 type KickstartDefaults struct {
 	RootPasswordHash  string
 	UserName          string
@@ -50,6 +52,7 @@ type KickstartDefaults struct {
 	PostScript        string
 }
 
+// TemplateUser represents a user configuration for templates.
 type TemplateUser struct {
 	Username          string
 	PasswordHash      string
@@ -57,8 +60,9 @@ type TemplateUser struct {
 	AllowSudo         bool
 }
 
-func defaultTemplateDefaults() TemplateDefaults {
-	return TemplateDefaults{
+// defaultTemplateDefaults returns the built-in default template defaults.
+func defaultTemplateDefaults() (tds TemplateDefaults) {
+	tds = TemplateDefaults{
 		Common: TemplateCommonDefaults{
 			Timezone:        "UTC",
 			Locale:          "en_US",
@@ -78,114 +82,120 @@ func defaultTemplateDefaults() TemplateDefaults {
 			Username: "opnadmin",
 		},
 	}
+
+	return
 }
 
 // Clone returns an independent copy so slices can be mutated safely by templates.
-func (d TemplateDefaults) Clone() TemplateDefaults {
-	out := d
-	out.Common.Packages = cloneStringSlice(d.Common.Packages)
-	out.Common.SSHAuthorizedKeys = cloneStringSlice(d.Common.SSHAuthorizedKeys)
-	out.Autoinstall.EarlyCommands = cloneStringSlice(d.Autoinstall.EarlyCommands)
-	out.Autoinstall.LateCommands = cloneStringSlice(d.Autoinstall.LateCommands)
-	out.Kickstart.SSHAuthorizedKeys = cloneStringSlice(d.Kickstart.SSHAuthorizedKeys)
-	out.GivenUser.SSHAuthorizedKeys = cloneStringSlice(d.GivenUser.SSHAuthorizedKeys)
-	out.ManagedUser.SSHAuthorizedKeys = cloneStringSlice(d.ManagedUser.SSHAuthorizedKeys)
-	return out
+func (d TemplateDefaults) Clone() (clone TemplateDefaults) {
+	clone = d
+	clone.Common.Packages = cloneStringSlice(d.Common.Packages)
+	clone.Common.SSHAuthorizedKeys = cloneStringSlice(d.Common.SSHAuthorizedKeys)
+	clone.Autoinstall.EarlyCommands = cloneStringSlice(d.Autoinstall.EarlyCommands)
+	clone.Autoinstall.LateCommands = cloneStringSlice(d.Autoinstall.LateCommands)
+	clone.Kickstart.SSHAuthorizedKeys = cloneStringSlice(d.Kickstart.SSHAuthorizedKeys)
+	clone.GivenUser.SSHAuthorizedKeys = cloneStringSlice(d.GivenUser.SSHAuthorizedKeys)
+	clone.ManagedUser.SSHAuthorizedKeys = cloneStringSlice(d.ManagedUser.SSHAuthorizedKeys)
+	return
 }
 
-func loadTemplateDefaults() (TemplateDefaults, error) {
-	defaults := defaultTemplateDefaults()
-	cfg := config.Config.Preconfigure
+// loadTemplateDefaults loads the template defaults from the global configuration.
+func loadTemplateDefaults() (defaults TemplateDefaults, err error) {
+	var hash string
+	defaults = defaultTemplateDefaults()
 
-	defaults.Common.Timezone = cfg.Timezone
-	defaults.Common.Locale = cfg.Locale
-	defaults.Common.KeyboardLayout = cfg.Keyboard
-	defaults.Common.KeyboardVariant = cfg.KeyboardVariant
-	defaults.Common.Packages = cloneStringSlice(cfg.Packages)
-	defaults.Common.Mirror = cfg.Mirror
-	defaults.Common.SSHAuthorizedKeys = cloneStringSlice(cfg.GivenUser.SSHAuthorizedKeys)
+	defaults.Common.Timezone = config.Config.Preconfigure.Timezone
+	defaults.Common.Locale = config.Config.Preconfigure.Locale
+	defaults.Common.KeyboardLayout = config.Config.Preconfigure.Keyboard
+	defaults.Common.KeyboardVariant = config.Config.Preconfigure.KeyboardVariant
+	defaults.Common.Packages = cloneStringSlice(config.Config.Preconfigure.Packages)
+	defaults.Common.Mirror = config.Config.Preconfigure.Mirror
+	defaults.Common.SSHAuthorizedKeys = cloneStringSlice(config.Config.Preconfigure.GivenUser.SSHAuthorizedKeys)
 
-	defaults.Autoinstall.AdminUsername = cfg.GivenUser.Username
-	adminHash, err := hashPassword(cfg.GivenUser.Password)
-	if err != nil {
-		return TemplateDefaults{}, err
+	defaults.Autoinstall.AdminUsername = config.Config.Preconfigure.GivenUser.Username
+	if hash, err = hashPassword(config.Config.Preconfigure.GivenUser.Password); err != nil {
+		return
 	}
-	defaults.Autoinstall.AdminPasswordHash = adminHash
-	defaults.Autoinstall.DisableRoot = cfg.DisableRoot
 
+	defaults.Autoinstall.AdminPasswordHash = hash
+	defaults.Autoinstall.DisableRoot = config.Config.Preconfigure.DisableRoot
 	defaults.GivenUser = TemplateUser{
-		Username:          cfg.GivenUser.Username,
-		PasswordHash:      adminHash,
-		SSHAuthorizedKeys: cloneStringSlice(cfg.GivenUser.SSHAuthorizedKeys),
-		AllowSudo:         cfg.GivenUser.AllowSudo,
+		Username:          config.Config.Preconfigure.GivenUser.Username,
+		PasswordHash:      hash,
+		SSHAuthorizedKeys: cloneStringSlice(config.Config.Preconfigure.GivenUser.SSHAuthorizedKeys),
+		AllowSudo:         config.Config.Preconfigure.GivenUser.AllowSudo,
 	}
 
-	preScript, err := loadScriptFile(config.LoadedConfigPath(), cfg.ScriptingFilePaths.GlobalPreScriptFile)
-	if err != nil {
-		return TemplateDefaults{}, err
+	if defaults.Autoinstall.PreScript, err = loadScriptFile(config.LoadedConfigPath(), config.Config.Preconfigure.ScriptingFilePaths.GlobalPreScriptFile); err != nil {
+		return
 	}
-	postScript, err := loadScriptFile(config.LoadedConfigPath(), cfg.ScriptingFilePaths.GlobalPostScriptFile)
-	if err != nil {
-		return TemplateDefaults{}, err
-	}
-	defaults.Autoinstall.PreScript = preScript
-	defaults.Autoinstall.PostScript = postScript
 
-	rootHash, err := hashPassword(cfg.RootPassword)
-	if err != nil {
-		return TemplateDefaults{}, err
+	if defaults.Autoinstall.PostScript, err = loadScriptFile(config.LoadedConfigPath(), config.Config.Preconfigure.ScriptingFilePaths.GlobalPostScriptFile); err != nil {
+		return
 	}
-	defaults.Kickstart.RootPasswordHash = rootHash
 
-	defaults.Kickstart.UserName = cfg.ManagedUser.Username
-	userHash, err := hashPassword(cfg.ManagedUser.Password)
-	if err != nil {
-		return TemplateDefaults{}, err
+	if hash, err = hashPassword(config.Config.Preconfigure.RootPassword); err != nil {
+		return
 	}
-	defaults.Kickstart.UserPasswordHash = userHash
-	defaults.Kickstart.SSHAuthorizedKeys = cloneStringSlice(cfg.ManagedUser.SSHAuthorizedKeys)
-	defaults.Kickstart.PreScript = preScript
-	defaults.Kickstart.PostScript = postScript
+
+	defaults.Kickstart.RootPasswordHash = hash
+
+	defaults.Kickstart.UserName = config.Config.Preconfigure.ManagedUser.Username
+	if hash, err = hashPassword(config.Config.Preconfigure.ManagedUser.Password); err != nil {
+		return
+	}
+
+	defaults.Kickstart.UserPasswordHash = hash
+	defaults.Kickstart.SSHAuthorizedKeys = cloneStringSlice(config.Config.Preconfigure.ManagedUser.SSHAuthorizedKeys)
+	defaults.Kickstart.PreScript = defaults.Autoinstall.PreScript
+	defaults.Kickstart.PostScript = defaults.Autoinstall.PostScript
 
 	defaults.ManagedUser = TemplateUser{
-		Username:          cfg.ManagedUser.Username,
-		PasswordHash:      userHash,
-		SSHAuthorizedKeys: cloneStringSlice(cfg.ManagedUser.SSHAuthorizedKeys),
-		AllowSudo:         cfg.ManagedUser.AllowSudo,
+		Username:          config.Config.Preconfigure.ManagedUser.Username,
+		PasswordHash:      hash,
+		SSHAuthorizedKeys: cloneStringSlice(config.Config.Preconfigure.ManagedUser.SSHAuthorizedKeys),
+		AllowSudo:         config.Config.Preconfigure.ManagedUser.AllowSudo,
 	}
 
-	return defaults, nil
+	return
 }
 
-func loadScriptFile(configPath, scriptPath string) (string, error) {
-	scriptPath = strings.TrimSpace(scriptPath)
-	if scriptPath == "" {
-		return "", nil
+// loadScriptFile loads a script file, resolving relative paths based on the config path.
+func loadScriptFile(configPath, scriptPath string) (data string, err error) {
+	if scriptPath = strings.TrimSpace(scriptPath); scriptPath == "" {
+		return
 	}
 
 	if !filepath.IsAbs(scriptPath) && configPath != "" {
-		dir := filepath.Dir(configPath)
-		scriptPath = filepath.Join(dir, scriptPath)
+		scriptPath = filepath.Join(filepath.Dir(configPath), scriptPath)
 	}
 
-	data, err := os.ReadFile(scriptPath)
-	if err != nil {
-		return "", err
+	var content []byte
+	if content, err = os.ReadFile(scriptPath); err != nil {
+		return
 	}
-	return strings.TrimSpace(string(data)), nil
+
+	data = strings.TrimSpace(string(content))
+	return
 }
 
-func hashPassword(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "", nil
+// hashPassword hashes a password using openssl with SHA-512.
+func hashPassword(value string) (hash string, err error) {
+	if value = strings.TrimSpace(value); value == "" {
+		return
 	}
-	cmd := exec.Command("openssl", "passwd", "-6", "-stdin")
-	cmd.Stdin = strings.NewReader(value + "\n")
+
+	var command *exec.Cmd = exec.Command("openssl", "passwd", "-6", "-stdin")
+	command.Stdin = strings.NewReader(value + "\n")
+
 	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("hash password with openssl: %w", err)
+	command.Stdout = &out
+
+	if err = command.Run(); err != nil {
+		err = fmt.Errorf("hash password with openssl: %w", err)
+		return
 	}
-	return strings.TrimSpace(out.String()), nil
+
+	hash = strings.TrimSpace(out.String())
+	return
 }
