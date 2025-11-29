@@ -87,6 +87,7 @@ jobs:
           cp README.md dist/linux-amd64/
           cp LICENSE   dist/linux-amd64/
           cp go.mod    dist/linux-amd64/
+          cp scripting/setup_host.sh dist/linux-amd64/
       - name: Create tarball
         run: |
           tar -czf opnlaas-linux-amd64.tar.gz -C dist/linux-amd64 .

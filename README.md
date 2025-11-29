@@ -22,6 +22,18 @@ Let's make this even easier! You can run the following command to download and e
 bash -i <(curl -sSL https://raw.githubusercontent.com/opnlaas/opnlaas/main/scripting/laas_installer.sh) -u
 ```
 
+## PXE Setup
+
+Whether you're doing development or a deployment, setting up PXE booting is essential for bare-metal host deployments. We provide another handy script to help set this up on `dnf`-based systems:
+
+If you've already installed/updated, you can find the script in your install directory: `/install_dir/setup_host.sh`.
+
+Or, just curl it from our repository and run it directly:
+
+```bash
+bash -i <(curl -sSL https://raw.githubusercontent.com/opnlaas/opnlaas/main/scripting/setup_host.sh)
+```
+
 ## Development Setup
 
 Requirements:
@@ -35,7 +47,3 @@ Running:
 2. Single-shell setup:
     - Run `npm run devel &` to start the Tailwind CSS watcher in the background.
     - Then run `go run main.go` to start the OpnLaaS server.
-
-Populating your development database:
-
-Run: `go run tests/dev_setup/main.go`

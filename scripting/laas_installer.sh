@@ -84,6 +84,13 @@ install_release() {
     # Set ownership of installation directory
     sudo chown -R "$laas_user":"$laas_user" "$install_dir"
 
+    # LaaS needs to write to /var/lib/tftpboot and /var/www/tftpboot,
+    # so we need to give the opnlaas user ownership of these directories.
+    sudo mkdir -p /var/lib/tftpboot
+    sudo mkdir -p /var/www/tftpboot
+    sudo chown -R "$laas_user":"$laas_user" /var/lib/tftpboot
+    sudo chown -R "$laas_user":"$laas_user" /var/www/tftpboot
+
     # The opnlaas user should be allowed to bind on low ports if needed
     sudo setcap 'cap_net_bind_service=+ep' "${install_dir}/opnlaas"
 
