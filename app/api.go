@@ -36,7 +36,7 @@ func apiLogin(c *fiber.Ctx) (err error) {
 				return c.SendStatus(fiber.StatusOK)
 			}
 
-			return c.Redirect("/dashboard")
+			return c.Redirect("/")
 		}
 	}
 

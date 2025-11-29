@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* * Define custom colors for Tailwind
+/* 
+ * Define custom colors for Tailwind
  */
 @theme {
     /* Colors for page background/borders*/
@@ -20,7 +21,6 @@
 }
 
 @layer theme {
-
     :root,
     :host {
 
@@ -123,9 +123,9 @@
         @apply mt-1 block w-full border rounded-lg shadow-sm py-2.5 px-3 bg-background-primary placeholder-background-primary dark:bg-gray-800 border-background-muted;
     }
 
-    /* .shell is a wrapper that forces stuff to be max-width? */
+    /* .shell is a wrapper that forces stuff to be max-width */
     .shell {
-        @apply mx-auto max-w-5xl flex items-center justify-between;
+        @apply mx-auto max-w-5xl flex justify-between;
     }
 
     /* Table utility classes */

@@ -33,25 +33,11 @@ export function initTheming() {
 }
 
 export function changeDashboard() {
-    var currentPath = location.pathname;
-    console.log("Current location:", currentPath);
+    const currentPath = location.pathname;
+    const id = currentPath === "/" ? "home" : currentPath.split("/")[1];
+    const navButton = document.getElementById(id);
     
-    if (currentPath.includes("/dashboard")) {
-        const navButton = document.getElementById("dashboard");
-        if (navButton) {
-            navButton.classList.add("bg-background-muted");
-        }
-    
-    } else if (currentPath === "/") {
-        const navButton = document.getElementById("home");
-        if (navButton) {
-            navButton.classList.add("bg-background-muted");
-        }
-        
-    } else if (currentPath.includes("/login")) {
-        const navButton = document.getElementById("login");
-        if (navButton) {
-            navButton.classList.add("bg-background-muted");
-        }
+    if (navButton) {
+        navButton.classList.add("bg-background-muted");
     }
 }

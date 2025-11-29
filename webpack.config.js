@@ -27,7 +27,8 @@ export default function (env) {
         // these can be accessed in html files
         entry: {
             global: "./public/scripts/global.js",
-            dashboard: "./public/scripts/dashboard.js"
+            dashboard: "./public/scripts/dashboard.js",
+            hosts: "./public/scripts/hosts.js"
         },
 
         // all files are output into /public/dist
