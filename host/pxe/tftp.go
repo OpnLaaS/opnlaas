@@ -8,7 +8,7 @@ import (
 )
 
 // handleTFTPRequest processes an incoming TFTP request for the given filename.
-func (s *Service) handleTFTPRequest(filename string) (response []byte, err error) {
+func (s *Service) handleTFTPRequest(filename string, remote *net.UDPAddr) (response []byte, err error) {
 	if filename = strings.TrimLeft(filename, "/"); filename == "" {
 		err = fmt.Errorf("invalid filename")
 		return
@@ -20,8 +20,7 @@ func (s *Service) handleTFTPRequest(filename string) (response []byte, err error
 	}
 
 	var (
-		remote *net.UDPAddr
-		ctx    *tftpRequestContext = &tftpRequestContext{
+		ctx *tftpRequestContext = &tftpRequestContext{
 			filename:   filename,
 			remoteAddr: remote,
 		}

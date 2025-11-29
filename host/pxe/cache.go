@@ -9,55 +9,67 @@ import (
 	"github.com/opnlaas/opnlaas/db"
 )
 
+// hostCache provides a caching layer for Host records.
 type hostCache struct {
 	ttl     time.Duration
 	expires time.Time
 	mu      sync.RWMutex
-
-	byIP   map[string]*db.Host
-	bySlug map[string]*db.Host
-	byMAC  map[string]*db.Host
+	byIP    map[string]*db.Host
+	bySlug  map[string]*db.Host
+	byMAC   map[string]*db.Host
 }
 
-func newHostCache(ttl time.Duration) *hostCache {
-	return &hostCache{ttl: ttl}
+// newHostCache creates a new hostCache with the specified TTL.
+func newHostCache(ttl time.Duration) (cache *hostCache) {
+	cache = &hostCache{
+		ttl: ttl,
+	}
+
+	return
 }
 
-func (c *hostCache) ensureFresh() error {
+// ensureFresh refreshes the cache if it is stale.
+func (c *hostCache) ensureFresh() (err error) {
 	c.mu.RLock()
-	ready := c.byIP != nil && time.Now().Before(c.expires)
+	var ready bool = c.byIP != nil && time.Now().Before(c.expires)
 	c.mu.RUnlock()
+
 	if ready {
-		return nil
+		return
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.byIP != nil && time.Now().Before(c.expires) {
-		return nil
+		return
 	}
 
-	hosts, err := db.Hosts.SelectAll()
-	if err != nil {
-		return err
+	var hosts []*db.Host
+	if hosts, err = db.Hosts.SelectAll(); err != nil {
+		return
 	}
 
-	byIP := make(map[string]*db.Host, len(hosts))
-	bySlug := make(map[string]*db.Host, len(hosts))
-	byMAC := make(map[string]*db.Host)
+	var byIP map[string]*db.Host = make(map[string]*db.Host, len(hosts))
+	var bySlug map[string]*db.Host = make(map[string]*db.Host, len(hosts))
+	var byMAC map[string]*db.Host = make(map[string]*db.Host)
 
 	for _, host := range hosts {
 		if host == nil {
 			continue
 		}
+
 		if host.ManagementIP != "" {
 			byIP[host.ManagementIP] = host
-			if slug := makeHostSlug(host.ManagementIP); slug != "" {
+			var slug string
+			if slug = makeHostSlug(host.ManagementIP); slug != "" {
 				bySlug[slug] = host
 			}
 		}
+
 		for _, nic := range host.NetworkInterfaces {
-			if norm, err := normalizeMAC(nic.MACAddress); err == nil && norm != "" {
+			var norm string
+			if norm, err = normalizeMAC(nic.MACAddress); err == nil && norm != "" {
 				byMAC[norm] = host
 			}
 		}
@@ -67,40 +79,51 @@ func (c *hostCache) ensureFresh() error {
 	c.bySlug = bySlug
 	c.byMAC = byMAC
 	c.expires = time.Now().Add(c.ttl)
-	return nil
+	return
 }
 
-func (c *hostCache) ByMAC(mac string) (*db.Host, error) {
-	norm, err := normalizeMAC(mac)
-	if err != nil || norm == "" {
-		return nil, err
+// ByMAC looks up a Host by its MAC address.
+func (c *hostCache) ByMAC(mac string) (host *db.Host, err error) {
+	var norm string
+	if norm, err = normalizeMAC(mac); err != nil || norm == "" {
+		return
 	}
-	if err := c.ensureFresh(); err != nil {
-		return nil, err
+
+	if err = c.ensureFresh(); err != nil {
+		return
 	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.byMAC[norm], nil
+	host = c.byMAC[norm]
+	return
 }
 
-func (c *hostCache) ByIP(ip string) (*db.Host, error) {
-	if err := c.ensureFresh(); err != nil {
-		return nil, err
+// ByIP looks up a Host by its Management IP address.
+func (c *hostCache) ByIP(ip string) (host *db.Host, err error) {
+	if err = c.ensureFresh(); err != nil {
+		return
 	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.byIP[ip], nil
+	host = c.byIP[ip]
+	return
 }
 
-func (c *hostCache) BySlug(slug string) (*db.Host, error) {
-	if err := c.ensureFresh(); err != nil {
-		return nil, err
+// BySlug looks up a Host by its slug.
+func (c *hostCache) BySlug(slug string) (host *db.Host, err error) {
+	if err = c.ensureFresh(); err != nil {
+		return
 	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.bySlug[strings.ToLower(slug)], nil
+	host = c.bySlug[slug]
+	return
 }
 
+// profileCache provides a caching layer for HostPXEProfile records.
 type profileCache struct {
 	ttl     time.Duration
 	expires time.Time
@@ -110,39 +133,50 @@ type profileCache struct {
 	byMAC map[string]*db.HostPXEProfile
 }
 
-func newProfileCache(ttl time.Duration) *profileCache {
-	return &profileCache{ttl: ttl}
+// newProfileCache creates a new profileCache with the specified TTL.
+func newProfileCache(ttl time.Duration) (cache *profileCache) {
+	cache = &profileCache{
+		ttl: ttl,
+	}
+	return
 }
 
-func (c *profileCache) ensureFresh() error {
+// ensureFresh refreshes the cache if it is stale.
+func (c *profileCache) ensureFresh() (err error) {
 	c.mu.RLock()
-	ready := c.byIP != nil && time.Now().Before(c.expires)
+	var ready bool = c.byIP != nil && time.Now().Before(c.expires)
 	c.mu.RUnlock()
+
 	if ready {
-		return nil
+		return
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.byIP != nil && time.Now().Before(c.expires) {
-		return nil
+		return
 	}
 
-	records, err := db.PXEProfilesAll()
-	if err != nil {
-		return err
+	var records []*db.HostPXEProfile
+	if records, err = db.PXEProfilesAll(); err != nil {
+		return
 	}
 
-	byIP := make(map[string]*db.HostPXEProfile, len(records))
-	byMAC := make(map[string]*db.HostPXEProfile)
+	var byIP map[string]*db.HostPXEProfile = make(map[string]*db.HostPXEProfile, len(records))
+	var byMAC map[string]*db.HostPXEProfile = make(map[string]*db.HostPXEProfile)
+
 	for _, prof := range records {
 		if prof == nil {
 			continue
 		}
+
 		if prof.ManagementIP != "" {
 			byIP[prof.ManagementIP] = prof
 		}
-		if norm, err := normalizeMAC(prof.BootMACAddress); err == nil && norm != "" {
+
+		var norm string
+		if norm, err = normalizeMAC(prof.BootMACAddress); err == nil && norm != "" {
 			byMAC[norm] = prof
 		}
 	}
@@ -150,44 +184,54 @@ func (c *profileCache) ensureFresh() error {
 	c.byIP = byIP
 	c.byMAC = byMAC
 	c.expires = time.Now().Add(c.ttl)
-	return nil
+	return
 }
 
-func (c *profileCache) ByIP(ip string) (*db.HostPXEProfile, error) {
-	if err := c.ensureFresh(); err != nil {
-		return nil, err
+// ByIP looks up a HostPXEProfile by its Management IP address.
+func (c *profileCache) ByIP(ip string) (profile *db.HostPXEProfile, err error) {
+	if err = c.ensureFresh(); err != nil {
+		return
 	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.byIP[ip], nil
+	profile = c.byIP[ip]
+	return
 }
 
-func (c *profileCache) ByMAC(mac string) (*db.HostPXEProfile, error) {
-	norm, err := normalizeMAC(mac)
-	if err != nil || norm == "" {
-		return nil, err
+func (c *profileCache) ByMAC(mac string) (profile *db.HostPXEProfile, err error) {
+	var norm string
+	if norm, err = normalizeMAC(mac); err != nil || norm == "" {
+		return
 	}
-	if err := c.ensureFresh(); err != nil {
-		return nil, err
+
+	if err = c.ensureFresh(); err != nil {
+		return
 	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.byMAC[norm], nil
+	profile = c.byMAC[norm]
+	return
 }
 
+// leaseStore manages DHCP leases mapping MAC addresses to IP addresses.
 type leaseStore struct {
 	mu      sync.RWMutex
 	macToIP map[string]net.IP
 	ipToMAC map[string]string
 }
 
-func newLeaseStore() *leaseStore {
-	return &leaseStore{
+// newLeaseStore creates a new leaseStore.
+func newLeaseStore() (store *leaseStore) {
+	store = &leaseStore{
 		macToIP: make(map[string]net.IP),
 		ipToMAC: make(map[string]string),
 	}
+	return
 }
 
+// Set assigns the given IP address to the specified MAC address in the lease store.
 func (l *leaseStore) Set(mac string, ip net.IP) {
 	mac = strings.ToLower(strings.TrimSpace(mac))
 	if mac == "" {
@@ -197,7 +241,13 @@ func (l *leaseStore) Set(mac string, ip net.IP) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if prev, ok := l.macToIP[mac]; ok && prev != nil {
+	var (
+		prev   net.IP
+		ok     bool
+		copyIP net.IP
+	)
+
+	if prev, ok = l.macToIP[mac]; ok && prev != nil {
 		delete(l.ipToMAC, prev.String())
 	}
 
@@ -206,33 +256,41 @@ func (l *leaseStore) Set(mac string, ip net.IP) {
 		return
 	}
 
-	copyIP := cloneIPv4(ip)
-	if copyIP == nil {
+	if copyIP = cloneIPv4(ip); copyIP == nil {
 		copyIP = append(net.IP(nil), ip...)
 	}
+
 	l.macToIP[mac] = copyIP
 	l.ipToMAC[copyIP.String()] = mac
 }
 
-func (l *leaseStore) Get(mac string) net.IP {
-	mac = strings.ToLower(strings.TrimSpace(mac))
-	if mac == "" {
-		return nil
+// Get retrieves the IP address assigned to the specified MAC address.
+func (l *leaseStore) Get(mac string) (ip net.IP) {
+	if mac = strings.ToLower(strings.TrimSpace(mac)); mac == "" {
+		return
 	}
+
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	if ip, ok := l.macToIP[mac]; ok {
-		return cloneIPv4(ip)
+
+	var ok bool
+	if ip, ok = l.macToIP[mac]; ok && ip != nil {
+		ip = cloneIPv4(ip)
 	}
-	return nil
+
+	return
 }
 
-func (l *leaseStore) InUse(ip net.IP) bool {
+// InUse checks if the given IP address is currently leased to any MAC address.
+func (l *leaseStore) InUse(ip net.IP) (inUse bool) {
 	if ip == nil {
-		return false
+		inUse = false
+		return
 	}
+
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	_, ok := l.ipToMAC[ip.String()]
-	return ok
+
+	_, inUse = l.ipToMAC[ip.String()]
+	return
 }

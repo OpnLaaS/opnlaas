@@ -7,143 +7,213 @@ import (
 	"time"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
+	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
 )
 
-func (s *Service) handleDHCP(conn net.PacketConn, peer net.Addr, req *dhcpv4.DHCPv4) error {
+// handleDHCP processes an incoming DHCP request and sends an appropriate response.
+func (s *Service) handleDHCP(conn net.PacketConn, peer net.Addr, req *dhcpv4.DHCPv4) (err error) {
 	if req == nil {
-		return fmt.Errorf("nil request")
+		err = fmt.Errorf("nil request")
+		return
 	}
 
-	mac := req.ClientHWAddr.String()
+	var (
+		mac     string             = req.ClientHWAddr.String()
+		msgType dhcpv4.MessageType = req.MessageType()
+		reply   *dhcpv4.DHCPv4
+	)
+
 	if !isPXEClient(req) {
-		return nil
+		return
 	}
-	msgType := req.MessageType()
-	s.log.Basicf("DHCP request type=%s mac=%s xid=%d\n", msgType, mac, req.TransactionID)
 
-	var reply *dhcpv4.DHCPv4
-	var err error
+	s.log.Basicf("DHCP request type=%s mac=%s xid=%d\n", msgType, mac, req.TransactionID)
 
 	switch msgType {
 	case dhcpv4.MessageTypeDiscover:
 		reply, err = s.buildDHCPOffer(req)
 	case dhcpv4.MessageTypeRequest:
 		if s.proxyDHCP {
-			return nil
+			return
 		}
+
 		reply, err = s.buildDHCPAck(req)
 	default:
-		return nil
-	}
-	if err != nil || reply == nil {
-		return err
+		return
 	}
 
-	return sendDHCP(conn, peer, reply)
+	if err != nil || reply == nil {
+		return
+	}
+
+	err = sendDHCP(conn, peer, reply)
+	return
 }
 
-func (s *Service) buildDHCPOffer(req *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
-	mac := req.ClientHWAddr.String()
-	profile, err := s.profileForMAC(mac)
-	if err != nil {
-		return nil, err
+// buildDHCPOffer constructs a DHCP Offer message in response to a DHCP Discover.
+func (s *Service) buildDHCPOffer(req *dhcpv4.DHCPv4) (offer *dhcpv4.DHCPv4, err error) {
+	var (
+		mac     string = req.ClientHWAddr.String()
+		profile *db.HostPXEProfile
+	)
+
+	if profile, err = s.profileForMAC(mac); err != nil {
+		return
+	} else if profile == nil {
+		err = fmt.Errorf("no PXE profile available for %s", mac)
+		return
 	}
-	if profile == nil {
-		return nil, fmt.Errorf("no PXE profile available for %s", mac)
+
+	var resp *dhcpv4.DHCPv4
+	if resp, err = dhcpv4.NewReplyFromRequest(req); err != nil {
+		return
 	}
-	resp, err := dhcpv4.NewReplyFromRequest(req)
-	if err != nil {
-		return nil, err
+
+	var ip net.IP
+	if ip, err = s.leaseIPForProfile(mac, profile); err != nil {
+		return
 	}
-	ip, err := s.leaseIPForProfile(mac, profile)
-	if err != nil {
-		return nil, err
-	}
+
 	resp.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeOffer))
 	if ip != nil {
 		resp.YourIPAddr = ip
 	}
+
 	s.decorateReply(resp, profile)
-	return resp, nil
+	offer = resp
+	return
 }
 
-func (s *Service) buildDHCPAck(req *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+// buildDHCPAck constructs a DHCP Acknowledgment message in response to a DHCP Request.
+func (s *Service) buildDHCPAck(req *dhcpv4.DHCPv4) (response *dhcpv4.DHCPv4, err error) {
 	if s.proxyDHCP {
-		return nil, nil
+		return
 	}
-	mac := req.ClientHWAddr.String()
-	profile, err := s.profileForMAC(mac)
-	if err != nil {
-		return nil, err
+
+	var (
+		mac     string = req.ClientHWAddr.String()
+		profile *db.HostPXEProfile
+	)
+
+	if profile, err = s.profileForMAC(mac); err != nil {
+		return
+	} else if profile == nil {
+		err = fmt.Errorf("no PXE profile available for %s", mac)
+		return
 	}
-	if profile == nil {
-		return nil, fmt.Errorf("no PXE profile available for %s", mac)
+
+	var resp *dhcpv4.DHCPv4
+	if resp, err = dhcpv4.NewReplyFromRequest(req); err != nil {
+		return
 	}
-	resp, err := dhcpv4.NewReplyFromRequest(req)
-	if err != nil {
-		return nil, err
+
+	var ip net.IP
+	if ip, err = s.leaseIPForProfile(mac, profile); err != nil {
+		return
 	}
-	ip, err := s.leaseIPForProfile(mac, profile)
-	if err != nil {
-		return nil, err
-	}
+
 	resp.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeAck))
 	if ip != nil {
 		resp.YourIPAddr = ip
 	}
+
 	s.decorateReply(resp, profile)
 	if ip != nil {
 		s.leases.Set(mac, ip)
 	}
-	return resp, nil
+	response = resp
+	return
 }
 
-func (s *Service) leaseIPForProfile(mac string, profile *db.HostPXEProfile) (net.IP, error) {
+// leaseIPForProfile determines and leases an IP address for the given MAC and PXE profile.
+func (s *Service) leaseIPForProfile(mac string, profile *db.HostPXEProfile) (lease net.IP, err error) {
 	if s.proxyDHCP {
-		return nil, nil
+		return
 	}
+
 	if profile == nil {
-		return nil, fmt.Errorf("nil profile")
+		err = fmt.Errorf("nil profile")
+		return
 	}
-	if ip := parseIPv4(profile.IPv4Address); ip != nil {
-		if err := s.ensureIPWithinRange(ip); err != nil {
-			return nil, err
+
+	if lease = parseIPv4(profile.IPv4Address); lease != nil {
+		if err = s.ensureIPWithinRange(lease); err != nil {
+			lease = nil
+			return
 		}
-		return ip, nil
+
+		return
 	}
+
 	if mac != "" {
-		if leased := s.leases.Get(mac); leased != nil {
-			if err := s.ensureIPWithinRange(leased); err != nil {
-				return nil, err
+		var leased net.IP
+		if leased = s.leases.Get(mac); leased != nil {
+			if err = s.ensureIPWithinRange(leased); err != nil {
+				lease = nil
+				return
 			}
-			return leased, nil
+
+			lease = leased
+			return
 		}
 	}
 
-	ip, err := s.allocateDynamicIP(mac)
-	if err != nil {
-		return nil, err
-	}
-	return ip, nil
+	lease, err = s.allocateDynamicIP(mac)
+	return
 }
 
-func (s *Service) ensureIPWithinRange(ip net.IP) error {
+// ensureIPWithinRange checks if the given IP is within the configured DHCP range.
+func (s *Service) ensureIPWithinRange(ip net.IP) (err error) {
 	if ip == nil {
-		return fmt.Errorf("nil ip address")
+		err = fmt.Errorf("nil ip address")
+		return
 	}
+
 	if s.ipRangeStart == nil || s.ipRangeEnd == nil {
-		return nil
+		return
 	}
+
 	if compareIPv4(ip, s.ipRangeStart) < 0 || compareIPv4(ip, s.ipRangeEnd) > 0 {
-		return fmt.Errorf("ip %s outside allowed DHCP range %s-%s", ip.String(), s.ipRangeStart.String(), s.ipRangeEnd.String())
+		err = fmt.Errorf("ip %s outside allowed DHCP range %s-%s", ip.String(), s.ipRangeStart.String(), s.ipRangeEnd.String())
+		return
 	}
-	return nil
+
+	return
 }
 
-func (s *Service) allocateDynamicIP(mac string) (net.IP, error) {
+// allocateDynamicIP finds and allocates an available IP address from the DHCP range.
+func (s *Service) allocateDynamicIP(mac string) (ip net.IP, err error) {
+	// if s.ipRangeStart == nil || s.ipRangeEnd == nil {
+	// 	return nil, fmt.Errorf("no DHCP IP range configured")
+	// }
+
+	// s.leaseMu.Lock()
+	// defer s.leaseMu.Unlock()
+
+	// if s.leaseCursor == nil {
+	// 	s.leaseCursor = cloneIPv4(s.ipRangeStart)
+	// }
+
+	// start := cloneIPv4(s.leaseCursor)
+	// for {
+	// 	candidate := cloneIPv4(s.leaseCursor)
+	// 	s.advanceLeaseCursor()
+	// 	if !s.leases.InUse(candidate) {
+	// 		if mac != "" {
+	// 			s.leases.Set(mac, candidate)
+	// 		}
+	// 		return candidate, nil
+	// 	}
+	// 	if compareIPv4(s.leaseCursor, start) == 0 {
+	// 		break
+	// 	}
+	// }
+	// return nil, fmt.Errorf("no available DHCP addresses in range %s-%s", s.ipRangeStart, s.ipRangeEnd)
+
 	if s.ipRangeStart == nil || s.ipRangeEnd == nil {
-		return nil, fmt.Errorf("no DHCP IP range configured")
+		err = fmt.Errorf("no DHCP IP range configured")
+		return
 	}
 
 	s.leaseMu.Lock()
@@ -153,80 +223,102 @@ func (s *Service) allocateDynamicIP(mac string) (net.IP, error) {
 		s.leaseCursor = cloneIPv4(s.ipRangeStart)
 	}
 
-	start := cloneIPv4(s.leaseCursor)
+	var start net.IP = cloneIPv4(s.leaseCursor)
 	for {
-		candidate := cloneIPv4(s.leaseCursor)
+		var candidate net.IP = cloneIPv4(s.leaseCursor)
 		s.advanceLeaseCursor()
 		if !s.leases.InUse(candidate) {
 			if mac != "" {
 				s.leases.Set(mac, candidate)
 			}
-			return candidate, nil
+
+			ip = candidate
+			return
 		}
+
 		if compareIPv4(s.leaseCursor, start) == 0 {
 			break
 		}
 	}
-	return nil, fmt.Errorf("no available DHCP addresses in range %s-%s", s.ipRangeStart, s.ipRangeEnd)
+
+	err = fmt.Errorf("no available DHCP addresses in range %s-%s", s.ipRangeStart, s.ipRangeEnd)
+	return
 }
 
+// advanceLeaseCursor moves the lease cursor to the next IP address in the DHCP range.
 func (s *Service) advanceLeaseCursor() {
 	if s.ipRangeStart == nil || s.ipRangeEnd == nil {
 		return
 	}
+
 	if s.leaseCursor == nil {
 		s.leaseCursor = cloneIPv4(s.ipRangeStart)
 		return
 	}
+
 	for i := len(s.leaseCursor) - 1; i >= 0; i-- {
 		s.leaseCursor[i]++
 		if s.leaseCursor[i] != 0 {
 			break
 		}
 	}
+
 	if compareIPv4(s.leaseCursor, s.ipRangeEnd) > 0 {
 		s.leaseCursor = cloneIPv4(s.ipRangeStart)
 	}
 }
 
+// decorateReply adds necessary options to the DHCP reply based on the PXE profile.
 func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile) {
 	if !s.proxyDHCP {
-		if serverIP := s.serverIdentifierIP(); serverIP != nil {
+		var serverIP net.IP = s.serverIdentifierIP()
+		if serverIP != nil {
 			resp.Options.Update(dhcpv4.OptServerIdentifier(serverIP))
 		}
 	}
+
 	if !s.proxyDHCP {
-		subnetMask := profile.SubnetMask
+		var subnetMask string = profile.SubnetMask
 		if strings.TrimSpace(subnetMask) == "" {
-			subnetMask = s.cfg.PXE.DHCPServer.SubnetMask
+			subnetMask = config.Config.PXE.DHCPServer.SubnetMask
 		}
-		if mask := parseMask(subnetMask); mask != nil {
+
+		var mask net.IPMask
+		if mask = parseMask(subnetMask); mask != nil {
 			resp.Options.Update(dhcpv4.Option{Code: dhcpv4.OptionSubnetMask, Value: dhcpv4.IPMask(mask)})
 		}
-		routerIP := profile.Gateway
+
+		var routerIP string = profile.Gateway
 		if strings.TrimSpace(routerIP) == "" {
-			routerIP = s.cfg.PXE.DHCPServer.Router
+			routerIP = config.Config.PXE.DHCPServer.Router
 		}
-		if router := net.ParseIP(routerIP); router != nil {
+
+		var router net.IP
+		if router = net.ParseIP(routerIP); router != nil {
 			resp.Options.Update(dhcpv4.Option{Code: dhcpv4.OptionRouter, Value: dhcpv4.IP(router)})
 		}
-		dnsEntries := profile.DNSServers
+
+		var dnsEntries []string = profile.DNSServers
 		if len(dnsEntries) == 0 {
-			dnsEntries = s.cfg.PXE.DHCPServer.DNSServers
+			dnsEntries = config.Config.PXE.DHCPServer.DNSServers
 		}
+
 		var dns []net.IP
 		for _, entry := range dnsEntries {
 			if ip := net.ParseIP(entry); ip != nil {
 				dns = append(dns, ip)
 			}
 		}
+
 		if len(dns) > 0 {
 			resp.Options.Update(dhcpv4.OptDNS(dns...))
 		}
+
 		if profile.DomainName != "" {
 			resp.Options.Update(dhcpv4.OptDomainName(profile.DomainName))
 		}
 	}
+
 	if profile.BootFilename != "" {
 		resp.BootFileName = profile.BootFilename
 	} else if s.defaultProfile.BootFilename != "" {
@@ -234,47 +326,64 @@ func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile)
 	} else {
 		resp.BootFileName = "pxelinux.0"
 	}
-	if next := net.ParseIP(profile.NextServer); next != nil {
+
+	var next net.IP
+	if next = net.ParseIP(profile.NextServer); next != nil {
 		resp.ServerIPAddr = next
-	} else if ip := net.ParseIP(s.cfg.PXE.DHCPServer.ServerPublicAddress); ip != nil {
+	} else if ip := net.ParseIP(config.Config.PXE.DHCPServer.ServerPublicAddress); ip != nil {
 		resp.ServerIPAddr = ip
 	}
+
 	if !s.proxyDHCP {
-		lease := time.Duration(s.cfg.PXE.DHCPServer.LeaseSeconds) * time.Second
+		var lease time.Duration = time.Duration(config.Config.PXE.DHCPServer.LeaseSeconds) * time.Second
 		resp.Options.Update(dhcpv4.OptIPAddressLeaseTime(lease))
 	}
 }
 
-func (s *Service) profileForMAC(mac string) (*db.HostPXEProfile, error) {
-	mac = strings.TrimSpace(mac)
-	if mac == "" {
-		return s.buildDefaultProfile(nil, ""), nil
+// profileForMAC retrieves the PXE profile associated with the given MAC address.
+func (s *Service) profileForMAC(mac string) (profile *db.HostPXEProfile, err error) {
+	if mac = strings.TrimSpace(mac); mac == "" {
+		profile = s.buildDefaultProfile(nil, "")
+		return
 	}
-	if prof, err := s.profileCache.ByMAC(mac); err == nil && prof != nil {
-		return prof, nil
+
+	var prof *db.HostPXEProfile
+	if prof, err = s.profileCache.ByMAC(mac); err == nil && prof != nil {
+		profile = prof
+		return
 	}
-	host, err := s.hostCache.ByMAC(mac)
-	if err != nil {
-		return nil, err
+
+	var host *db.Host
+	if host, err = s.hostCache.ByMAC(mac); err != nil {
+		return
 	}
-	return s.buildDefaultProfile(host, mac), nil
+
+	profile = s.buildDefaultProfile(host, mac)
+	return
 }
 
-func sendDHCP(conn net.PacketConn, peer net.Addr, resp *dhcpv4.DHCPv4) error {
-	if resp == nil {
-		return nil
+// sendDHCP sends the DHCP response to the specified peer address.
+func sendDHCP(conn net.PacketConn, peer net.Addr, resp *dhcpv4.DHCPv4) (err error) {
+	if resp != nil {
+		_, err = conn.WriteTo(resp.ToBytes(), peer)
 	}
-	_, err := conn.WriteTo(resp.ToBytes(), peer)
-	return err
+
+	return
 }
 
-func isPXEClient(req *dhcpv4.DHCPv4) bool {
+// isPXEClient checks if the DHCP request is from a PXE client.
+func isPXEClient(req *dhcpv4.DHCPv4) (isPXE bool) {
 	if req == nil {
-		return false
+		isPXE = false
+		return
 	}
-	opt := req.Options.Get(dhcpv4.OptionClassIdentifier)
+
+	var opt []byte = req.Options.Get(dhcpv4.OptionClassIdentifier)
 	if len(opt) == 0 {
-		return false
+		isPXE = false
+		return
 	}
-	return strings.Contains(strings.ToUpper(string(opt)), "PXECLIENT")
+
+	isPXE = strings.Contains(strings.ToUpper(string(opt)), "PXECLIENT")
+	return
 }

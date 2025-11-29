@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
 )
 
@@ -274,7 +275,7 @@ func (s *Service) buildKernelArgs(ctx *TemplateContext) (args []string) {
 
 // dnsServersForProfile returns the DNS servers for the given profile or the default ones.
 func (s *Service) dnsServersForProfile(profile *db.HostPXEProfile) (servers []string) {
-	servers = s.cfg.PXE.DHCPServer.DNSServers
+	servers = config.Config.PXE.DHCPServer.DNSServers
 	if profile != nil && len(profile.DNSServers) > 0 {
 		servers = profile.DNSServers
 	}
