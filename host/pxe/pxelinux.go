@@ -39,6 +39,7 @@ func (s *Service) handlePXELinux(filename string, req *tftpRequestContext) ([]by
 	data, err := s.renderTemplate(templateKeyPXELinux, ctx)
 	if err == nil {
 		s.log.Basicf("PXE served pxelinux config=%s host=%s iso=%s\n", filename, ctx.Identifiers.Slug, iso.Name)
+		s.log.Basicf("PXE config for %s:\n%s\n", ctx.Identifiers.Slug, string(data))
 	}
 	return data, true, err
 }

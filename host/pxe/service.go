@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/insomniacslk/dhcp/dhcpv4/server4"
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
+	isoextract "github.com/opnlaas/opnlaas/host/iso"
 	ptftp "github.com/pin/tftp/v3"
 	"github.com/z46-dev/go-logger"
 )
@@ -44,6 +46,12 @@ type Service struct {
 	hostCache    *hostCache
 	profileCache *profileCache
 	leases       *leaseStore
+	leaseMu      sync.Mutex
+
+	ipRangeStart net.IP
+	ipRangeEnd   net.IP
+	leaseCursor  net.IP
+	proxyDHCP    bool
 
 	tftpServer *ptftp.Server
 	httpServer *http.Server
@@ -69,7 +77,7 @@ type defaultProfileConfig struct {
 
 // InitPXE instantiates and starts the PXE helper if enabled in configuration.
 func InitPXE() error {
-	if !config.Config.TFTP.Enabled {
+	if !config.Config.PXE.Enabled {
 		return nil
 	}
 
@@ -95,52 +103,100 @@ func Shutdown() {
 func newService() (*Service, error) {
 	cfg := config.Config
 
-	if cfg.TFTP.TFTP_Address == "" && cfg.TFTP.HTTP_Address == "" && cfg.TFTP.DHCP_Address == "" {
+	if strings.TrimSpace(cfg.PXE.TFTPServer.Address) == "" && strings.TrimSpace(cfg.PXE.HTTPServer.Address) == "" && strings.TrimSpace(cfg.PXE.DHCPServer.Address) == "" {
 		return nil, fmt.Errorf("pxe: nothing configured (TFTP/HTTP/DHCP all disabled)")
 	}
 
-	if cfg.TFTP.TFTP_RootDir == "" {
+	if strings.TrimSpace(cfg.PXE.TFTPServer.Directory) == "" {
 		return nil, fmt.Errorf("pxe: TFTP root directory must be configured")
 	}
 
-	if cfg.TFTP.HTTP_RootDir == "" {
-		cfg.TFTP.HTTP_RootDir = cfg.TFTP.TFTP_RootDir
+	if strings.TrimSpace(cfg.PXE.HTTPServer.Directory) == "" {
+		cfg.PXE.HTTPServer.Directory = cfg.PXE.TFTPServer.Directory
+	}
+
+	var ipRangeStart, ipRangeEnd net.IP
+	if !cfg.PXE.DHCPServer.ProxyMode {
+		if start := strings.TrimSpace(cfg.PXE.DHCPServer.IPRangeStart); start != "" {
+			ipRangeStart = net.ParseIP(start).To4()
+			if ipRangeStart == nil {
+				return nil, fmt.Errorf("pxe: invalid DHCP ip_range_start %q", start)
+			}
+		}
+		if end := strings.TrimSpace(cfg.PXE.DHCPServer.IPRangeEnd); end != "" {
+			ipRangeEnd = net.ParseIP(end).To4()
+			if ipRangeEnd == nil {
+				return nil, fmt.Errorf("pxe: invalid DHCP ip_range_end %q", end)
+			}
+		}
+		if (ipRangeStart == nil) != (ipRangeEnd == nil) {
+			return nil, fmt.Errorf("pxe: both DHCP ip_range_start and ip_range_end must be set together")
+		}
+		if ipRangeStart != nil && compareIPv4(ipRangeStart, ipRangeEnd) > 0 {
+			return nil, fmt.Errorf("pxe: DHCP ip_range_start must be <= ip_range_end")
+		}
 	}
 
 	log := logger.NewLogger().SetPrefix("[PXE]", logger.BoldBlue).IncludeTimestamp()
 
-	templateDefaults, err := parseTemplateDefaults("installer.yaml")
+	templateDefaults, err := loadTemplateDefaults()
 	if err != nil {
 		return nil, fmt.Errorf("pxe: %w", err)
+	}
+
+	httpBaseURL := strings.TrimSuffix(strings.TrimSpace(cfg.PXE.HTTPServer.PublicURL), "/")
+	if ipURL := buildPublicURLFromIP(cfg.PXE.DHCPServer.ServerPublicAddress, cfg.PXE.HTTPServer.Address); ipURL != "" {
+		if httpBaseURL != "" && httpBaseURL != ipURL {
+			log.Warningf("PXE HTTP public URL overridden by DHCP server public address (%s -> %s)\n", httpBaseURL, ipURL)
+		}
+		httpBaseURL = ipURL
 	}
 
 	svc := &Service{
 		log:              log,
 		cfg:              cfg,
-		tftpRoot:         filepath.Clean(cfg.TFTP.TFTP_RootDir),
-		httpRoot:         filepath.Clean(cfg.TFTP.HTTP_RootDir),
-		httpBaseURL:      strings.TrimSuffix(strings.TrimSpace(cfg.TFTP.HTTP_PublicURL), "/"),
+		tftpRoot:         filepath.Clean(cfg.PXE.TFTPServer.Directory),
+		httpRoot:         filepath.Clean(cfg.PXE.HTTPServer.Directory),
+		httpBaseURL:      httpBaseURL,
 		quit:             make(chan struct{}),
 		hostCache:        newHostCache(30 * time.Second),
 		profileCache:     newProfileCache(15 * time.Second),
 		leases:           newLeaseStore(),
 		templateDefaults: templateDefaults,
+		ipRangeStart:     cloneIPv4(ipRangeStart),
+		ipRangeEnd:       cloneIPv4(ipRangeEnd),
+		leaseCursor: func() net.IP {
+			if ipRangeStart == nil {
+				return nil
+			}
+			return cloneIPv4(ipRangeStart)
+		}(),
+		proxyDHCP: cfg.PXE.DHCPServer.ProxyMode,
 		defaultProfile: defaultProfileConfig{
-			ISOName:      cfg.TFTP.DefaultProfile.ISOName,
-			BootFilename: cfg.TFTP.DefaultProfile.BootFilename,
-			KernelParams: cloneStringSlice(cfg.TFTP.DefaultProfile.KernelParams),
-			InitrdParams: cloneStringSlice(cfg.TFTP.DefaultProfile.InitrdParams),
-			TemplateData: parseTemplateDataPairs(cfg.TFTP.DefaultProfile.TemplateData),
-			IPv4Address:  cfg.TFTP.DefaultProfile.IPv4Address,
-			SubnetMask:   cfg.TFTP.DefaultProfile.SubnetMask,
-			Gateway:      cfg.TFTP.DefaultProfile.Gateway,
-			DNSServers:   cloneStringSlice(cfg.TFTP.DefaultProfile.DNSServers),
-			DomainName:   cfg.TFTP.DefaultProfile.DomainName,
-			NextServer:   cfg.TFTP.DefaultProfile.NextServer,
+			SubnetMask: cfg.PXE.DHCPServer.SubnetMask,
+			Gateway:    cfg.PXE.DHCPServer.Router,
+			DNSServers: cloneStringSlice(cfg.PXE.DHCPServer.DNSServers),
+			NextServer: cfg.PXE.DHCPServer.ServerPublicAddress,
 		},
 	}
 
+	if svc.defaultProfile.BootFilename == "" {
+		svc.defaultProfile.BootFilename = "pxelinux.0"
+	}
+	if svc.defaultProfile.ISOName == "" {
+		if isoName, err := pickDefaultISOName(); err != nil {
+			return nil, fmt.Errorf("pxe: determine default ISO: %w", err)
+		} else if isoName != "" {
+			svc.defaultProfile.ISOName = isoName
+			log.Warningf("PXE default ISO not configured; falling back to %s\n", isoName)
+		} else {
+			log.Warning("PXE default ISO not configured and no stored ISOs available; PXE profiles must be defined explicitly\n")
+		}
+	}
+
 	svc.validateSyslinuxAssets()
+	svc.ensureArtifactAliases()
+	svc.ensureStage2Artifacts()
 	return svc, nil
 }
 
@@ -156,7 +212,7 @@ func (s *Service) Start() error {
 		return fmt.Errorf("start dhcp: %w", err)
 	}
 	s.log.Statusf("PXE helper ready (TFTP=%s HTTP=%s DHCP=%s)\n",
-		s.cfg.TFTP.TFTP_Address, s.cfg.TFTP.HTTP_Address, s.cfg.TFTP.DHCP_Address)
+		s.cfg.PXE.TFTPServer.Address, s.cfg.PXE.HTTPServer.Address, s.cfg.PXE.DHCPServer.Address)
 	return nil
 }
 
@@ -182,7 +238,7 @@ func (s *Service) Stop() {
 }
 
 func (s *Service) startTFTP() error {
-	if s.cfg.TFTP.TFTP_Address == "" {
+	if strings.TrimSpace(s.cfg.PXE.TFTPServer.Address) == "" {
 		return nil
 	}
 
@@ -199,7 +255,7 @@ func (s *Service) startTFTP() error {
 	srv := ptftp.NewServer(handler, nil)
 	srv.SetTimeout(5 * time.Second)
 
-	udpAddr, err := net.ResolveUDPAddr("udp4", s.cfg.TFTP.TFTP_Address)
+	udpAddr, err := net.ResolveUDPAddr("udp4", s.cfg.PXE.TFTPServer.Address)
 	if err != nil {
 		return err
 	}
@@ -219,20 +275,20 @@ func (s *Service) startTFTP() error {
 }
 
 func (s *Service) startHTTP() error {
-	if s.cfg.TFTP.HTTP_Address == "" {
+	if strings.TrimSpace(s.cfg.PXE.HTTPServer.Address) == "" {
 		return nil
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.httpHandler)
 
-	ln, err := listenHTTP(s.cfg.TFTP.HTTP_Address)
+	ln, err := listenHTTP(s.cfg.PXE.HTTPServer.Address)
 	if err != nil {
 		return err
 	}
 
 	s.httpServer = &http.Server{
-		Addr:    s.cfg.TFTP.HTTP_Address,
+		Addr:    s.cfg.PXE.HTTPServer.Address,
 		Handler: mux,
 	}
 
@@ -246,7 +302,7 @@ func (s *Service) startHTTP() error {
 }
 
 func (s *Service) startDHCP() error {
-	if s.cfg.TFTP.DHCP_Address == "" {
+	if strings.TrimSpace(s.cfg.PXE.DHCPServer.Address) == "" {
 		return nil
 	}
 
@@ -256,13 +312,12 @@ func (s *Service) startDHCP() error {
 		}
 	}
 
-	addr, err := net.ResolveUDPAddr("udp4", s.cfg.TFTP.DHCP_Address)
+	addr, err := net.ResolveUDPAddr("udp4", s.cfg.PXE.DHCPServer.Address)
 	if err != nil {
 		return err
 	}
 
-	iface := strings.TrimSpace(s.cfg.TFTP.DHCP_Interface)
-	server, err := server4.NewServer(iface, addr, handler)
+	server, err := server4.NewServer("", addr, handler)
 	if err != nil {
 		return err
 	}
@@ -473,4 +528,124 @@ func (s *Service) buildDefaultProfile(host *db.Host, mac string) *db.HostPXEProf
 		profile.TemplateData = map[string]string{}
 	}
 	return profile
+}
+
+func pickDefaultISOName() (string, error) {
+	records, err := db.StoredISOImages.SelectAll()
+	if err != nil {
+		return "", err
+	}
+	if len(records) == 0 {
+		return "", nil
+	}
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Name < records[j].Name
+	})
+	return records[0].Name, nil
+}
+
+func (s *Service) ensureArtifactAliases() {
+	if err := s.ensureAliasForRoot(s.tftpRoot); err != nil {
+		s.log.Warningf("PXE artifact alias error (tftp): %v\n", err)
+	}
+	if s.httpRoot != s.tftpRoot {
+		if err := s.ensureAliasForRoot(s.httpRoot); err != nil {
+			s.log.Warningf("PXE artifact alias error (http): %v\n", err)
+		}
+	}
+}
+
+func (s *Service) ensureAliasForRoot(root string) error {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return nil
+	}
+	records, err := db.StoredISOImages.SelectAll()
+	if err != nil {
+		return err
+	}
+	for _, iso := range records {
+		if iso == nil || strings.TrimSpace(iso.Name) == "" {
+			continue
+		}
+		dirName := makeArtifactDirName(iso.Name)
+		if dirName == strings.TrimSpace(iso.Name) {
+			continue
+		}
+		actual := filepath.Join(root, filepath.FromSlash(path.Join("artifacts", iso.Name)))
+		if _, err := os.Stat(actual); err != nil {
+			continue
+		}
+		alias := filepath.Join(root, filepath.FromSlash(path.Join("artifacts", dirName)))
+		if _, err := os.Lstat(alias); err == nil {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(alias), 0755); err != nil {
+			return err
+		}
+		if err := os.Symlink(actual, alias); err != nil && !os.IsExist(err) {
+			return err
+		}
+		s.log.Basicf("PXE artifact alias created %s -> %s\n", alias, actual)
+	}
+	return nil
+}
+
+func buildPublicURLFromIP(ip string, httpAddr string) string {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return ""
+	}
+	port := "80"
+	addr := strings.TrimSpace(httpAddr)
+	if addr != "" {
+		if strings.HasPrefix(addr, ":") {
+			port = strings.TrimPrefix(addr, ":")
+		} else if _, p, err := net.SplitHostPort(addr); err == nil && strings.TrimSpace(p) != "" {
+			port = p
+		}
+	}
+	if port == "" || port == "80" {
+		return fmt.Sprintf("http://%s", ip)
+	}
+	return fmt.Sprintf("http://%s:%s", ip, port)
+}
+
+func (s *Service) serverIdentifierIP() net.IP {
+	if ip := parseIP(s.cfg.PXE.DHCPServer.ServerPublicAddress); ip != nil {
+		return ip
+	}
+	host, _, err := net.SplitHostPort(s.cfg.PXE.DHCPServer.Address)
+	if err == nil && strings.TrimSpace(host) != "" {
+		if ip := net.ParseIP(host); ip != nil {
+			return ip
+		}
+	}
+	return nil
+}
+
+func (s *Service) ensureStage2Artifacts() {
+	root := strings.TrimSpace(s.httpRoot)
+	if root == "" {
+		return
+	}
+	records, err := db.StoredISOImages.SelectAll()
+	if err != nil {
+		s.log.Warningf("PXE stage2 listing error: %v\n", err)
+		return
+	}
+	for _, rec := range records {
+		if rec == nil || strings.TrimSpace(rec.FullISOPath) == "" {
+			continue
+		}
+		dest := filepath.Join(root, filepath.FromSlash(path.Join("artifacts", rec.Name, "stage2")))
+		if _, err := os.Stat(filepath.Join(dest, ".treeinfo")); err == nil {
+			continue
+		}
+		if err := isoextract.EnsureStage2Artifacts(rec.FullISOPath, dest); err != nil {
+			s.log.Warningf("PXE stage2 prepare error for %s: %v\n", rec.Name, err)
+		} else {
+			s.log.Basicf("PXE stage2 artifacts prepared for %s\n", rec.Name)
+		}
+	}
 }

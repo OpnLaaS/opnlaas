@@ -12,7 +12,7 @@ import (
 )
 
 func TestISO(t *testing.T) {
-	if !config.Config.ISOs.TestingISOs {
+	if !config.Config.ISOs.Testing {
 		t.Skip("Skipping ISO tests because TestingISOs is false")
 	}
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -62,6 +61,8 @@ type TemplateContext struct {
 	ProfileBaseRelative string
 	ProfileBaseHTTP     string
 
+	DNSServers []string
+
 	Templates TemplateDefaults
 }
 
@@ -75,10 +76,12 @@ type ArtifactPaths struct {
 	KernelRelative string
 	InitrdRelative string
 	ISORelative    string
+	Stage2Relative string
 
 	KernelHTTP string
 	InitrdHTTP string
 	ISOHTTP    string
+	Stage2HTTP string
 }
 
 func (s *Service) loadTemplate(key string) (*template.Template, error) {
@@ -88,12 +91,12 @@ func (s *Service) loadTemplate(key string) (*template.Template, error) {
 	}
 
 	var content []byte
-	if dir := strings.TrimSpace(s.cfg.TFTP.TemplateDir); dir != "" {
-		candidate := filepath.Join(dir, rel)
-		if data, err := os.ReadFile(candidate); err == nil {
-			content = data
-		}
-	}
+	// if dir := strings.TrimSpace(s.cfg.TFTP.TemplateDir); dir != "" {
+	// 	candidate := filepath.Join(dir, rel)
+	// 	if data, err := os.ReadFile(candidate); err == nil {
+	// 		content = data
+	// 	}
+	// }
 
 	if len(content) == 0 {
 		embeddedPath := filepath.ToSlash(path.Join("templates", rel))
@@ -154,6 +157,7 @@ func (s *Service) buildTemplateContext(host *db.Host, profile *db.HostPXEProfile
 	ctx.Artifacts = s.buildArtifactPaths(iso)
 	ctx.KernelArgs = s.buildKernelArgs(ctx)
 	ctx.KernelArgsJoined = strings.Join(ctx.KernelArgs, " ")
+	ctx.DNSServers = s.dnsServersForProfile(profile)
 	ctx.Templates = s.templateDefaults.Clone()
 	return ctx
 }
@@ -180,17 +184,20 @@ func safeHostname(host *db.Host, slug string) string {
 }
 
 func (s *Service) buildArtifactPaths(iso *db.StoredISOImage) ArtifactPaths {
-	kernelRel := path.Clean("/" + path.Join("artifacts", iso.Name, "kernel"))
-	initrdRel := path.Clean("/" + path.Join("artifacts", iso.Name, "initrd"))
-	isoRel := path.Clean("/" + path.Join("artifacts", iso.Name, "image.iso"))
-
+	dir := makeArtifactDirName(iso.Name)
+	kernelRel := path.Clean("/" + path.Join("artifacts", dir, "kernel"))
+	initrdRel := path.Clean("/" + path.Join("artifacts", dir, "initrd"))
+	isoRel := path.Clean("/" + path.Join("artifacts", dir, "image.iso"))
+	stage2Rel := path.Clean("/" + path.Join("artifacts", dir, "stage2"))
 	return ArtifactPaths{
 		KernelRelative: kernelRel,
 		InitrdRelative: initrdRel,
 		ISORelative:    isoRel,
+		Stage2Relative: stage2Rel,
 		KernelHTTP:     s.absoluteURL(kernelRel),
 		InitrdHTTP:     s.absoluteURL(initrdRel),
 		ISOHTTP:        s.absoluteURL(isoRel),
+		Stage2HTTP:     s.absoluteURL(stage2Rel),
 	}
 }
 
@@ -205,14 +212,14 @@ func relativeToRoot(root, full string) string {
 }
 
 func (s *Service) buildKernelArgs(ctx *TemplateContext) []string {
-	args := []string{"ip=dhcp"}
+	args := []string{"ip=dhcp", "rd.neednet=1"}
 	switch ctx.ISO.PreConfigure {
 	case db.PreConfigureTypeCloudInit:
 		if isUbuntuISO(ctx.ISO) {
 			if ctx.Artifacts.ISOHTTP != "" {
 				args = append(args, fmt.Sprintf("url=%s", ctx.Artifacts.ISOHTTP))
 			}
-			args = append(args, "boot=casper", "netboot=nfs", "autoinstall")
+			args = append(args, "boot=casper", "autoinstall")
 			seed := ctx.ProfileBaseHTTP
 			if seed == "" {
 				seed = ctx.ProfileBaseRelative
@@ -226,15 +233,23 @@ func (s *Service) buildKernelArgs(ctx *TemplateContext) []string {
 			}
 		}
 	case db.PreConfigureTypeKickstart:
+		args = append(args, "ksdevice=bootif")
 		if ks := ctx.ProfileFileHTTP("kickstart/ks.cfg"); ks != "" {
 			args = append(args, fmt.Sprintf("inst.ks=%s", ks))
 		}
-		if ctx.Artifacts.ISOHTTP != "" {
-			args = append(args, fmt.Sprintf("inst.stage2=%s", ctx.Artifacts.ISOHTTP))
+		if ctx.Artifacts.Stage2HTTP != "" {
+			args = append(args, fmt.Sprintf("inst.stage2=%s", ctx.Artifacts.Stage2HTTP))
 		}
 	}
 	args = append(args, ctx.Profile.KernelParams...)
 	return compactArgs(args)
+}
+
+func (s *Service) dnsServersForProfile(profile *db.HostPXEProfile) []string {
+	if profile != nil && len(profile.DNSServers) > 0 {
+		return cloneStringSlice(profile.DNSServers)
+	}
+	return cloneStringSlice(s.cfg.PXE.DHCPServer.DNSServers)
 }
 
 func compactArgs(args []string) []string {

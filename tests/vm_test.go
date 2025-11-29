@@ -44,8 +44,8 @@ func TestContainerLifecycle(t *testing.T) {
 		ips             []net.IP
 	)
 
-	if firstIP, lastIP, _, err = ssh.ParseSubnet(config.Config.Proxmox.Testing.Subnet); err != nil {
-		t.Fatalf("failed to get IP range from subnet %s: %v\n", config.Config.Proxmox.Testing.Subnet, err)
+	if firstIP, lastIP, _, err = ssh.ParseSubnet(config.Config.Proxmox.Testing.SubnetCIDR); err != nil {
+		t.Fatalf("failed to get IP range from subnet %s: %v\n", config.Config.Proxmox.Testing.SubnetCIDR, err)
 		return
 	}
 
@@ -53,7 +53,7 @@ func TestContainerLifecycle(t *testing.T) {
 
 	var openIPs []net.IP
 	if openIPs, err = ssh.FindOpenIPs(ips, 1); err != nil {
-		t.Fatalf("failed to find open IPs in subnet %s: %v\n", config.Config.Proxmox.Testing.Subnet, err)
+		t.Fatalf("failed to find open IPs in subnet %s: %v\n", config.Config.Proxmox.Testing.SubnetCIDR, err)
 		return
 	}
 
@@ -155,8 +155,8 @@ func TestCTTemplateClone(t *testing.T) {
 		ips             []net.IP
 	)
 
-	if firstIP, lastIP, _, err = ssh.ParseSubnet(config.Config.Proxmox.Testing.Subnet); err != nil {
-		t.Fatalf("failed to get IP range from subnet %s: %v\n", config.Config.Proxmox.Testing.Subnet, err)
+	if firstIP, lastIP, _, err = ssh.ParseSubnet(config.Config.Proxmox.Testing.SubnetCIDR); err != nil {
+		t.Fatalf("failed to get IP range from subnet %s: %v\n", config.Config.Proxmox.Testing.SubnetCIDR, err)
 		return
 	}
 
@@ -164,7 +164,7 @@ func TestCTTemplateClone(t *testing.T) {
 
 	var openIPs []net.IP
 	if openIPs, err = ssh.FindOpenIPs(ips, 2); err != nil {
-		t.Fatalf("failed to find open IPs in subnet %s: %v\n", config.Config.Proxmox.Testing.Subnet, err)
+		t.Fatalf("failed to find open IPs in subnet %s: %v\n", config.Config.Proxmox.Testing.SubnetCIDR, err)
 		return
 	}
 

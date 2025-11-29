@@ -176,22 +176,63 @@ func (c *profileCache) ByMAC(mac string) (*db.HostPXEProfile, error) {
 }
 
 type leaseStore struct {
-	mu     sync.RWMutex
-	leases map[string]net.IP
+	mu      sync.RWMutex
+	macToIP map[string]net.IP
+	ipToMAC map[string]string
 }
 
 func newLeaseStore() *leaseStore {
-	return &leaseStore{leases: make(map[string]net.IP)}
+	return &leaseStore{
+		macToIP: make(map[string]net.IP),
+		ipToMAC: make(map[string]string),
+	}
 }
 
 func (l *leaseStore) Set(mac string, ip net.IP) {
+	mac = strings.ToLower(strings.TrimSpace(mac))
+	if mac == "" {
+		return
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.leases[strings.ToLower(mac)] = ip
+
+	if prev, ok := l.macToIP[mac]; ok && prev != nil {
+		delete(l.ipToMAC, prev.String())
+	}
+
+	if ip == nil {
+		delete(l.macToIP, mac)
+		return
+	}
+
+	copyIP := cloneIPv4(ip)
+	if copyIP == nil {
+		copyIP = append(net.IP(nil), ip...)
+	}
+	l.macToIP[mac] = copyIP
+	l.ipToMAC[copyIP.String()] = mac
 }
 
 func (l *leaseStore) Get(mac string) net.IP {
+	mac = strings.ToLower(strings.TrimSpace(mac))
+	if mac == "" {
+		return nil
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.leases[strings.ToLower(mac)]
+	if ip, ok := l.macToIP[mac]; ok {
+		return cloneIPv4(ip)
+	}
+	return nil
+}
+
+func (l *leaseStore) InUse(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	_, ok := l.ipToMAC[ip.String()]
+	return ok
 }

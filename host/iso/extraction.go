@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kdomanski/iso9660"
+	iso9660util "github.com/kdomanski/iso9660/util"
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
 )
@@ -73,13 +74,13 @@ func createOutputs(extracted *db.StoredISOImage, img *iso9660.Image, sourceImage
 		httpArtifacts = ""
 		tftpArtifacts = ""
 	)
-	if root := strings.TrimSpace(config.Config.TFTP.HTTP_RootDir); root != "" {
+	if root := strings.TrimSpace(config.Config.PXE.HTTPServer.Directory); root != "" {
 		httpArtifacts = filepath.Join(root, "artifacts", extracted.Name)
 		if err = os.MkdirAll(httpArtifacts, 0755); err != nil {
 			return
 		}
 	}
-	if root := strings.TrimSpace(config.Config.TFTP.TFTP_RootDir); root != "" {
+	if root := strings.TrimSpace(config.Config.PXE.TFTPServer.Directory); root != "" {
 		tftpArtifacts = filepath.Join(root, "artifacts", extracted.Name)
 		if err = os.MkdirAll(tftpArtifacts, 0755); err != nil {
 			return
@@ -107,6 +108,13 @@ func createOutputs(extracted *db.StoredISOImage, img *iso9660.Image, sourceImage
 	}
 	if err = copyISOEntry(img, initrdISOPath, filepath.Join(httpArtifacts, "initrd"), filepath.Join(tftpArtifacts, "initrd")); err != nil {
 		return
+	}
+
+	if httpArtifacts != "" {
+		stage2Dir := filepath.Join(httpArtifacts, "stage2")
+		if err = copyWholeISO(sourceImage, stage2Dir); err != nil {
+			return
+		}
 	}
 
 	extracted.FullISOPath = chooseFirstNonEmpty(filepath.Join(httpArtifacts, "image.iso"), filepath.Join(tftpArtifacts, "image.iso"), storageISO)
@@ -156,4 +164,29 @@ func chooseFirstNonEmpty(paths ...string) string {
 		}
 	}
 	return ""
+}
+
+func copyWholeISO(imagePath, dest string) error {
+	if strings.TrimSpace(imagePath) == "" || strings.TrimSpace(dest) == "" {
+		return nil
+	}
+	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return iso9660util.ExtractImageToDirectory(file, dest)
+}
+
+func EnsureStage2Artifacts(imagePath, dest string) error {
+	if strings.TrimSpace(imagePath) == "" || strings.TrimSpace(dest) == "" {
+		return nil
+	}
+	return copyWholeISO(imagePath, dest)
 }

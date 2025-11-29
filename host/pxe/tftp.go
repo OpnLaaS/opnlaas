@@ -33,8 +33,10 @@ func (s *Service) handleTFTPRequest(filename string) ([]byte, error) {
 	}
 
 	// Static file fallback.
-	data, err := os.ReadFile(filepath.Join(s.tftpRoot, filepath.FromSlash(clean)))
+	full := filepath.Join(s.tftpRoot, filepath.FromSlash(clean))
+	data, err := os.ReadFile(full)
 	if err != nil {
+		s.log.Errorf("TFTP static miss %s (full=%s): %v\n", clean, full, err)
 		return nil, err
 	}
 	s.log.Basicf("TFTP static served %s (%d bytes)\n", clean, len(data))

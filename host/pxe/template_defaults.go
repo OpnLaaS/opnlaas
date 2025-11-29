@@ -12,7 +12,6 @@ import (
 )
 
 // TemplateDefaults represents all configurable bits that the PXE templates can access.
-// Values are loaded from a single environment variable so we can keep .env files tidy.
 type TemplateDefaults struct {
 	Common      TemplateCommonDefaults
 	Autoinstall AutoinstallDefaults
@@ -94,26 +93,13 @@ func (d TemplateDefaults) Clone() TemplateDefaults {
 	return out
 }
 
-func parseTemplateDefaults(spec string) (TemplateDefaults, error) {
+func loadTemplateDefaults() (TemplateDefaults, error) {
 	defaults := defaultTemplateDefaults()
-	spec = strings.TrimSpace(spec)
-	if spec == "" {
-		applyLegacyTemplateEnv(&defaults)
-		return defaults, nil
-	}
+	cfg := config.Config.Preconfigure
 
-	cfg, err := config.LoadInstallerConfiguration(spec)
-	if err != nil {
-		return TemplateDefaults{}, err
-	}
-	return buildTemplateDefaultsFromInstaller(cfg)
-}
-
-func buildTemplateDefaultsFromInstaller(cfg config.InstallerConfiguration) (TemplateDefaults, error) {
-	defaults := defaultTemplateDefaults()
 	defaults.Common.Timezone = cfg.Timezone
 	defaults.Common.Locale = cfg.Locale
-	defaults.Common.KeyboardLayout = cfg.KeyboardLayout
+	defaults.Common.KeyboardLayout = cfg.Keyboard
 	defaults.Common.KeyboardVariant = cfg.KeyboardVariant
 	defaults.Common.Packages = cloneStringSlice(cfg.Packages)
 	defaults.Common.Mirror = cfg.Mirror
@@ -134,11 +120,11 @@ func buildTemplateDefaultsFromInstaller(cfg config.InstallerConfiguration) (Temp
 		AllowSudo:         cfg.GivenUser.AllowSudo,
 	}
 
-	preScript, err := loadScriptFile(cfg.SourcePath, cfg.ScriptingFilePaths.GlobalPreScriptFile)
+	preScript, err := loadScriptFile(config.LoadedConfigPath(), cfg.ScriptingFilePaths.GlobalPreScriptFile)
 	if err != nil {
 		return TemplateDefaults{}, err
 	}
-	postScript, err := loadScriptFile(cfg.SourcePath, cfg.ScriptingFilePaths.GlobalPostScriptFile)
+	postScript, err := loadScriptFile(config.LoadedConfigPath(), cfg.ScriptingFilePaths.GlobalPostScriptFile)
 	if err != nil {
 		return TemplateDefaults{}, err
 	}
@@ -202,70 +188,4 @@ func hashPassword(value string) (string, error) {
 		return "", fmt.Errorf("hash password with openssl: %w", err)
 	}
 	return strings.TrimSpace(out.String()), nil
-}
-
-func applyLegacyTemplateEnv(base *TemplateDefaults) {
-	if v := strings.TrimSpace(os.Getenv("TFTP_AUTOINSTALL_ADMIN_USERNAME")); v != "" {
-		base.Autoinstall.AdminUsername = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_AUTOINSTALL_ADMIN_PASSWORD_HASH")); v != "" {
-		base.Autoinstall.AdminPasswordHash = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_AUTOINSTALL_PRE_SCRIPT")); v != "" {
-		base.Autoinstall.PreScript = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_AUTOINSTALL_POST_SCRIPT")); v != "" {
-		base.Autoinstall.PostScript = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_AUTOINSTALL_TIMEZONE")); v != "" {
-		base.Common.Timezone = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_AUTOINSTALL_MIRROR")); v != "" {
-		base.Common.Mirror = v
-	}
-	if keys := legacyEnvList("TFTP_AUTOINSTALL_SSH_AUTHORIZED_KEYS"); len(keys) > 0 {
-		base.Common.SSHAuthorizedKeys = keys
-	}
-	if pkgs := legacyEnvList("TFTP_AUTOINSTALL_PACKAGES"); len(pkgs) > 0 {
-		base.Common.Packages = pkgs
-	}
-
-	if v := strings.TrimSpace(os.Getenv("TFTP_KICKSTART_ROOT_PASSWORD_HASH")); v != "" {
-		base.Kickstart.RootPasswordHash = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_KICKSTART_USER")); v != "" {
-		base.Kickstart.UserName = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_KICKSTART_USER_PASSWORD_HASH")); v != "" {
-		base.Kickstart.UserPasswordHash = v
-	}
-	if keys := legacyEnvList("TFTP_KICKSTART_SSH_AUTHORIZED_KEYS"); len(keys) > 0 {
-		base.Kickstart.SSHAuthorizedKeys = keys
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_KICKSTART_PRE_SCRIPT")); v != "" {
-		base.Kickstart.PreScript = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TFTP_KICKSTART_POST_SCRIPT")); v != "" {
-		base.Kickstart.PostScript = v
-	}
-}
-
-func legacyEnvList(key string) []string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return nil
-	}
-	parts := strings.Split(value, "|")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		out = append(out, part)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }

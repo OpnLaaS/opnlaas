@@ -2,6 +2,7 @@ package pxe
 
 import (
 	"fmt"
+	"hash/crc32"
 	"net"
 	"strconv"
 	"strings"
@@ -34,30 +35,6 @@ func cloneMap(src map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
-}
-
-func parseTemplateDataPairs(entries []string) map[string]string {
-	if len(entries) == 0 {
-		return nil
-	}
-	parsed := make(map[string]string, len(entries))
-	for _, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, "=", 2)
-		key := strings.TrimSpace(parts[0])
-		if key == "" {
-			continue
-		}
-		val := ""
-		if len(parts) > 1 {
-			val = strings.TrimSpace(parts[1])
-		}
-		parsed[key] = val
-	}
-	return parsed
 }
 
 func normalizeMAC(mac string) (string, error) {
@@ -119,4 +96,75 @@ func parseIP(value string) net.IP {
 		return nil
 	}
 	return net.ParseIP(value)
+}
+
+func parseIPv4(value string) net.IP {
+	ip := net.ParseIP(strings.TrimSpace(value))
+	if ip == nil {
+		return nil
+	}
+	return ip.To4()
+}
+
+func compareIPv4(a, b net.IP) int {
+	if len(a) < net.IPv4len || len(b) < net.IPv4len {
+		return 0
+	}
+	for i := 0; i < net.IPv4len; i++ {
+		if a[i] == b[i] {
+			continue
+		}
+		if a[i] < b[i] {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
+func cloneIPv4(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+	ip = ip.To4()
+	if ip == nil {
+		return nil
+	}
+	out := make(net.IP, net.IPv4len)
+	copy(out, ip)
+	return out
+}
+
+func makeArtifactDirName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "iso"
+	}
+	base := makeSlug(name)
+	if base == "" {
+		base = "iso"
+	}
+	sum := crc32.ChecksumIEEE([]byte(name))
+	return fmt.Sprintf("%s-%08x", base, sum)
+}
+
+func makeSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	var b strings.Builder
+	var lastDash bool
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash && b.Len() > 0 {
+			b.WriteRune('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }

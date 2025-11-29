@@ -40,12 +40,12 @@ func TestHostsAPI(t *testing.T) {
 		}
 	})
 
-	if !config.Config.Management.TestingRunManagement {
+	if !config.Config.Management.Testing.Basic.Enabled {
 		t.Skip("Host management is disabled; skipping host addition tests")
 
 		t.Run("Add a host", func(t *testing.T) {
 			var (
-				newHost *db.Host = &db.Host{ManagementIP: config.Config.Management.TestingManagementIPs[0], ManagementType: db.ManagementTypeRedfish}
+				newHost *db.Host = &db.Host{ManagementIP: config.Config.Management.Testing.Basic.IPs[0], ManagementType: db.ManagementTypeRedfish}
 				user    string   = "alice"
 			)
 
@@ -67,8 +67,8 @@ func TestHostsAPI(t *testing.T) {
 					var createdHost db.Host
 					if err := json.Unmarshal([]byte(resp), &createdHost); err != nil {
 						t.Fatalf("Failed to unmarshal created host JSON: %v", err)
-					} else if createdHost.ManagementIP != config.Config.Management.TestingManagementIPs[0] {
-						t.Fatalf("Expected created host ManagementIP to be '%s', got '%s'", config.Config.Management.TestingManagementIPs[0], createdHost.ManagementIP)
+					} else if createdHost.ManagementIP != config.Config.Management.Testing.Basic.IPs[0] {
+						t.Fatalf("Expected created host ManagementIP to be '%s', got '%s'", config.Config.Management.Testing.Basic.IPs[0], createdHost.ManagementIP)
 					}
 				}
 			}
@@ -96,8 +96,8 @@ func TestHostsAPI(t *testing.T) {
 						hostJSON, _ := json.Marshal(hostsSlice[0])
 						if err := json.Unmarshal(hostJSON, &target); err != nil {
 							t.Fatalf("Failed to unmarshal host JSON: %v", err)
-						} else if target.ManagementIP != config.Config.Management.TestingManagementIPs[0] {
-							t.Fatalf("Expected host ManagementIP to be '%s', got '%s'", config.Config.Management.TestingManagementIPs[0], target.ManagementIP)
+						} else if target.ManagementIP != config.Config.Management.Testing.Basic.IPs[0] {
+							t.Fatalf("Expected host ManagementIP to be '%s', got '%s'", config.Config.Management.Testing.Basic.IPs[0], target.ManagementIP)
 						}
 					}
 				}
@@ -110,7 +110,7 @@ func TestHostsAPI(t *testing.T) {
 				err        error
 			)
 
-			if hostObject, err = makeHTTPGetRequestJSON(t, fmt.Sprintf("http://%s/api/hosts/%s", config.Config.WebServer.Address, config.Config.Management.TestingManagementIPs[0])); err != nil {
+			if hostObject, err = makeHTTPGetRequestJSON(t, fmt.Sprintf("http://%s/api/hosts/%s", config.Config.WebServer.Address, config.Config.Management.Testing.Basic.IPs[0])); err != nil {
 				t.Fatalf("Failed to get host by management IP: %v", err)
 			} else {
 				if hostMap, ok := hostObject.(map[string]interface{}); !ok {
@@ -120,8 +120,8 @@ func TestHostsAPI(t *testing.T) {
 					hostJSON, _ := json.Marshal(hostMap)
 					if err := json.Unmarshal(hostJSON, &target); err != nil {
 						t.Fatalf("Failed to unmarshal host JSON: %v", err)
-					} else if target.ManagementIP != config.Config.Management.TestingManagementIPs[0] {
-						t.Fatalf("Expected host ManagementIP to be '%s', got '%s'", config.Config.Management.TestingManagementIPs[0], target.ManagementIP)
+					} else if target.ManagementIP != config.Config.Management.Testing.Basic.IPs[0] {
+						t.Fatalf("Expected host ManagementIP to be '%s', got '%s'", config.Config.Management.Testing.Basic.IPs[0], target.ManagementIP)
 					}
 				}
 			}
@@ -135,7 +135,7 @@ func TestHostsAPI(t *testing.T) {
 			if cookies, err := loginAndGetCookies(t, user, user); err != nil {
 				t.Fatalf("Failed to login as %s: %v", user, err)
 			} else {
-				if status, resp, err := makeHTTPDeleteRequest(t, fmt.Sprintf("http://%s/api/hosts/%s", config.Config.WebServer.Address, config.Config.Management.TestingManagementIPs[0]), cookies); err != nil {
+				if status, resp, err := makeHTTPDeleteRequest(t, fmt.Sprintf("http://%s/api/hosts/%s", config.Config.WebServer.Address, config.Config.Management.Testing.Basic.IPs[0]), cookies); err != nil {
 					t.Fatalf("Failed to delete host: %v", err)
 				} else if status != fiber.StatusOK {
 					t.Fatalf("Expected status %d, got %d: %s", fiber.StatusOK, status, resp)

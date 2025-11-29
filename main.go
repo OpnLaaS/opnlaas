@@ -23,7 +23,7 @@ func init() {
 	log = logger.NewLogger().SetPrefix("[MAIN]", logger.BoldPurple)
 
 	var err error
-	if err = config.InitEnv(".env"); err != nil {
+	if err = config.Init("config.toml"); err != nil {
 		log.Errorf("Failed to initialize environment: %v\n", err)
 		panic(err)
 	}

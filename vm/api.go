@@ -34,7 +34,7 @@ type ProxmoxAPIBulkCreateResult struct {
 func InitProxmox() (api *ProxmoxAPI, err error) {
 	api = &ProxmoxAPI{
 		client: proxmox.NewClient(
-			fmt.Sprintf("https://%s:%s/api2/json", config.Config.Proxmox.Host, config.Config.Proxmox.Port),
+			fmt.Sprintf("https://%s:%s/api2/json", config.Config.Proxmox.Hostname, config.Config.Proxmox.Port),
 			proxmox.WithHTTPClient(&http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{

@@ -1,23 +1,28 @@
 lang {{ default .Templates.Common.Locale "en_US" }}
 keyboard {{ default .Templates.Common.KeyboardLayout "us" }}
 timezone {{ default .Templates.Common.Timezone "UTC" }} --utc
-network --bootproto=dhcp --hostname={{ .Identifiers.Hostname }}
-url --url={{ .Artifacts.ISOHTTP }}
+network --bootproto=dhcp --device=link --activate --hostname={{ .Identifiers.Hostname }}{{- if .DNSServers }} --nameserver={{ join .DNSServers "," }}{{- end }}
+{{- if .Templates.Kickstart.RootPasswordHash }}
 rootpw --iscrypted {{ .Templates.Kickstart.RootPasswordHash }}
-authconfig --enableshadow --passalgo=sha512
+{{- else }}
+rootpw --lock
+{{- end }}
 firewall --disabled
 selinux --permissive
 text
-install
 zerombr
 clearpart --all --initlabel
 autopart --type=lvm
-poweroff
 reboot
 
-user --name={{ .Templates.Kickstart.UserName }} --password={{ .Templates.Kickstart.UserPasswordHash }} --iscrypted --groups=wheel
+{{- if .Templates.ManagedUser.Username }}
+user --name={{ .Templates.ManagedUser.Username }}{{ if .Templates.ManagedUser.PasswordHash }} --password={{ .Templates.ManagedUser.PasswordHash }} --iscrypted{{ else }} --lock{{ end }}{{ if .Templates.ManagedUser.AllowSudo }} --groups=wheel{{ end }}
+{{- end }}
+{{- if .Templates.GivenUser.Username }}
+user --name={{ .Templates.GivenUser.Username }}{{ if .Templates.GivenUser.PasswordHash }} --password={{ .Templates.GivenUser.PasswordHash }} --iscrypted{{ else }} --lock{{ end }}{{ if .Templates.GivenUser.AllowSudo }} --groups=wheel{{ end }}
+{{- end }}
 %packages
-@^minimal-environment
+@core
 {{- range .Templates.Common.Packages }}
 {{ . }}
 {{- end }}
@@ -27,16 +32,27 @@ user --name={{ .Templates.Kickstart.UserName }} --password={{ .Templates.Kicksta
 {{- if .Templates.Kickstart.PreScript }}
 {{ .Templates.Kickstart.PreScript }}
 {{- end }}
-{{- if .Templates.Kickstart.SSHAuthorizedKeys }}
-mkdir -p /home/{{ .Templates.Kickstart.UserName }}/.ssh
-cat <<'EOF' >/home/{{ .Templates.Kickstart.UserName }}/.ssh/authorized_keys
-{{- range .Templates.Kickstart.SSHAuthorizedKeys }}
+{{- if .Templates.ManagedUser.SSHAuthorizedKeys }}
+mkdir -p /home/{{ .Templates.ManagedUser.Username }}/.ssh
+cat <<'EOF' >/home/{{ .Templates.ManagedUser.Username }}/.ssh/authorized_keys
+{{- range .Templates.ManagedUser.SSHAuthorizedKeys }}
 {{ . }}
 {{- end }}
 EOF
-chown -R {{ .Templates.Kickstart.UserName }}:{{ .Templates.Kickstart.UserName }} /home/{{ .Templates.Kickstart.UserName }}/.ssh
-chmod 700 /home/{{ .Templates.Kickstart.UserName }}/.ssh
-chmod 600 /home/{{ .Templates.Kickstart.UserName }}/.ssh/authorized_keys
+chown -R {{ .Templates.ManagedUser.Username }}:{{ .Templates.ManagedUser.Username }} /home/{{ .Templates.ManagedUser.Username }}/.ssh
+chmod 700 /home/{{ .Templates.ManagedUser.Username }}/.ssh
+chmod 600 /home/{{ .Templates.ManagedUser.Username }}/.ssh/authorized_keys
+{{ end }}
+{{- if .Templates.GivenUser.SSHAuthorizedKeys }}
+mkdir -p /home/{{ .Templates.GivenUser.Username }}/.ssh
+cat <<'EOF' >/home/{{ .Templates.GivenUser.Username }}/.ssh/authorized_keys
+{{- range .Templates.GivenUser.SSHAuthorizedKeys }}
+{{ . }}
+{{- end }}
+EOF
+chown -R {{ .Templates.GivenUser.Username }}:{{ .Templates.GivenUser.Username }} /home/{{ .Templates.GivenUser.Username }}/.ssh
+chmod 700 /home/{{ .Templates.GivenUser.Username }}/.ssh
+chmod 600 /home/{{ .Templates.GivenUser.Username }}/.ssh/authorized_keys
 {{ end }}
 {{- if .Templates.Kickstart.PostScript }}
 {{ .Templates.Kickstart.PostScript }}
