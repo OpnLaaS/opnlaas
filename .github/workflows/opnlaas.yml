@@ -18,12 +18,104 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Create .test.env from secret
+      - name: Write dummy config.toml
         run: |
-          printf '%s\n' "${TEST_ENV_FILE}" > .test.env
-          echo "Wrote .test.env with $(wc -l < .test.env) lines"
-        env:
-          TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
+          cat > config.toml <<'EOF'
+          [web_server]
+            address = ":8080"
+            tls_dir = ""
+            reload_templates_on_each_render = false
+            redirect_server_addresses = []
+
+          [ldap]
+            address = "ldaps://ldap.example.com:636"
+            domain_sld = "example"
+            domain_tld = "com"
+            accounts_cn = "accounts"
+            users_cn = "users"
+            groups_cn = "groups"
+            admin_groups = ["admins"]
+            user_groups = ["ipausers"]
+
+            [management]
+              username = "deskguest"
+              password = "deskguest"
+              [management.testing]
+                [management.testing.basic]
+                  enabled = false
+                  ips = []
+                [management.testing.long]
+                  enabled = false
+                  ip = ""
+
+          [database]
+            file = "laas.db"
+
+          [proxmox]
+            enabled = false
+            hostname = ""
+            port = ""
+            token_id = ""
+            secret = "laas-api-token-secret"
+            [proxmox.testing]
+              enabled = false
+              subnet_cidr = "10.255.255.0/24"
+              storage = "local-lvm"
+              ubuntu_template = "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+              gateway = "10.0.0.1"
+              dns = "10.0.0.2"
+              search_domain = "local"
+
+          [isos]
+            search_dir = "./isos_search_dir"
+            storage_dir = "./isos"
+            testing = false
+
+          [pxe]
+            enabled = false
+            [pxe.dhcp_server]
+              address = ":67"
+              interface = "eth0"
+              server_public_address = "0.0.0.0"
+              ip_range_start = "0.0.0.0"
+              ip_range_end = "0.0.0.0"
+              lease_seconds = 7200
+              subnet_mask = "0.0.0.0"
+              router = "0.0.0.0"
+              dns_servers = ["0.0.0.0"]
+            [pxe.tftp_server]
+              address = ":69"
+              directory = "/var/lib/tftpboot"
+            [pxe.http_server]
+              address = ":8069"
+              directory = "/var/www/tftpboot"
+              public_url = "http://laas.cyber.lab:8069"
+
+          [preconfigure]
+            locale = "en_US"
+            timezone = "America/New_York"
+            keyboard_layout = "us"
+            keyboard_variant = ""
+            packages = ["openssh-server"]
+            mirror = ""
+            root_password = ""
+            disable_root = true
+            global_kernel_params = []
+            global_initrd_params = []
+            [preconfigure.managed_user]
+                username = "laas-admin"
+                password = "laas-admin"
+                allow_sudo = true
+                ssh_authorized_keys = []
+            [preconfigure.given_user]
+                username = "laas"
+                password = "laas"
+                allow_sudo = true
+                ssh_authorized_keys = []
+            [preconfigure.scripting_file_paths]
+                global_pre_script_file = ""
+                global_post_script_file = ""
+          EOF
       - name: Install Node deps
         run: |
           if [ -f package-lock.json ]; then
