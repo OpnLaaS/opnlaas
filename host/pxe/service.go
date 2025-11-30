@@ -381,17 +381,6 @@ func (s *Service) absoluteURL(rel string) (abs string) {
 	return
 }
 
-// serveStatic serves a static file from the given root directory.
-func (s *Service) serveStatic(root, rel string) (data []byte, err error) {
-	if root == "" {
-		err = fmt.Errorf("no root configured")
-		return
-	}
-
-	data, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(rel, "/"))))
-	return
-}
-
 // pathClean normalizes a relative path to ensure it starts with a single '/'.
 func pathClean(rel string) (clean string) {
 	clean = path.Clean(fmt.Sprintf("/%s", strings.TrimPrefix(rel, "/")))
