@@ -7,6 +7,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/opnlaas/opnlaas/db"
 )
 
 // cloneStringSlice creates a copy of the given string slice.
@@ -200,5 +202,21 @@ func makeSlug(value string) (slug string) {
 	}
 
 	slug = strings.Trim(builder.String(), "-")
+	return
+}
+
+// clonePXEProfile returns a deep copy of the provided HostPXEProfile.
+func clonePXEProfile(src *db.HostPXEProfile) (clone *db.HostPXEProfile) {
+	if src == nil {
+		return
+	}
+
+	var copyProfile db.HostPXEProfile = *src
+	copyProfile.KernelParams = cloneStringSlice(src.KernelParams)
+	copyProfile.InitrdParams = cloneStringSlice(src.InitrdParams)
+	copyProfile.TemplateData = cloneMap(src.TemplateData)
+	copyProfile.DNSServers = cloneStringSlice(src.DNSServers)
+
+	clone = &copyProfile
 	return
 }

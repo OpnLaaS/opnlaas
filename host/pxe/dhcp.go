@@ -347,6 +347,10 @@ func (s *Service) profileForMAC(mac string) (profile *db.HostPXEProfile, err err
 		return
 	}
 
+	if profile = s.overrideProfileForMAC(mac); profile != nil {
+		return
+	}
+
 	var prof *db.HostPXEProfile
 	if prof, err = s.profileCache.ByMAC(mac); err == nil && prof != nil {
 		profile = prof

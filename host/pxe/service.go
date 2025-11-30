@@ -43,6 +43,8 @@ type Service struct {
 	profileCache     *profileCache
 	leases           *leaseStore
 	leaseMu          sync.Mutex
+	overrideMu       sync.RWMutex
+	overrideProfiles map[string]*db.HostPXEProfile
 	ipRangeStart     net.IP
 	ipRangeEnd       net.IP
 	leaseCursor      net.IP
@@ -165,6 +167,7 @@ func newService() (svc *Service, err error) {
 	svc.hostCache = newHostCache(30 * time.Second)
 	svc.profileCache = newProfileCache(15 * time.Second)
 	svc.leases = newLeaseStore()
+	svc.overrideProfiles = make(map[string]*db.HostPXEProfile)
 	svc.ipRangeStart = cloneIPv4(ipRangeStart)
 	svc.ipRangeEnd = cloneIPv4(ipRangeEnd)
 	if ipRangeStart != nil {
@@ -504,6 +507,10 @@ func (s *Service) serveProfileFile(rel string) (data []byte, err error) {
 	if host, _ = s.hostCache.BySlug(slug); host != nil {
 		if profile, err = s.profileCache.ByIP(host.ManagementIP); err != nil {
 			return
+		}
+
+		if profile == nil {
+			profile = s.overrideProfileForHost(host)
 		}
 	}
 

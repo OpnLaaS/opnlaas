@@ -121,7 +121,7 @@ jobs:
         run: npm run build
       - name: Go mod download
         run: go mod download
-      - name: Run Go tests (with real env)
+      - name: Run Go tests
         shell: bash
         run: |
           go test ./... -v

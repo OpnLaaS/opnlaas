@@ -55,6 +55,8 @@ func main() {
 		panic(err)
 	}
 
+	applyDemoPXEOverrides()
+
 	defer pxe.Shutdown()
 
 	if err = app.StartApp(); err != nil {
@@ -71,4 +73,51 @@ func importLocalISO(imagePath string) (isoRecord *db.StoredISOImage, err error) 
 
 	err = db.StoredISOImages.Insert(isoRecord)
 	return
+}
+
+// applyDemoPXEOverrides assigns each host a demo PXE override using the stored ISO list.
+func applyDemoPXEOverrides() {
+	var (
+		hosts []*db.Host
+		isos  []*db.StoredISOImage
+		err   error
+	)
+
+	if hosts, err = db.Hosts.SelectAll(); err != nil {
+		log.Warningf("Unable to list hosts for PXE demo overrides: %v\n", err)
+		return
+	}
+
+	if len(hosts) == 0 {
+		return
+	}
+
+	if isos, err = db.StoredISOImages.SelectAll(); err != nil {
+		log.Warningf("Unable to list ISOs for PXE demo overrides: %v\n", err)
+		return
+	}
+
+	if len(isos) == 0 {
+		log.Warning("Skipping PXE demo overrides; no ISOs available\n")
+		return
+	}
+
+	for idx, host := range hosts {
+		if host == nil {
+			continue
+		}
+
+		var isoRec *db.StoredISOImage = isos[(idx+1)%len(isos)]
+		if isoRec == nil || isoRec.Name == "" {
+			continue
+		}
+
+		var override pxe.ProfileOverride = pxe.ProfileOverride{
+			ISOName: isoRec.Name,
+		}
+
+		if err := pxe.ApplyHostProfileOverride(host, override); err != nil {
+			log.Warningf("PXE demo override failed for host %s: %v\n", host.ManagementIP, err)
+		}
+	}
 }

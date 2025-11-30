@@ -28,6 +28,10 @@ func (s *Service) handleTFTPRequest(filename string, remote *net.UDPAddr) (respo
 		handled bool
 	)
 
+	if remote != nil {
+		ctx.clientMAC = s.leases.MAC(remote.IP)
+	}
+
 	if response, handled, err = s.handlePXELinux(filename, ctx); handled {
 		return
 	}

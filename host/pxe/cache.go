@@ -294,3 +294,15 @@ func (l *leaseStore) InUse(ip net.IP) (inUse bool) {
 	_, inUse = l.ipToMAC[ip.String()]
 	return
 }
+
+// MAC returns the MAC address currently associated with the provided IP.
+func (l *leaseStore) MAC(ip net.IP) (mac string) {
+	if ip == nil {
+		return
+	}
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	mac = l.ipToMAC[ip.String()]
+	return
+}

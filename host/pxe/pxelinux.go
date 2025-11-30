@@ -64,6 +64,14 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 		var mac string = strings.ReplaceAll(name[3:], "-", ":")
 		bootMAC = mac
 
+		if profile = s.overrideProfileForMAC(mac); profile != nil {
+			if host, err = s.hostCache.ByMAC(mac); err != nil {
+				return
+			}
+
+			return
+		}
+
 		var candidate *db.Host
 		if candidate, err = s.hostCache.ByMAC(mac); err != nil {
 			return
@@ -99,8 +107,10 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 			}
 
 			if host != nil {
-				if profile, err = s.profileCache.ByIP(host.ManagementIP); err != nil {
-					return
+				if profile = s.overrideProfileForHost(host); profile == nil {
+					if profile, err = s.profileCache.ByIP(host.ManagementIP); err != nil {
+						return
+					}
 				}
 
 				if profile == nil {
@@ -114,6 +124,22 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 		}
 	}
 
+	if profile == nil && req != nil && req.clientMAC != "" {
+		if profile, err = s.profileForMAC(req.clientMAC); err != nil {
+			return
+		}
+
+		if profile != nil {
+			if host == nil {
+				if host, err = s.hostCache.ByMAC(req.clientMAC); err != nil {
+					return
+				}
+			}
+
+			return
+		}
+	}
+
 	if profile == nil && name == "default" && req != nil && req.remoteAddr != nil {
 		var hostIP string
 		if hostIP = req.remoteAddr.IP.String(); hostIP != "" {
@@ -124,8 +150,10 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 			}
 
 			if host != nil {
-				if profile, err = s.profileCache.ByIP(host.ManagementIP); err != nil {
-					return
+				if profile = s.overrideProfileForHost(host); profile == nil {
+					if profile, err = s.profileCache.ByIP(host.ManagementIP); err != nil {
+						return
+					}
 				}
 
 				if profile == nil {
@@ -150,4 +178,5 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 type tftpRequestContext struct {
 	remoteAddr *net.UDPAddr
 	filename   string
+	clientMAC  string
 }
