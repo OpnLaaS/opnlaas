@@ -34,6 +34,15 @@ Or, just curl it from our repository and run it directly:
 bash -i <(curl -sSL https://raw.githubusercontent.com/opnlaas/opnlaas/main/scripting/setup_host.sh)
 ```
 
+It's important to understand that this setup should be run on the following system:
+- A `dnf`-based Linux distribution (e.g., Fedora Server 43)
+- At least 4 CPU cores
+- At least 16GB of RAM
+- At least 100GB of free disk space
+- A network interface connected to the same network as the hosts you intend to deploy
+
+You will have to ensure that firewall ports are open for the ports you set in `config.toml` for services like DHCP, TFTP, HTTP, etc.
+
 ## Development Setup
 
 Requirements:
