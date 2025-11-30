@@ -86,17 +86,17 @@ func TestManagementUnhappyPaths(t *testing.T) {
 	})
 
 	t.Run("Redfish - Bad Credentials", func(t *testing.T) {
-		if !config.Config.Management.TestingRunManagement {
+		if !config.Config.Management.Testing.Basic.Enabled {
 			t.Skip("Skipping bad credential test")
 		}
 
-		ip := config.Config.Management.TestingManagementIPs[0]
-		originalPass := config.Config.Management.DefaultIPMIPass
+		ip := config.Config.Management.Testing.Basic.IPs[0]
+		originalPass := config.Config.Management.Password
 
-		config.Config.Management.DefaultIPMIPass = "this-is-a-bad-password"
+		config.Config.Management.Password = "this-is-a-bad-password"
 
 		defer func() {
-			config.Config.Management.DefaultIPMIPass = originalPass
+			config.Config.Management.Password = originalPass
 		}()
 
 		var host *db.Host = &db.Host{

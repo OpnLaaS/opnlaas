@@ -65,18 +65,41 @@ type (
 		ipmiClient *ipmi.Client
 	}
 
+	HostNetworkInterface struct {
+		Name       string `json:"name"`
+		MACAddress string `json:"mac_address"`
+		SpeedMbps  int    `json:"speed_mbps"`
+	}
+
 	Host struct {
-		ManagementIP            string                `gomysql:"management_ip,primary,unique" json:"management_ip"`
-		Vendor                  VendorID              `gomysql:"vendor" json:"vendor"`
-		FormFactor              FormFactor            `gomysql:"form_factor" json:"form_factor"`
-		ManagementType          ManagementType        `gomysql:"management_type" json:"management_type"`
-		Model                   string                `gomysql:"model" json:"model"`
-		LastKnownPowerState     PowerState            `gomysql:"last_known_power_state" json:"last_known_power_state"`
-		LastKnownPowerStateTime time.Time             `gomysql:"last_known_power_state_time" json:"last_known_power_state_time"`
-		Specs                   HostSpecs             `gomysql:"specs" json:"specs"`
-		IsBooked                bool                  `gomysql:"is_booked" json:"is_booked"`
-		ActiveBookingID         int                   `gomysql:"active_booking_id" json:"active_booking_id"`
-		Management              *HostManagementClient `json:"-"`
+		ManagementIP            string                 `gomysql:"management_ip,primary,unique" json:"management_ip"`
+		Vendor                  VendorID               `gomysql:"vendor" json:"vendor"`
+		FormFactor              FormFactor             `gomysql:"form_factor" json:"form_factor"`
+		ManagementType          ManagementType         `gomysql:"management_type" json:"management_type"`
+		Model                   string                 `gomysql:"model" json:"model"`
+		LastKnownPowerState     PowerState             `gomysql:"last_known_power_state" json:"last_known_power_state"`
+		LastKnownPowerStateTime time.Time              `gomysql:"last_known_power_state_time" json:"last_known_power_state_time"`
+		Specs                   HostSpecs              `gomysql:"specs" json:"specs"`
+		IsBooked                bool                   `gomysql:"is_booked" json:"is_booked"`
+		ActiveBookingID         int                    `gomysql:"active_booking_id" json:"active_booking_id"`
+		NetworkInterfaces       []HostNetworkInterface `gomysql:"mac_addresses" json:"mac_addresses"`
+		Management              *HostManagementClient  `json:"-"`
+	}
+
+	HostPXEProfile struct {
+		ManagementIP   string            `gomysql:"management_ip,primary,unique" json:"management_ip"`
+		ISOName        string            `gomysql:"iso_name" json:"iso_name"`
+		BootMACAddress string            `gomysql:"boot_mac_address" json:"boot_mac_address"`
+		BootFilename   string            `gomysql:"boot_filename" json:"boot_filename"`
+		KernelParams   []string          `gomysql:"kernel_params" json:"kernel_params"`
+		InitrdParams   []string          `gomysql:"initrd_params" json:"initrd_params"`
+		TemplateData   map[string]string `gomysql:"template_data" json:"template_data"`
+		IPv4Address    string            `gomysql:"ipv4_address" json:"ipv4_address"`
+		SubnetMask     string            `gomysql:"subnet_mask" json:"subnet_mask"`
+		Gateway        string            `gomysql:"gateway" json:"gateway"`
+		DNSServers     []string          `gomysql:"dns_servers" json:"dns_servers"`
+		DomainName     string            `gomysql:"domain_name" json:"domain_name"`
+		NextServer     string            `gomysql:"next_server" json:"next_server"`
 	}
 
 	StoredISOImage struct {

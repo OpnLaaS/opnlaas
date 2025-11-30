@@ -132,19 +132,19 @@ func fileExists(p string) bool {
 func StartApp() (err error) {
 	var app *fiber.App = CreateApp()
 
-	if len(config.Config.WebServer.RedirectAddresses) > 0 && len(config.Config.WebServer.RedirectAddresses[0]) > 0 {
-		for _, redirectAddress := range config.Config.WebServer.RedirectAddresses {
-			runHttpRedirectServer(redirectAddress, config.Config.WebServer.Address, config.Config.WebServer.TlsDir != "")
+	if len(config.Config.WebServer.RedirectServerAddresses) > 0 && len(config.Config.WebServer.RedirectServerAddresses[0]) > 0 {
+		for _, redirectAddress := range config.Config.WebServer.RedirectServerAddresses {
+			runHttpRedirectServer(redirectAddress, config.Config.WebServer.Address, config.Config.WebServer.TLSDir != "")
 		}
 	}
 
-	if config.Config.WebServer.TlsDir != "" {
+	if config.Config.WebServer.TLSDir != "" {
 		var (
 			certPath, keyPath string
 			found             bool
 		)
 
-		if certPath, keyPath, found = discoverTLSKeys(config.Config.WebServer.TlsDir); !found {
+		if certPath, keyPath, found = discoverTLSKeys(config.Config.WebServer.TLSDir); !found {
 			err = fiber.ErrInternalServerError
 			return
 		}

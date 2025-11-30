@@ -8,11 +8,11 @@ import (
 
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/opnlaas/opnlaas/db"
-	"github.com/opnlaas/opnlaas/iso"
+	"github.com/opnlaas/opnlaas/host/iso"
 )
 
 func TestISO(t *testing.T) {
-	if !config.Config.ISOs.TestingISOs {
+	if !config.Config.ISOs.Testing {
 		t.Skip("Skipping ISO tests because TestingISOs is false")
 	}
 

@@ -46,8 +46,8 @@ func NewHostManagementClient(host *Host) (client *HostManagementClient, err erro
 func (c *HostManagementClient) redfishInit() (err error) {
 	if c.redfishClient, err = gofish.Connect(gofish.ClientConfig{
 		Endpoint: "https://" + c.Host.ManagementIP,
-		Username: config.Config.Management.DefaultIPMIUser,
-		Password: config.Config.Management.DefaultIPMIPass,
+		Username: config.Config.Management.Username,
+		Password: config.Config.Management.Password,
 		Insecure: true,
 		// High handshake timeout
 		TLSHandshakeTimeout: 60,
@@ -84,7 +84,7 @@ func (c *HostManagementClient) redfishInit() (err error) {
 }
 
 func (c *HostManagementClient) ipmiInit() (err error) {
-	if c.ipmiClient, err = ipmi.NewClient(c.Host.ManagementIP, 623, config.Config.Management.DefaultIPMIUser, config.Config.Management.DefaultIPMIPass); err != nil {
+	if c.ipmiClient, err = ipmi.NewClient(c.Host.ManagementIP, 623, config.Config.Management.Username, config.Config.Management.Password); err != nil {
 		return
 	}
 
@@ -375,6 +375,24 @@ func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
 			c.Host.Specs.Storage = append(c.Host.Specs.Storage, HostStorageSpecs{
 				CapacityGB: int(volume.CapacityBytes / (1024 * 1024 * 1024)),
 				MediaType:  string(volume.VolumeType),
+			})
+		}
+	}
+
+	if interfaces, err := c.redfishPrimarySystem.EthernetInterfaces(); err != nil {
+		return err
+	} else {
+		for _, iface := range interfaces {
+			c.Host.NetworkInterfaces = append(c.Host.NetworkInterfaces, HostNetworkInterface{
+				Name: func() string {
+					if iface.ID != "" {
+						return iface.ID
+					}
+
+					return iface.Name
+				}(),
+				MACAddress: iface.MACAddress,
+				SpeedMbps:  iface.SpeedMbps,
 			})
 		}
 	}

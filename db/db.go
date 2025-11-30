@@ -9,6 +9,7 @@ import (
 var (
 	Hosts           *gomysql.RegisteredStruct[Host]
 	StoredISOImages *gomysql.RegisteredStruct[StoredISOImage]
+	HostPXEProfiles *gomysql.RegisteredStruct[HostPXEProfile]
 
 	// You should not be calling this api directly for lock safety
 	bookingPeople *gomysql.RegisteredStruct[BookingPerson]
@@ -37,6 +38,11 @@ func InitDB() (err error) {
 
 	if StoredISOImages, err = gomysql.Register(StoredISOImage{}); err != nil {
 		dbLog.Errorf("Failed to register StoredISOImage struct: %v\n", err)
+		return
+	}
+
+	if HostPXEProfiles, err = gomysql.Register(HostPXEProfile{}); err != nil {
+		dbLog.Errorf("Failed to register HostPXEProfile struct: %v\n", err)
 		return
 	}
 
