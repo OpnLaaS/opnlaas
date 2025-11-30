@@ -10,9 +10,29 @@ func showLanding(c *fiber.Ctx) error {
 
 	return c.Render("landing", bindWithLocals(c, fiber.Map{
 		"Title":    "Welcome",
-		"LoggedIn": user != nil}),
+		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
+		"LoggedIn": user != nil}),	
 		"layout")
 }
+
+func showAdmin(c *fiber.Ctx) error {
+	var (
+		user        *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		displayName string         = "Guest"
+		username    string
+	)
+	
+	if user == nil || (user.Permissions() < auth.AuthPermsAdministrator){
+		c.Redirect("/login")
+	}
+	return c.Render("admin", fiber.Map{
+		"LoggedIn": user != nil,
+		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
+		"User":     displayName,
+		"Username": username,
+	},"layout")
+}
+
 
 func showLogin(c *fiber.Ctx) error {
 	var user *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)

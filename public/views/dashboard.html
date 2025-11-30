@@ -6,17 +6,6 @@
                 class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
                 + Add New Host
             </button>
-            <button id="uploadISOBtn"
-                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform ">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline"
-                    viewBox="0 0 16 16">
-                    <path
-                        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5" />
-                    <path
-                        d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z" />
-                </svg>
-                Upload ISO
-            </button>
         </div>
         <div id="newHostForm"
             class="mt-4 p-4 border border-background-muted rounded-xl shadow-sm bg-background-secondary transition-transform duration-200 ease-in-out hidden">
@@ -78,20 +67,7 @@
                 </div>
             </form>
         </div>
-        <div id="uploadISOPopup"
-            class="mt-4 p-4 border border-background-muted rounded-lg bg-background-secondary transition-all duration-200 ease-in-out hidden">
-            <form id="uploadISOForm">
-                <label for="iso-input" class="font-bold text-xl">Choose File:</label>
-                <input name="iso-input" type="file" accept=".iso"
-                    class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3 mx-4" required /> <br>
-                <div class="flex items-center gap-3 mt-3">
-                    <button type="submit" id="submitISOBtn"
-                        class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3">Upload</button>
-                    <button type="button" id="cancelISOBtn"
-                        class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
-                </div>
-            </form>
-        </div>
+
     </div>
     <!-- i dont give a care how this looks rn just that it works -->
     {{end}}
