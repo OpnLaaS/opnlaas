@@ -1,12 +1,13 @@
-.env
-*.env
+config.toml
 *.db
+installer.yaml
 
 public/static/dist
 
 tailwind.css
 
 isos
+isos_search_dir
 
 package-lock.json
 node_modules/
