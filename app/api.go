@@ -351,8 +351,10 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	// Save file to temp location
+	// Save file to temp location (remove temp file after function completes)
 	var tempFilePath string = fmt.Sprintf("%s/%s", os.TempDir(), filepath.Base(fileHeader.Filename))
+	defer os.Remove(tempFilePath)
+
 	if err = c.SaveFile(fileHeader, tempFilePath); err != nil {
 		return
 	}

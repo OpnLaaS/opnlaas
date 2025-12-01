@@ -112,9 +112,7 @@
                 <div class="flex items-start justify-between px-6 py-4 gap-4">
                     <div class="min-w-0">
                         <div class="truncate font-semibold text-base" data-field="name"></div>
-                        <div class="text-xs text-font-secondary mt-0.5">
-                            <span data-field="form_factor"></span>
-                        </div>
+                        <div class="text-sm text-font-secondary mt-0.5" data-field="form_factor"></div>
                     </div>
                     <div class="flex items-center space-x-3 ">
                         <div class="power-stack mb-6">
@@ -293,21 +291,17 @@
             <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm flex items-start justify-between px-6 py-4 gap-4 h-32">
                 <div class="min-w-0 mr-auto">
                     <div class="truncate font-semibold text-base" data-field="name"></div>
-                    <div class="text-xs text-font-secondary mt-0.5">
-                        <span data-field="file-path"><strong>File Path:</strong></span>
-                    </div>
-                    <div class="text-xs text-font-secondary mt-0.5">
-                        <span data-field="size">Size: </span>
-                    </div>
+                    <div class="text-sm text-font-secondary mt-0.5" data-field="file-path"><em>Path:</em></div>
+                    <div class="text-sm text-font-secondary mt-0.5" data-field="file-size"><em>Size:</em></div>
                 </div>
 
                 <!-- Trashcan Button -->
                 <div class="flex h-full items-center">
                     <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer" onclick="removeISO(this)" aria-label="Remove ISO file">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 transition-transform duration-300">
-                            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-                            <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
-                            <g id="SVGRepo_iconCarrier"> 
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 transition-transform duration-300">
+                            <g stroke-width="0"></g>
+                            <g stroke-linecap="round" stroke-linejoin="round"></g>
+                            <g> 
                                 <path d="M4 6H20L18.4199 20.2209C18.3074 21.2337 17.4512 22 16.4321 22H7.56786C6.54876 22 5.69264 21.2337 5.5801 20.2209L4 6Z" stroke-linecap="round" stroke-linejoin="round"></path> 
                                 <path d="M7.34491 3.14716C7.67506 2.44685 8.37973 2 9.15396 2H14.846C15.6203 2 16.3249 2.44685 16.6551 3.14716L18 6H6L7.34491 3.14716Z" stroke-linecap="round" stroke-linejoin="round"></path> 
                                 <path d="M2 6H22" stroke-linecap="round" stroke-linejoin="round"></path> 

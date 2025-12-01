@@ -441,18 +441,16 @@ async function uploadISO(e) {
         return;
     }
 
-    console.log(input);
-    console.log(file);
-
     fd.append("iso_image", file, file.name);
     const response = await API.postIsoImage(fd);
-    console.log(response)
-    if (response.status_code === 200) {
-        resetISOForm();
-        closeForm("iso");
-    } else {
+
+    if (response.status_code !== 200) {
         alert(response?.body?.message || "Failed to upload ISO.");
     }
+
+    resetISOForm();
+    closeForm("iso");
+    window.location.reload();
 }
 
 /**
@@ -655,8 +653,8 @@ async function renderISOs() {
 
             // Fill in template with ISO date (name, version, etc.)
             frag.querySelector('[data-field="name"]').textContent = iso.name;
-            frag.querySelector('[data-field="file-path"]').textContent += iso.full_iso_path;
-            frag.querySelector('[data-field="size"]').textContent += iso.size;
+            frag.querySelector('[data-field="file-path"]').innerHTML += ` ${iso.full_iso_path}`;
+            frag.querySelector('[data-field="file-size"]').innerHTML += ` ${(iso.size / (1024 ** 3)).toFixed(2)} GB`;
 
             isoList.appendChild(frag);
         });
