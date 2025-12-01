@@ -115,10 +115,10 @@ EOL
     # Reload systemd, enable and start the service
     sudo systemctl daemon-reload
 
-    # The first run of the opnlaas binary makes the .env file if it doesn't exist. So we check if .env exists, if not we run the binary once to create it.
-    if [ ! -f "${install_dir}/.env" ]; then
+    # The first run of the opnlaas binary makes the config.toml file if it doesn't exist. So we check if config.toml exists, if not we run the binary once to create it.
+    if [ ! -f "${install_dir}/config.toml" ]; then
         echo "Creating initial .env file..."
-        # This will error out, it shouldn't crash the script though. We just want to create the .env file. Make sure not to let it output to the user.
+        # This will error out, it shouldn't crash the script though. We just want to create the config.toml file. Make sure not to let it output to the user.
         sudo su - "$laas_user" -s /bin/bash -c "cd ${install_dir} && ./opnlaas" &> /dev/null || true
     fi
 
@@ -127,9 +127,9 @@ EOL
     # sudo nano "${install_dir}/.env"
 
     # Ask to configure the .env file (y/n)
-    read -rp "Would you like to configure the .env file now? (y/n) (If this is an initial setup, this is highly recommended!): " configure_env
+    read -rp "Would you like to configure the config.toml file now? (y/n) (If this is an initial setup, this is highly recommended!): " configure_env
     if [[ "$configure_env" =~ ^[Yy]$ ]]; then
-        sudo nano "${install_dir}/.env"
+        sudo nano "${install_dir}/config.toml"
     fi
 
     sudo systemctl enable --now opnlaas.service
