@@ -3,11 +3,11 @@
     <div id="newHost" class="mb-4">
         <div class="flex flex-wrap items-center gap-3">
             <button id="addHostBtn"
-                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform">
+                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform hover:cursor-pointer">
                 + Add New Host
             </button>
             <button id="uploadISOBtn"
-                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform ">
+                class="bg-background-secondary hover:bg-background-muted border shadow-sm border-background-muted text-font-secondary py-2 px-4 rounded-lg font-medium transition-transform hover:cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline"
                     viewBox="0 0 16 16">
                     <path
@@ -39,7 +39,7 @@
                     <div class="relative mt-">
                         <input type="hidden" id="managementSelect" name="managementType" required>
 
-                        <button type="button" id="mgmtMenuBtn" onclick="toggleMgmtMenu(this)"
+                        <button type="button" id="mgmtTypeBtn" onclick="toggleMgmtTypeDropdown(this)"
                             class="focus-ring flex w-full items-center justify-between border border-background-muted rounded-lg shadow-sm py-2 px-3 bg-background-muted text-font-primary ">
                             <span id="mgmtSelectedLabel" class="text-gray-400">Select Management Type</span>
 
@@ -102,8 +102,7 @@
     <!-- Host Display Section -->
     <section class="mb-4">
         <h2>Hosts</h2>
-
-        <div id="empty-host" class="hidden mt-2">No hosts yet.</div>
+        <div id="host-empty" class="hidden mt-2">No hosts yet.</div>
 
         <div id="host-list" class="w-full flex flex-col space-y-4"></div>
 
@@ -118,13 +117,14 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-3 ">
-                        <div class="power-stack mb-5 text-">
+                        <div class="power-stack mb-6">
                             <span class="power-pill" data-role="power-badge">
                                 <span class="power-dot"></span>
                                 <span data-field="power"></span>
                                 <span class="power-updated-label md:inline" data-field="power-updated-inline">(last known)</span>
                             </span>
                         </div>
+
                         <!-- Three dots + dropdown -->
                         <div class="relative">
                             {{if .IsAdmin}}
@@ -170,7 +170,7 @@
                             {{end}}
                         </div>
                         <button class="text-font-primary mb-2 hover:text-font-secondary hover:cursor-pointer"
-                            onclick="toggleItem(this)" aria-label="Toggle details">
+                            onclick="toggleHostExpansionCard(this)" aria-label="Toggle details">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                 stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -282,10 +282,43 @@
     </section>
 
     <!-- ISO Display Section -->
+    {{if .IsAdmin}}
     <section>
         <h2>ISO Files</h2>
-        <div id="empty-iso" class="hidden mt-2">No ISOs yet.</div>
+        <div id="iso-empty" class="hidden mt-2">No ISO files yet.</div>
+
+        <div id="iso-list" class="w-full flex flex-col space-y-4"></div>
+
+        <template id="iso-item-template">
+            <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm flex items-start justify-between px-6 py-4 gap-4 h-32">
+                <div class="min-w-0 mr-auto">
+                    <div class="truncate font-semibold text-base" data-field="name"></div>
+                    <div class="text-xs text-font-secondary mt-0.5">
+                        <span data-field="file-path"><strong>File Path:</strong></span>
+                    </div>
+                    <div class="text-xs text-font-secondary mt-0.5">
+                        <span data-field="size">Size: </span>
+                    </div>
+                </div>
+
+                <!-- Trashcan Button -->
+                <div class="flex h-full items-center">
+                    <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer" onclick="removeISO(this)" aria-label="Remove ISO file">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 transition-transform duration-300">
+                            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                            <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+                            <g id="SVGRepo_iconCarrier"> 
+                                <path d="M4 6H20L18.4199 20.2209C18.3074 21.2337 17.4512 22 16.4321 22H7.56786C6.54876 22 5.69264 21.2337 5.5801 20.2209L4 6Z" stroke-linecap="round" stroke-linejoin="round"></path> 
+                                <path d="M7.34491 3.14716C7.67506 2.44685 8.37973 2 9.15396 2H14.846C15.6203 2 16.3249 2.44685 16.6551 3.14716L18 6H6L7.34491 3.14716Z" stroke-linecap="round" stroke-linejoin="round"></path> 
+                                <path d="M2 6H22" stroke-linecap="round" stroke-linejoin="round"></path> 
+                            </g>
+                        </svg>
+                    </button>
+                </div>
+            </section>
+        </template>
     </section>
+    {{end}}
 </div>
 
 <script src="/static/dist/scripts/hosts.js" type="module" defer></script>

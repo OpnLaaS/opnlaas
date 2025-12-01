@@ -370,6 +370,15 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 	return c.JSON(isoFS)
 }
 
+func apiISOImagesDelete(c *fiber.Ctx) (err error) {
+	var (
+		isoName string = c.Params("iso_name")
+	)
+
+	err = db.StoredISOImages.Delete(isoName)
+	return
+}
+
 func apiISOImagesList(c *fiber.Ctx) (err error) {
 	var isoList []*db.StoredISOImage
 

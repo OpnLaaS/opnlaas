@@ -2,22 +2,20 @@
  * Client-side JS for /hosts page 
  */
 
-import { reverseObject } from "./lib/util.js";
+import { dateTimeFormat, validateIP, reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
 
-// MM/DD/YYYY 24HR:MM
-const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-});
+/**
+ * Variable declaration for DOM elements
+ */
+const hostList = document.getElementById("host-list");
+const hostTemplate = document.getElementById("host-item-template");
+const hostEmpty = document.getElementById("host-empty");
 
-const list = document.getElementById("host-list");
-const template = document.getElementById("host-item-template");
-const emptyState = document.getElementById("empty-host");
+const isoList = document.getElementById("iso-list");
+const isoTemplate = document.getElementById("iso-item-template");
+const isoEmpty = document.getElementById("iso-empty");
+
 const forms = {
     host: document.getElementById("newHostForm"),
     iso: document.getElementById("uploadISOPopup"),
@@ -36,7 +34,10 @@ const cancelButtons = {
 const hostFormElement = document.getElementById("hostForm");
 const isoForm = document.getElementById("uploadISOForm");
 
-function toggleItem(button) {
+/**
+ * Logic for host expansion cards and host power dropdown
+ */
+function toggleHostExpansionCard(button) {
     const section = button.closest("section");
     const collapsible = section.querySelector(".transition-all:not(.power-menu)");
     const arrow = button.querySelector("svg");
@@ -74,66 +75,30 @@ function closeAllMenus() {
     });
 }
 
+window.toggleHostExpansionCard = toggleHostExpansionCard;
+window.togglePowerMenu = togglePowerMenu;
+window.closeAllMenus = closeAllMenus;
+
+// Handle automatically closing dropdowns when clicking other parts of screen
+// This currently covers closing the host power dropdown and new host management type dropdown though more could be added
 document.addEventListener("click", function (event) {
     const isPowerMenu = event.target.closest(".power-menu") || event.target.closest(".power-button");
-    const isMgmtMenu = event.target.closest("#mgmtTypeMenu") || event.target.closest("#mgmtMenuBtn");
+    const isMgmtMenu = event.target.closest("#mgmtTypeMenu") || event.target.closest("#mgmtTypeBtn");
 
     if (isPowerMenu || isMgmtMenu) {
         return;
     }
 
+    // call functions to close applicable dropdowns
     closeAllMenus();
-    if (typeof closeMgmtMenu === "function") closeMgmtMenu();
+    if (typeof closeMgmtTypeDropdown === "function") closeMgmtTypeDropdown();
 });
 
-// Pretty-print capacity in GB/TB
-function prettyCapacityGB(gb) {
-    if (gb == null || isNaN(gb)) return "Unknown";
-    const n = Number(gb);
-    if (n >= 1024) return (n / 1024).toFixed(1).replace(/\.0$/, "") + " TB";
-    return n + " GB";
-}
 
-function totalCapacityGB(devs) {
-    return (devs || []).reduce((sum, d) => sum + (Number(d.capacity_gb) || 0), 0);
-}
-
-function renderStorageLine(dev) {
-    if (!dev || typeof dev !== "object") return "Unknown device";
-    const parts = [];
-    if ("capacity_gb" in dev) parts.push(prettyCapacityGB(dev.capacity_gb));
-    if (dev.media_type) parts.push(String(dev.media_type).toUpperCase());
-    if (dev.interface) parts.push(dev.interface);
-    if (dev.model) parts.push(dev.model);
-    return parts.filter(Boolean).join(" • ");
-}
-
-document.addEventListener("DOMContentLoaded", async () => {
-    await renderHosts();
-});
-
-// expose to template
-
-function resolveEnum(maybeMap, value) {
-    if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
-    return (value ?? "—");
-}
-
-function cleanSku(manufacturer, sku) {
-    if (!sku) return sku;
-    const man = (manufacturer || "").toLowerCase().trim();
-    const s = String(sku).trim();
-    if (man && s.toLowerCase().startsWith(man)) {
-        return s.slice(man.length).trim().replace(/^[-,\s]+/, "");
-    }
-    return s;
-}
-
-
-window.toggleItem = toggleItem;
-window.togglePowerMenu = togglePowerMenu;
-window.closeAllMenus = closeAllMenus;
-
+/**
+ * This function updates a hosts power badge
+ * Its used when first rendering hosts and when updating power state
+ */
 function applyPowerBadge(badgeEl, stateLabel) {
     if (!badgeEl) return;
     const normalized = String(stateLabel || "").toLowerCase();
@@ -147,181 +112,10 @@ function applyPowerBadge(badgeEl, stateLabel) {
     }
 }
 
-async function renderHosts() {
-    try {
-        const hostData = await API.getHostsAll();
-        const [vendorsRes, formFactorsRes, mgmtTypesRes, powerStatesRes] = await Promise.all([
-            API.getVendors(),
-            API.getFormFactors(),
-            API.getManagementTypes(),
-            API.getPowerStates(),
-        ]);
-
-        const vendorNames = reverseObject(vendorsRes.body || {});
-        const formFactors = reverseObject(formFactorsRes.body || {});
-        const mgmtTypes = reverseObject(mgmtTypesRes.body || {});
-        const powerStates = reverseObject(powerStatesRes.body || {});
-
-        list.innerHTML = "";
-        const hosts = Array.isArray(hostData.body) ? hostData.body : [];
-
-        if (!hosts.length) {
-            emptyState?.classList.remove("hidden");
-            return;
-        }
-
-        emptyState?.classList.add("hidden");
-        hosts.forEach((host) => {
-            const frag = template.content.cloneNode(true);
-
-            // header
-            frag.querySelector('[data-field="name"]').textContent = host.model;
-            frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
-            const powerLabel = resolveEnum(powerStates, host.last_known_power_state);
-            const powerNode = frag.querySelector('[data-field="power"]');
-            powerNode.textContent = powerLabel;
-            powerNode.classList.add("power-state");
-            applyPowerBadge(powerNode.closest("[data-role='power-badge']"), powerLabel);
-            const powerTime = host.last_known_power_state_time ? new Date(host.last_known_power_state_time) : null;
-            if (powerTime) {
-                const formattedTime = dateTimeFormat.format(powerTime);
-                ["power-updated", "power-updated-inline"].forEach((selector) => {
-                    const node = frag.querySelector(`[data-field="${selector}"]`);
-                    if (node) node.textContent = `As of ${formattedTime}`;
-                });
-            }
-
-            // chips (system facts)
-            frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
-            frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
-            frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
-
-            // memory
-            const mem = host.specs?.memory || {};
-            frag.querySelector('[data-field="num_dimms"]').textContent = mem.num_dimms ?? "—";
-            frag.querySelector('[data-field="size_gb"]').textContent = mem.size_gb ?? "—";
-            frag.querySelector('[data-field="speed_mhz"]').textContent = mem.speed_mhz ?? "—";
-
-            // processor
-            const proc = host.specs?.processor || {};
-            frag.querySelector('[data-field="manufacturer"]').textContent = proc.manufacturer ?? "—";
-            frag.querySelector('[data-field="sku"]').textContent = cleanSku(proc.manufacturer ?? "", proc.sku ?? "—");
-            frag.querySelector('[data-field="cores"]').textContent = proc.cores ?? "—";
-            frag.querySelector('[data-field="count"]').textContent = proc.count ?? "—";
-            frag.querySelector('[data-field="threads"]').textContent = proc.threads ?? "—";
-            frag.querySelector('[data-field="processor_speed_mhz"]').textContent = `${proc.base_speed_mhz ?? "—"} / ${proc.max_speed_mhz ?? "—"}`;
-
-            // storage
-            const storageUl = frag.querySelector('[data-field="storage_list"]');
-            storageUl.innerHTML = "";
-            const storage = Array.isArray(host.specs?.storage) ? host.specs.storage : [];
-            if (storage.length) {
-                storage.forEach((dev) => {
-                    const li = document.createElement("li");
-                    li.textContent = renderStorageLine(dev);
-                    storageUl.appendChild(li);
-                });
-            } else {
-                const li = document.createElement("li");
-                li.textContent = "No storage info";
-                storageUl.appendChild(li);
-            }
-            const totalGB = totalCapacityGB(storage);
-            frag.querySelector('[data-field="storage_total"]').textContent = prettyCapacityGB(totalGB);
-            frag.querySelector('[data-field="storage_summary"]').textContent = `${storage.length} device${storage.length === 1 ? "" : "s"}`;
-
-            list.appendChild(frag);
-        });
-    } catch (err) {
-        console.error(err);
-    }
-}
-
-let hostFormError = null;
-
-if (hostFormElement) {
-    hostFormError = document.createElement("p");
-    hostFormError.className = "text-red-600 text-sm mb-1";
-    hostFormError.style.display = "none";
-    hostFormElement.prepend(hostFormError);
-}
-
-function setHostFormError(message) {
-    if (!hostFormError) return;
-    if (message) {
-        hostFormError.textContent = message;
-        hostFormError.style.display = "block";
-    } else {
-        hostFormError.textContent = "";
-        hostFormError.style.display = "none";
-    }
-}
-
-function setFormVisibility(formKey, shouldShow) {
-    const form = forms[formKey];
-    if (!form) return;
-
-    form.classList.toggle("hidden", !shouldShow);
-}
-
-function resetHostForm() {
-    if (hostFormElement) {
-        hostFormElement.reset();
-
-        const labelSpan = document.getElementById("mgmtSelectedLabel");
-        const hiddenInput = document.getElementById("managementSelect");
-        if (labelSpan) {
-            labelSpan.textContent = "Select Management Type";
-            labelSpan.classList.add("text-gray-400");
-            labelSpan.classList.remove("text-font-primary");
-        }
-        if (hiddenInput) hiddenInput.value = "";
-    }
-    const spinner = document.getElementById("host-spinner");
-    spinner?.classList.add("hidden");
-    setHostFormError("");
-
-    if (typeof closeMgmtMenu === "function") closeMgmtMenu();
-}
-
-function resetISOForm() {
-    isoForm?.reset();
-}
-
-function closeForm(formKey) {
-    setFormVisibility(formKey, false);
-    if (formKey === "host") {
-        resetHostForm();
-    }
-    if (formKey === "iso") {
-        resetISOForm();
-    }
-}
-
-function toggleAdminForm(formKey) {
-    const targetForm = forms[formKey];
-    const shouldOpen = targetForm ? targetForm.classList.contains("hidden") : false;
-
-    Object.keys(forms).forEach((key) => {
-        setFormVisibility(key, shouldOpen && key === formKey);
-        if (!(shouldOpen && key === formKey)) {
-            closeForm(key);
-        }
-    });
-}
-
-Object.entries(formTriggers).forEach(([key, trigger]) => {
-    if (trigger) {
-        trigger.addEventListener("click", () => toggleAdminForm(key));
-    }
-});
-
-Object.entries(cancelButtons).forEach(([key, btn]) => {
-    if (btn) {
-        btn.addEventListener("click", () => closeForm(key));
-    }
-});
-
+/**
+ * Handle host power options and host unenrollment
+ * This is what actually restarts/removes host using the API
+ */
 function getDeviceIP(element) {
     if (!element) return null;
     const section = element.closest("section");
@@ -340,18 +134,6 @@ function resetPowerMenu(menu) {
 }
 
 function setPowerButtonLoading(button, isLoading, txt) {
-    // const { label, spinner } = ensurePowerButtonStructure(button);
-
-    // if (isLoading) {
-    //     spinner.classList.remove("invisible");
-    //     spinner.classList.add("is-active");
-    //     button.setAttribute("aria-busy", "true");
-    // } else {
-    //     spinner.classList.add("invisible");
-    //     spinner.classList.remove("is-active");
-    //     button.removeAttribute("aria-busy");
-    // }
-
     if (isLoading) {
         button.dataset.originalLabel = button.textContent;
         button.textContent = txt || "Processing...";
@@ -433,8 +215,6 @@ async function powerControl(button) {
     }
 }
 
-window.powerControl = powerControl;
-
 async function unenrollHost(button) {
     const ipNode = getDeviceIP(button);
     if (!ipNode) return;
@@ -452,8 +232,8 @@ async function unenrollHost(button) {
         if (response.status_code === 200) {
             const section = button.closest("section");
             section?.remove();
-            if (!list.children.length) {
-                emptyState?.classList.remove("hidden");
+            if (!hostList.children.length) {
+                hostEmpty?.classList.remove("hidden");
             }
         } else {
             alert(response?.body?.message || "Failed to remove host.");
@@ -469,8 +249,153 @@ async function unenrollHost(button) {
         closeAllMenus();
     }
 }
+
+window.powerControl = powerControl;
 window.unenrollHost = unenrollHost;
 
+/**
+ * Handle form behavior for adding hosts and isos
+ */
+let hostFormError = null;
+
+if (hostFormElement) {
+    hostFormError = document.createElement("p");
+    hostFormError.className = "text-red-600 text-sm mb-1";
+    hostFormError.style.display = "none";
+    hostFormElement.prepend(hostFormError);
+}
+
+function setHostFormError(message) {
+    if (!hostFormError) return;
+    if (message) {
+        hostFormError.textContent = message;
+        hostFormError.style.display = "block";
+    } else {
+        hostFormError.textContent = "";
+        hostFormError.style.display = "none";
+    }
+}
+
+function setFormVisibility(formKey, shouldShow) {
+    const form = forms[formKey];
+    if (!form) return;
+
+    form.classList.toggle("hidden", !shouldShow);
+}
+
+function resetHostForm() {
+    if (hostFormElement) {
+        hostFormElement.reset();
+
+        const labelSpan = document.getElementById("mgmtSelectedLabel");
+        const hiddenInput = document.getElementById("managementSelect");
+        if (labelSpan) {
+            labelSpan.textContent = "Select Management Type";
+            labelSpan.classList.add("text-gray-400");
+            labelSpan.classList.remove("text-font-primary");
+        }
+        if (hiddenInput) hiddenInput.value = "";
+    }
+
+    const spinner = document.getElementById("host-spinner");
+    spinner?.classList.add("hidden");
+    setHostFormError("");
+
+    if (typeof closeMgmtTypeDropdown === "function") closeMgmtTypeDropdown();
+}
+
+function resetISOForm() {
+    isoForm?.reset();
+}
+
+function closeForm(formKey) {
+    setFormVisibility(formKey, false);
+    if (formKey === "host") {
+        resetHostForm();
+    }
+    if (formKey === "iso") {
+        resetISOForm();
+    }
+}
+
+function toggleAdminForm(formKey) {
+    const targetForm = forms[formKey];
+    const shouldOpen = targetForm ? targetForm.classList.contains("hidden") : false;
+
+    Object.keys(forms).forEach((key) => {
+        setFormVisibility(key, shouldOpen && key === formKey);
+        if (!(shouldOpen && key === formKey)) {
+            closeForm(key);
+        }
+    });
+}
+
+Object.entries(formTriggers).forEach(([key, trigger]) => {
+    if (trigger) {
+        trigger.addEventListener("click", () => toggleAdminForm(key));
+    }
+});
+
+Object.entries(cancelButtons).forEach(([key, btn]) => {
+    if (btn) {
+        btn.addEventListener("click", () => closeForm(key));
+    }
+});
+
+
+/**
+ * Handle logic related to the "management type" dropdown in new host menu
+ */
+function toggleMgmtTypeDropdown(btn) {
+    const menu = document.getElementById("mgmtTypeMenu");
+    const arrow = btn.querySelector("svg");
+
+    closeAllMenus();
+
+    const isClosed = menu.classList.contains("max-h-0");
+    if (isClosed) {
+        menu.classList.remove("max-h-0", "opacity-0");
+        menu.classList.add("max-h-40", "opacity-100"); 
+        arrow.style.transform = "rotate(180deg)";
+    } else {
+        closeMgmtTypeDropdown();
+    }
+}
+
+function closeMgmtTypeDropdown() {
+    const menu = document.getElementById("mgmtTypeMenu");
+    const btn = document.getElementById("mgmtTypeBtn");
+
+    if (menu && btn) {
+        menu.classList.add("max-h-0", "opacity-0");
+        menu.classList.remove("max-h-40", "opacity-100");
+
+        const arrow = btn.querySelector("svg");
+        if (arrow) arrow.style.transform = "";
+    }
+}
+
+function selectMgmtType(value) {
+    const hiddenInput = document.getElementById("managementSelect");
+    const labelSpan = document.getElementById("mgmtSelectedLabel");
+
+    if (hiddenInput && labelSpan) {
+        hiddenInput.value = value;
+        labelSpan.textContent = value;
+
+        labelSpan.classList.remove("text-gray-400");
+        labelSpan.classList.add("text-font-primary");
+    }
+
+    closeMgmtTypeDropdown();
+}
+
+window.toggleMgmtTypeDropdown = toggleMgmtTypeDropdown;
+window.selectMgmtType = selectMgmtType;
+
+/**
+ * Handle submit behavior for Host/ISO forms
+ */
 if (hostFormElement) {
     hostFormElement.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -501,10 +426,6 @@ if (hostFormElement) {
     });
 }
 
-function validateIP(address) {
-    return /^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$/.test(address);
-}
-
 if (isoForm) {
     isoForm.addEventListener("submit", uploadISO);
 }
@@ -520,8 +441,12 @@ async function uploadISO(e) {
         return;
     }
 
+    console.log(input);
+    console.log(file);
+
     fd.append("iso_image", file, file.name);
     const response = await API.postIsoImage(fd);
+    console.log(response)
     if (response.status_code === 200) {
         resetISOForm();
         closeForm("iso");
@@ -530,50 +455,212 @@ async function uploadISO(e) {
     }
 }
 
+/**
+ * This function handles removing an ISO using the API
+ */
+async function removeISO(button) {
+    const section = button.closest("section");
 
-function toggleMgmtMenu(btn) {
-    const menu = document.getElementById("mgmtTypeMenu");
-    const arrow = btn.querySelector("svg");
+    const isoFile = section.querySelector('[data-field="name"]');
+    if (!isoFile) {
+        return;
+    }
 
-    closeAllMenus();
+    const isoFileName = isoFile.textContent;
+    const confirmRemoval = window.confirm(`Remove ISO file ${isoFileName} from inventory?`);
+    if (!confirmRemoval) { 
+        return;
+    }
 
-    const isClosed = menu.classList.contains("max-h-0");
-    if (isClosed) {
-        menu.classList.remove("max-h-0", "opacity-0");
-        menu.classList.add("max-h-40", "opacity-100"); 
-        arrow.style.transform = "rotate(180deg)";
-    } else {
-        closeMgmtMenu();
+    // attempt ISO file removal
+    try {
+        const response = await API.deleteIsoByName(isoFileName);
+
+        if (response.status_code === 200) {
+            section?.remove();
+
+            if (!isoList.children.length) {
+                isoEmpty?.classList.remove("hidden");
+            }
+        } else {
+            alert(response?.body?.message || "Failed to remove ISO file.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Failed to remove ISO file.");
+    } 
+}
+
+window.removeISO = removeISO;
+
+/**
+ * Handle rendering content on page load
+ */
+document.addEventListener("DOMContentLoaded", async () => {
+    await renderHosts();
+    await renderISOs();
+});
+
+// Helper functions for renderHosts
+// TODO: Determine if these are necessary (many are only every used once)
+function resolveEnum(maybeMap, value) {
+    if (maybeMap && typeof maybeMap === "object" && (value in maybeMap)) return maybeMap[value];
+    return (value ?? "—");
+}
+
+function cleanSku(manufacturer, sku) {
+    if (!sku) return sku;
+    const man = (manufacturer || "").toLowerCase().trim();
+    const s = String(sku).trim();
+    if (man && s.toLowerCase().startsWith(man)) {
+        return s.slice(man.length).trim().replace(/^[-,\s]+/, "");
+    }
+    return s;
+}
+
+function prettyCapacityGB(gb) {
+    if (gb == null || isNaN(gb)) return "Unknown";
+    const n = Number(gb);
+    if (n >= 1024) return (n / 1024).toFixed(1).replace(/\.0$/, "") + " TB";
+    return n + " GB";
+}
+
+function totalCapacityGB(devs) {
+    return (devs || []).reduce((sum, d) => sum + (Number(d.capacity_gb) || 0), 0);
+}
+
+function renderStorageLine(dev) {
+    if (!dev || typeof dev !== "object") return "Unknown device";
+    const parts = [];
+    if ("capacity_gb" in dev) parts.push(prettyCapacityGB(dev.capacity_gb));
+    if (dev.media_type) parts.push(String(dev.media_type).toUpperCase());
+    if (dev.interface) parts.push(dev.interface);
+    if (dev.model) parts.push(dev.model);
+    return parts.filter(Boolean).join(" • ");
+}
+
+async function renderHosts() {
+    try {
+        const hostData = await API.getHostsAll();
+        const [vendorsRes, formFactorsRes, mgmtTypesRes, powerStatesRes] = await Promise.all([
+            API.getVendors(),
+            API.getFormFactors(),
+            API.getManagementTypes(),
+            API.getPowerStates(),
+        ]);
+
+        const vendorNames = reverseObject(vendorsRes.body || {});
+        const formFactors = reverseObject(formFactorsRes.body || {});
+        const mgmtTypes = reverseObject(mgmtTypesRes.body || {});
+        const powerStates = reverseObject(powerStatesRes.body || {});
+
+        hostList.innerHTML = "";
+        const hosts = Array.isArray(hostData.body) ? hostData.body : [];
+
+        if (!hosts.length) {
+            hostEmpty?.classList.remove("hidden");
+            return;
+        }
+
+        hostEmpty?.classList.add("hidden");
+        hosts.forEach((host) => {
+            const frag = hostTemplate.content.cloneNode(true);
+
+            // header
+            frag.querySelector('[data-field="name"]').textContent = host.model;
+            frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
+            const powerLabel = resolveEnum(powerStates, host.last_known_power_state);
+            const powerNode = frag.querySelector('[data-field="power"]');
+            powerNode.textContent = powerLabel;
+            powerNode.classList.add("power-state");
+            applyPowerBadge(powerNode.closest("[data-role='power-badge']"), powerLabel);
+            const powerTime = host.last_known_power_state_time ? new Date(host.last_known_power_state_time) : null;
+            if (powerTime) {
+                const formattedTime = dateTimeFormat.format(powerTime);
+                ["power-updated", "power-updated-inline"].forEach((selector) => {
+                    const node = frag.querySelector(`[data-field="${selector}"]`);
+                    if (node) node.textContent = `As of ${formattedTime}`;
+                });
+            }
+
+            // chips (system facts)
+            frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
+            frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
+            frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
+
+            // memory
+            const mem = host.specs?.memory || {};
+            frag.querySelector('[data-field="num_dimms"]').textContent = mem.num_dimms ?? "—";
+            frag.querySelector('[data-field="size_gb"]').textContent = mem.size_gb ?? "—";
+            frag.querySelector('[data-field="speed_mhz"]').textContent = mem.speed_mhz ?? "—";
+
+            // processor
+            const proc = host.specs?.processor || {};
+            frag.querySelector('[data-field="manufacturer"]').textContent = proc.manufacturer ?? "—";
+            frag.querySelector('[data-field="sku"]').textContent = cleanSku(proc.manufacturer ?? "", proc.sku ?? "—");
+            frag.querySelector('[data-field="cores"]').textContent = proc.cores ?? "—";
+            frag.querySelector('[data-field="count"]').textContent = proc.count ?? "—";
+            frag.querySelector('[data-field="threads"]').textContent = proc.threads ?? "—";
+            frag.querySelector('[data-field="processor_speed_mhz"]').textContent = `${proc.base_speed_mhz ?? "—"} / ${proc.max_speed_mhz ?? "—"}`;
+
+            // storage
+            const storageUl = frag.querySelector('[data-field="storage_list"]');
+            storageUl.innerHTML = "";
+            const storage = Array.isArray(host.specs?.storage) ? host.specs.storage : [];
+            if (storage.length) {
+                storage.forEach((dev) => {
+                    const li = document.createElement("li");
+                    li.textContent = renderStorageLine(dev);
+                    storageUl.appendChild(li);
+                });
+            } else {
+                const li = document.createElement("li");
+                li.textContent = "No storage info";
+                storageUl.appendChild(li);
+            }
+            const totalGB = totalCapacityGB(storage);
+            frag.querySelector('[data-field="storage_total"]').textContent = prettyCapacityGB(totalGB);
+            frag.querySelector('[data-field="storage_summary"]').textContent = `${storage.length} device${storage.length === 1 ? "" : "s"}`;
+
+            hostList.appendChild(frag);
+        });
+    } catch (err) {
+        console.error(err);
     }
 }
 
-function closeMgmtMenu() {
-    const menu = document.getElementById("mgmtTypeMenu");
-    const btn = document.getElementById("mgmtMenuBtn");
+async function renderISOs() {
+    try {
+        // Skip rendering ISOs if list doesn't exist
+        // NOTE: ISOs can only be displayed to admins so for regular users this is skipped
+        if (!isoList) {
+            return;
+        }
 
-    if (menu && btn) {
-        menu.classList.add("max-h-0", "opacity-0");
-        menu.classList.remove("max-h-40", "opacity-100");
+        // Get ISOs from API and convert to array
+        const isoData = await API.getIsoImages();
+        const isos = Array.isArray(isoData.body) ? isoData.body : [];
 
-        const arrow = btn.querySelector("svg");
-        if (arrow) arrow.style.transform = "";
+        isoList.innerHTML = "";
+
+        if (!isos.length) {
+            isoEmpty?.classList.remove("hidden");
+            return;
+        }
+
+        // Since there are ISOs we want to clone the card tempalte for each and fill in the data
+        isoEmpty?.classList.add("hidden");
+        isos.forEach((iso) => {
+            const frag = isoTemplate.content.cloneNode(true);
+
+            // Fill in template with ISO date (name, version, etc.)
+            frag.querySelector('[data-field="name"]').textContent = iso.name;
+            frag.querySelector('[data-field="file-path"]').textContent += iso.full_iso_path;
+            frag.querySelector('[data-field="size"]').textContent += iso.size;
+
+            isoList.appendChild(frag);
+        });
+    } catch (err) {
+        console.error(err);
     }
 }
-
-function selectMgmtType(value) {
-    const hiddenInput = document.getElementById("managementSelect");
-    const labelSpan = document.getElementById("mgmtSelectedLabel");
-
-    if (hiddenInput && labelSpan) {
-        hiddenInput.value = value;
-        labelSpan.textContent = value;
-
-        labelSpan.classList.remove("text-gray-400");
-        labelSpan.classList.add("text-font-primary");
-    }
-
-    closeMgmtMenu();
-}
-
-window.toggleMgmtMenu = toggleMgmtMenu;
-window.selectMgmtType = selectMgmtType;

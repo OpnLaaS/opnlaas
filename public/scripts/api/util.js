@@ -32,6 +32,7 @@ export const known_uri = {
     hosts_hostByManagementIP: (management_ip) => `${known_uri.hosts_hosts()}/${management_ip}`,
     hosts_hostPowerAction: (management_ip, power_action) => `${known_uri.hosts_hostByManagementIP(management_ip)}/power/${power_action}`,
     iso_images: () => "/api/iso-images",
+    iso_imagesByName: (name) => `${known_uri.iso_images()}/${name}`,
 };
 
 export async function apiGet(URI, params) {

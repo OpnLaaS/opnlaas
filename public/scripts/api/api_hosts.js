@@ -9,7 +9,6 @@ export async function getHostsByManagementIp(management_ip) {
 }
 
 export async function postHostCreate(management_ip, management_type) {
-    
     return await apiPostJSON(
         known_uri.hosts_hosts(), await JSON.stringify({
             "management_ip" : management_ip,
