@@ -117,16 +117,12 @@ EOL
 
     # The first run of the opnlaas binary makes the config.toml file if it doesn't exist. So we check if config.toml exists, if not we run the binary once to create it.
     if [ ! -f "${install_dir}/config.toml" ]; then
-        echo "Creating initial .env file..."
+        echo "Creating initial config.toml file..."
         # This will error out, it shouldn't crash the script though. We just want to create the config.toml file. Make sure not to let it output to the user.
         sudo su - "$laas_user" -s /bin/bash -c "cd ${install_dir} && ./opnlaas" &> /dev/null || true
     fi
 
-    # echo "Please configure the .env file now. After exiting the editor, the OpnLaaS service will start."
-    # read -rp "Press Enter to continue..."
-    # sudo nano "${install_dir}/.env"
-
-    # Ask to configure the .env file (y/n)
+    # Ask to configure the config.toml file (y/n)
     read -rp "Would you like to configure the config.toml file now? (y/n) (If this is an initial setup, this is highly recommended!): " configure_env
     if [[ "$configure_env" =~ ^[Yy]$ ]]; then
         sudo nano "${install_dir}/config.toml"
