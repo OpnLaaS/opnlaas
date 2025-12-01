@@ -12,7 +12,7 @@ func TestRedfishManagementHosts(t *testing.T) {
 	setup(t)
 	defer cleanup(t)
 
-	if !config.Config.Management.TestingRunManagement {
+	if !config.Config.Management.Testing.Basic.Enabled {
 		t.Skip("Skipping Redfish management host tests as MGMT_TESTING_RUN_MGMT is not set to true.")
 	}
 
@@ -22,7 +22,7 @@ func TestRedfishManagementHosts(t *testing.T) {
 		wg                                                                  sync.WaitGroup
 		totalHosts, totalMemoryGB, totalCores, totalThreads, totalStorageGB int
 	)
-	for _, managementIP := range config.Config.Management.TestingManagementIPs {
+	for _, managementIP := range config.Config.Management.Testing.Basic.IPs {
 		wg.Add(1)
 
 		go func(ip string) {
@@ -78,14 +78,14 @@ func TestRedfishManagementLong(t *testing.T) {
 	setup(t)
 	defer cleanup(t)
 
-	if !config.Config.Management.TestingRunLongManagement {
+	if !config.Config.Management.Testing.Long.Enabled {
 		t.Skip("Skipping long Redfish management host tests as MGMT_TESTING_RUN_LONG_MGMT is not set to true.")
 	}
 
 	var (
 		err  error
 		host *db.Host = &db.Host{
-			ManagementIP:   config.Config.Management.TestingLongManagementIP,
+			ManagementIP:   config.Config.Management.Testing.Long.IP,
 			ManagementType: db.ManagementTypeRedfish,
 		}
 	)

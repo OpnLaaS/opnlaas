@@ -20,15 +20,15 @@ import (
 func setup(t *testing.T) {
 	var err error
 
-	if err = config.InitEnv("../.test.env"); err != nil {
-		t.Fatalf("Failed to load .env: %v", err)
+	if err = config.Init("../config.toml"); err != nil {
+		t.Fatalf("Failed to load config.toml: %v", err)
 	}
 
-	if config.Config.Management.TestingRunManagement {
-		if len(config.Config.Management.TestingManagementIPs) == 0 {
-			t.Fatalf("No management IPs configured in test.env")
-		} else if strings.TrimSpace(config.Config.Management.TestingManagementIPs[0]) == "" {
-			t.Fatalf("First management IP is empty in test.env")
+	if config.Config.Management.Testing.Basic.Enabled {
+		if len(config.Config.Management.Testing.Basic.IPs) == 0 {
+			t.Fatalf("No management IPs configured in config.toml")
+		} else if strings.TrimSpace(config.Config.Management.Testing.Basic.IPs[0]) == "" {
+			t.Fatalf("First management IP is empty in config.toml")
 		}
 	}
 

@@ -1,0 +1,92 @@
+#cloud-config
+autoinstall:
+  version: 1
+{{- if and .Templates.Autoinstall.AdminUsername .Templates.Autoinstall.AdminPasswordHash }}
+  identity:
+    hostname: {{ .Identifiers.Hostname }}
+    username: {{ default .Templates.Autoinstall.AdminUsername "ubuntu" }}
+    password: {{ .Templates.Autoinstall.AdminPasswordHash }}
+{{- else }}
+  identity:
+    hostname: {{ .Identifiers.Hostname }}
+    username: ubuntu
+    password: "$6$qwerty$kF9bfXlzx48SN7dbfq5dKvbPrdqOr0hIwwlqz6h0JPnmVdxmXaVb8cz91pcJn/qdNqxabWWMwBLT/gRghOA8p1"  # ubuntu
+{{- end }}
+  locale: {{ default .Templates.Common.Locale "en_US" }}
+  timezone: {{ default .Templates.Common.Timezone "UTC" }}
+  ssh:
+    install-server: true
+{{- if .Templates.Common.SSHAuthorizedKeys }}
+    authorized-keys:
+{{- range .Templates.Common.SSHAuthorizedKeys }}
+      - {{ . }}
+{{- end }}
+{{- end }}
+  keyboard:
+    layout: {{ default .Templates.Common.KeyboardLayout "us" }}
+    variant: '{{ .Templates.Common.KeyboardVariant }}'
+{{- if .Templates.Common.Packages }}
+  packages:
+{{- range .Templates.Common.Packages }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- if .Templates.Common.Mirror }}
+  apt:
+    preserve_sources_list: false
+    primary:
+      - arches: [default]
+        uri: {{ .Templates.Common.Mirror }}
+{{- end }}
+  storage:
+    layout:
+      name: direct
+  user-data:
+    disable_root: {{ if .Templates.Autoinstall.DisableRoot }}true{{ else }}false{{ end }}
+{{- if .Templates.Autoinstall.PostScript }}
+    runcmd:
+      - |
+          /bin/bash <<'OPN_POST'
+{{ indent 10 .Templates.Autoinstall.PostScript }}
+          OPN_POST
+{{- end }}
+{{- if .Templates.ManagedUser.Username }}
+    users:
+      - name: {{ .Templates.ManagedUser.Username }}
+{{- if .Templates.ManagedUser.AllowSudo }}
+        groups: ['sudo']
+        sudo:
+          - "ALL=(ALL) NOPASSWD:ALL"
+{{- end }}
+        shell: /bin/bash
+{{- if .Templates.ManagedUser.PasswordHash }}
+        passwd: {{ .Templates.ManagedUser.PasswordHash }}
+        lock-passwd: false
+{{- else }}
+        lock-passwd: true
+{{- end }}
+{{- if .Templates.ManagedUser.SSHAuthorizedKeys }}
+        ssh-authorized-keys:
+{{- range .Templates.ManagedUser.SSHAuthorizedKeys }}
+          - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Templates.Autoinstall.EarlyCommands }}
+  early-commands:
+{{- range .Templates.Autoinstall.EarlyCommands }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- if or .Templates.Autoinstall.PreScript .Templates.Autoinstall.LateCommands }}
+  late-commands:
+{{- if .Templates.Autoinstall.PreScript }}
+    - |
+        curtin in-target -- /bin/bash <<'OPN_PRE'
+{{ indent 8 .Templates.Autoinstall.PreScript }}
+OPN_PRE
+{{- end }}
+{{- range .Templates.Autoinstall.LateCommands }}
+    - {{ . }}
+{{- end }}
+{{- end }}
