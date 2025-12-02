@@ -36,7 +36,7 @@ func apiLogin(c *fiber.Ctx) (err error) {
 				return c.SendStatus(fiber.StatusOK)
 			}
 
-			return c.Redirect("/dashboard")
+			return c.Redirect("/")
 		}
 	}
 
@@ -351,8 +351,10 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 		return
 	}
 
-	// Save file to temp location
+	// Save file to temp location (remove temp file after function completes)
 	var tempFilePath string = fmt.Sprintf("%s/%s", os.TempDir(), filepath.Base(fileHeader.Filename))
+	defer os.Remove(tempFilePath)
+
 	if err = c.SaveFile(fileHeader, tempFilePath); err != nil {
 		return
 	}
@@ -368,6 +370,15 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 	}
 
 	return c.JSON(isoFS)
+}
+
+func apiISOImagesDelete(c *fiber.Ctx) (err error) {
+	var (
+		isoName string = c.Params("iso_name")
+	)
+
+	err = db.StoredISOImages.Delete(isoName)
+	return
 }
 
 func apiISOImagesList(c *fiber.Ctx) (err error) {

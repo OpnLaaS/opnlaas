@@ -27,6 +27,7 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/login", showLogin)
 	app.Get("/logout", routesMustBeLoggedIn, showLogout)
 	app.Get("/dashboard", showDashboard)
+	app.Get("/hosts", showHosts)
 
 	// Auth API
 	app.Post("/api/auth/login", apiLogin)
@@ -57,6 +58,7 @@ func CreateApp() (app *fiber.App) {
 	// ISO Images API
 	app.Post("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesCreate)
 	app.Get("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesList)
+	app.Delete("/api/iso-images/:iso_name", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesDelete)
 
 	// Booking API
 	app.Post("/api/bookings", apiMustBeLoggedIn, apiBookingCreate)

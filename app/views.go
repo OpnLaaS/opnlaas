@@ -37,6 +37,7 @@ func showDashboard(c *fiber.Ctx) (err error) {
 	if user != nil {
 		username = user.Username
 		displayName = user.Username
+
 		if user.LDAPConn != nil {
 			if displayName, err = user.LDAPConn.DisplayName(); err != nil {
 				return c.Render("dashboard", bindWithLocals(c, fiber.Map{
@@ -56,5 +57,36 @@ func showDashboard(c *fiber.Ctx) (err error) {
 		"LoggedIn": user != nil,
 		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
 	}), "layout")
+}
 
+func showHosts(c *fiber.Ctx) (err error) {
+	var (
+		user        *auth.AuthUser = auth.IsAuthenticated(c, jwtSigningKey)
+		displayName string         = "Guest"
+		username    string
+	)
+
+	if user != nil {
+		username = user.Username
+		displayName = user.Username
+
+		if user.LDAPConn != nil {
+			if displayName, err = user.LDAPConn.DisplayName(); err != nil {
+				return c.Render("hosts", bindWithLocals(c, fiber.Map{
+					"Title":    "Hosts",
+					"User":     user.Username,
+					"LoggedIn": user != nil,
+					"Error":    err.Error(),
+				}), "layout")
+			}
+		}
+	}
+
+	return c.Render("hosts", bindWithLocals(c, fiber.Map{
+		"Title":    "Hosts",
+		"User":     displayName,
+		"Username": username,
+		"LoggedIn": user != nil,
+		"IsAdmin":  user != nil && user.Permissions() >= auth.AuthPermsAdministrator,
+	}), "layout")
 }
