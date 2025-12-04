@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"fmt"
 
 	"github.com/kdomanski/iso9660"
 	iso9660util "github.com/kdomanski/iso9660/util"
@@ -110,13 +109,13 @@ func createOutputs(extracted *db.StoredISOImage, img *iso9660.Image, sourceImage
 		return
 	}
 
-	if httpArtifacts != "" {
-		stage2Dir := filepath.Join(httpArtifacts, "stage2")
-		if err = copyWholeISO(sourceImage, stage2Dir); err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
+	// if httpArtifacts != "" {
+	// 	stage2Dir := filepath.Join(httpArtifacts, "stage2")
+	// 	if err = copyWholeISO(sourceImage, stage2Dir); err != nil {
+	// 		fmt.Println(err)
+	// 		return
+	// 	}
+	// }
 
 	extracted.FullISOPath = chooseFirstNonEmpty(filepath.Join(httpArtifacts, "image.iso"), filepath.Join(tftpArtifacts, "image.iso"), storageISO)
 	extracted.KernelPath = chooseFirstNonEmpty(filepath.Join(tftpArtifacts, "kernel"), filepath.Join(httpArtifacts, "kernel"), filepath.Join(storageDir, filepath.Base(kernelISOPath)))
