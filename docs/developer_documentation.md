@@ -20,15 +20,15 @@ stuff here............
 
 ## Developer Documentation
 
-Our project can be accessed at
+Our project can be accessed at:
 
-[e](e)
+- [https://laas.cyber.lab/](https://laas.cyber.lab/)
+- **NOTE: This is deployed locally in the Cybersecurity Lab. To access to the site you will need to be on the Cybersecurity VPN.**
 
-Our repo can be found below:
+Our Github repo and related issues can be found below:
 
-[https://github.com/OpnLaaS/opnlaas](https://github.com/OpnLaaS/opnlaas)
-
-...
+- [https://github.com/OpnLaaS/opnlaas](https://github.com/OpnLaaS/opnlaas)
+- [https://github.com/OpnLaaS/opnlaas/issues](https://github.com/OpnLaaS/opnlaas/issues)
 
 ### Repository Overview
 
