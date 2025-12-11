@@ -317,19 +317,25 @@ Due to the complexity of some of our frontend features we didn't implement autom
 
 #### Feature 1: Resource Dashboard
 
-
-
 To access the Admin Dashboard first you have to log in as an Admin at /login.
-![alt text](admin.png)
+![admin dashboard](admin.png)
 
 
-To add new host first you have to click the add new host button then enter an the ip address of the host and select whether it is managed by IPMI or Redfish.
-![alt text](newhosts.png)
+To add new host first you have to click the add new host button then enter an the IP address of the host and select whether it is managed by IPMI or Redfish. The IP address shown below is of one of our actual servers so that should work for testing purposes.
+![add new host](newhost.png)
 
 To view hosts go to /hosts 
-![alt text](host.png)
+![host menu](host.png)
 
 To power control hosts you click the three dot and then press select on option. 
-
+![Host management menu](host_management.png)
 
 #### Feature 2: Virtualization Integration
+
+Unlike the resource dashboard our virtualization integration with proxmox is a bit more complicated. As of now we haven't implemented this on the frontend which means you will need to test this functionality from the backend. In our testing folder we have a file called `vm_test.go` which includes testing for this. If you run this test you should see something like this.
+
+![VM tests](vm_tests.png)
+
+Then when viewing the logs from proxmox (running at proxmox.cyber.lab:8006) you can see that containers are being created and deleted remotely:
+
+![Proxmox menu](proxmox.png)
