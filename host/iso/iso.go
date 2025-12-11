@@ -2,6 +2,7 @@ package iso
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/kdomanski/iso9660"
@@ -56,5 +57,6 @@ func ExtractISO(sourceImage, outputStorageDirectory string) (extracted *db.Store
 	}
 
 	err = createOutputs(extracted, img, sourceImage, outputStorageDirectory)
+	fmt.Print(err)
 	return
 }
