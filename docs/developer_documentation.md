@@ -306,5 +306,7 @@ To add new host first you have to click the add new host button then enter an th
 To view hosts go to /hosts 
 ![alt text](host.png)
 
+To power control hosts you click the three dot and then press select on option. 
+
 
 #### Feature 2: Virtualization Integration
