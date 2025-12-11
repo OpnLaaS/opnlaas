@@ -169,7 +169,7 @@ If you run `go run main.go` without having a `config.toml` file setup you should
 
 When this happens a blank `config.toml` will be created that looks like this:
 
-```
+```toml
 [web_server]
     address = ":8080"
     tls_dir = ""
@@ -269,7 +269,7 @@ When this happens a blank `config.toml` will be created that looks like this:
 
 Most of this config can be left the same. The **only things you will need to change** are the ldap address/domain, and the management user/password as shown below:
 
-```
+```toml
 [ldap]
     address = "ldaps://domain.cyber.lab:636"
     domain_sld = "cyber"
