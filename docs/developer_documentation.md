@@ -327,7 +327,7 @@ To add new host first you have to click the add new host button then enter an th
 To view hosts go to /hosts 
 ![host menu](host.png)
 
-To power control hosts you click the three dot and then press select on option. 
+To power control hosts you click the three dot and then press select on option. **NOTE: You will need to be logged in as an administrator to see this menu.**
 ![Host management menu](host_management.png)
 
 #### Feature 2: Virtualization Integration
