@@ -286,7 +286,30 @@ If you are using the Cybersecurity Lab for testing these changes should be enoug
 
 ### Running Backend Tests
 
-add instructions here:
+Note: Currently some backend tests are skipped, but the majority are enabled.
+
+There are a few ways to run backend tests:
+
+#### Locally
+
+You will need go installed to run the tests locally. Tests can be run in one of two ways:
+
+In VS-Code: 
+- Go to the testing menu on the (typically) left sidebar and hit the playbutton for the top test
+- This will start all of the tests locally, you can view progress on the right and output in the test results tab in VS-Code
+
+<img src="Vs-code-testing.png" alt="drawing" width="200"/>
+
+In a Unix Terminal:
+- cd into the project directory and run `go test ./tests/` 
+- All tests will run locally, if you want logs / output you will have to run `go test` from within the `tests/` directory.
+
+![alt text](terminal-test.png) 
+
+#### On Github
+All of the backend tests are automatically run by a github actions agent on a PR change or any commit to main. There are a few minor differences between the two but that is due to github actions.
+- The github actions agent workflows are configured in the .github/workflows
+
 
 ### Running Frontend Tests
 
