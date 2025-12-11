@@ -32,11 +32,23 @@ Our Github repo and related issues can be found below:
 
 ### Repository Overview
 
-# OPN LaaS Product and Developer Manual
+```
+opnlaas
+├── app
+├── auth
+├── config
+├── db
+├── docs
+├── host
+├── node_modules
+├── public
+├── scripting
+├── ssh
+├── tests
+└── vm
+```
 
-## Repository Structure
-
-### App
+#### App
 
 Contains the backend code that immediately talks to the frontend and receives web requests, contains:
 - Defined routes on the backend
@@ -44,50 +56,50 @@ Contains the backend code that immediately talks to the frontend and receives we
   - Api routes and views are in separate files
 - Any needed middleware for the routes
 
-### Auth
+#### Auth
 
 Responsible for managing the authentication pipeline between the remote (network) ldap and the browser.
 - Contains ability to "inject" a user to become authenticated for testing, but this is not used for production code
 
-### Config
+#### Config
 
 Loads, types, and verifies initial configuration values from our config.toml file. 
 
-### DB
+#### DB
 
 The database management for our codebase, contains defined database schemas and functions to initialize the local database when the backend starts.
 
-### Docs
+#### Docs
 
 Your already here!
 
-### Host
+#### Host
 
 Software to interface with, and manage hosts; whether they are virtual or physical. 
 
-#### Iso
+##### Iso
 Files and scripts for parsing and extracting relevant content from uploaded iso files, these files are then stored to be used when a host is attempting to pxe boot.
 
-#### PXE
+##### PXE
 Contains the code to automate the provisioning process of pxe booting a server with an automate install of an operating system. Contains files to run necessary services other than http and templating functions and files in order to create auto-configuration files such as kickstart, autoinstall, and grub commands. 
 
-### Public
+#### Public
 
 Contains content served to the browser, including CSS, Javascript, images, and html templates. The content is primarily served from the app directory. 
 
-### Scripting
+#### Scripting
 
 Script utilities that are not run automatically as they server "one time" functionality for developers and maintainers.
 
-### SSH
+#### SSH
 
 Files for managing ssh connections and keys automatically to allow the backend to create ssh sessions and use them as needed. 
 
-### Tests
+#### Tests
 
 Contains all of the backend tests for the project, these are running automatically by the github actions runner configured in .github. 
 
-### VM
+#### VM
 
 Files for management, creation, and deletion of virtual resources through the Proxmox api to the local proxmox session in the Cybersecurity lab.
 
