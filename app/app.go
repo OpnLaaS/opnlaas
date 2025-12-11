@@ -27,7 +27,11 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/login", showLogin)
 	app.Get("/logout", routesMustBeLoggedIn, showLogout)
 	app.Get("/dashboard", showDashboard)
+<<<<<<< Updated upstream
 	app.Get("/hosts", showHosts)
+=======
+	app.Get("/admin", showAdmin)
+>>>>>>> Stashed changes
 
 	// Auth API
 	app.Post("/api/auth/login", apiLogin)

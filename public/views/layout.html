@@ -19,7 +19,11 @@
     <a href="#main" class="skip-link bg-sky-600 text-white rounded">Skip to content</a>
 
     <header class="sticky top-0 z-40 bg-background-primary/95 border-b border-background-muted backdrop-blur">
+<<<<<<< Updated upstream
         <div class="py-4 px-4 flex items-center justify-between gap-6 md:max-w-5xl md:mx-auto">
+=======
+        <div class="py-4 mx-auto shell flex items-center gap-6">
+>>>>>>> Stashed changes
             <div class="flex items-center gap-6">
                 <h1 class="text-2xl font-semibold">
                     <a href="/">OpnLaaS</a>
@@ -34,6 +38,17 @@
                 {{if not .LoggedIn}}
                 <a href="/login" id="login">Log In</a>
                 {{end}}
+<<<<<<< Updated upstream
+=======
+                {{if .LoggedIn}}
+                <a href="/dashboard" id="dashboard">My Dashboard</a>
+                {{else}}
+                <a href="/dashboard" id="dashboard">Public Dashboard</a>
+                {{end}}
+                {{if .IsAdmin}}
+                <a href="/admin" id="admin">Admin</a>
+                {{end}}
+>>>>>>> Stashed changes
             </nav>
 
             <div class="flex items-center gap-3 relative">
