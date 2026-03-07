@@ -61,7 +61,8 @@ func (s *Service) buildDHCPOffer(req *dhcpv4.DHCPv4) (offer *dhcpv4.DHCPv4, err 
 	if profile, err = s.profileForMAC(mac); err != nil {
 		return
 	} else if profile == nil {
-		err = fmt.Errorf("no PXE profile available for %s", mac)
+		// No managed PXE profile for this MAC; ignore request so unmanaged hosts
+		// are left to existing DHCP/boot behavior.
 		return
 	}
 
@@ -99,7 +100,8 @@ func (s *Service) buildDHCPAck(req *dhcpv4.DHCPv4) (response *dhcpv4.DHCPv4, err
 	if profile, err = s.profileForMAC(mac); err != nil {
 		return
 	} else if profile == nil {
-		err = fmt.Errorf("no PXE profile available for %s", mac)
+		// No managed PXE profile for this MAC; ignore request so unmanaged hosts
+		// are left to existing DHCP/boot behavior.
 		return
 	}
 
@@ -346,7 +348,6 @@ func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile)
 // profileForMAC retrieves the PXE profile associated with the given MAC address.
 func (s *Service) profileForMAC(mac string) (profile *db.HostPXEProfile, err error) {
 	if mac = strings.TrimSpace(mac); mac == "" {
-		profile = s.buildDefaultProfile(nil, "")
 		return
 	}
 
@@ -365,7 +366,15 @@ func (s *Service) profileForMAC(mac string) (profile *db.HostPXEProfile, err err
 		return
 	}
 
-	profile = s.buildDefaultProfile(host, mac)
+	if host == nil {
+		return
+	}
+
+	if profile = s.overrideProfileForHost(host); profile != nil {
+		return
+	}
+
+	profile, err = s.profileCache.ByIP(host.ManagementIP)
 	return
 }
 

@@ -320,6 +320,15 @@ func isTerminalProvisioningCallbackStage(stage string) bool {
 	}
 }
 
+func isFailureProvisioningCallbackStage(stage string) bool {
+	switch strings.ToLower(strings.TrimSpace(stage)) {
+	case "autoinstall_error", "kickstart_error", "install_failed":
+		return true
+	default:
+		return false
+	}
+}
+
 func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (err error) {
 	if event.BookingID <= 0 {
 		return fmt.Errorf("invalid booking id")
@@ -363,8 +372,20 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 		stage = "install_complete"
 	}
 	stageTerminal := isTerminalProvisioningCallbackStage(stage)
+	stageFailure := isFailureProvisioningCallbackStage(stage)
+	stageDetail := strings.TrimSpace(event.Detail)
+	if len(stageDetail) > 512 {
+		stageDetail = stageDetail[:512]
+	}
 
-	if stageTerminal {
+	if stageFailure {
+		hostState.Status = "failed"
+		if stageDetail != "" {
+			hostState.Message = fmt.Sprintf("Installer failure callback received (%s): %s", stage, stageDetail)
+		} else {
+			hostState.Message = fmt.Sprintf("Installer failure callback received (%s)", stage)
+		}
+	} else if stageTerminal {
 		hostState.Status = "completed"
 		hostState.Message = fmt.Sprintf("Installer completion callback received (%s)", stage)
 	} else if hostState.Status != "completed" && hostState.Status != "failed" {
@@ -374,26 +395,50 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 
 	hostState.UpdatedAt = now
 	job.UpdatedAt = now
+	eventLevel := "info"
+	if stageFailure {
+		eventLevel = "error"
+	}
+
+	callbackMessage := fmt.Sprintf(
+		"Host %s reported install callback (stage=%s remote=%s terminal=%t)",
+		event.ManagementIP,
+		stage,
+		strings.TrimSpace(event.RemoteAddr),
+		stageTerminal,
+	)
+	if stageFailure {
+		callbackMessage = fmt.Sprintf("%s failure=%t", callbackMessage, stageFailure)
+	}
+	if stageDetail != "" {
+		callbackMessage = fmt.Sprintf("%s detail=%q", callbackMessage, stageDetail)
+	}
+
 	job.Events = append(job.Events, apiProvisioningEvent{
-		At:    now,
-		Level: "info",
-		Message: fmt.Sprintf(
-			"Host %s reported install callback (stage=%s remote=%s terminal=%t)",
-			event.ManagementIP,
-			stage,
-			strings.TrimSpace(event.RemoteAddr),
-			stageTerminal,
-		),
+		At:      now,
+		Level:   eventLevel,
+		Message: callbackMessage,
 	})
 
-	if !stageTerminal {
-		appLog.Basicf(
-			"[PROV] booking=%d Host %s reported installer progress callback (stage=%s remote=%s)\n",
-			event.BookingID,
-			event.ManagementIP,
-			stage,
-			strings.TrimSpace(event.RemoteAddr),
-		)
+	if !stageTerminal && !stageFailure {
+		if stageDetail != "" {
+			appLog.Basicf(
+				"[PROV] booking=%d Host %s reported installer progress callback (stage=%s remote=%s detail=%q)\n",
+				event.BookingID,
+				event.ManagementIP,
+				stage,
+				strings.TrimSpace(event.RemoteAddr),
+				stageDetail,
+			)
+		} else {
+			appLog.Basicf(
+				"[PROV] booking=%d Host %s reported installer progress callback (stage=%s remote=%s)\n",
+				event.BookingID,
+				event.ManagementIP,
+				stage,
+				strings.TrimSpace(event.RemoteAddr),
+			)
+		}
 		return nil
 	}
 
@@ -419,12 +464,40 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 			Level:   "warn",
 			Message: fmt.Sprintf("Host %s completion: failed to apply localboot guard: %v", event.ManagementIP, guardErr),
 		})
+		appLog.Warningf("[PROV] booking=%d Host %s completion: localboot guard apply failed: %v\n", event.BookingID, event.ManagementIP, guardErr)
 	} else {
 		job.Events = append(job.Events, apiProvisioningEvent{
 			At:      now,
 			Level:   "info",
 			Message: fmt.Sprintf("Host %s completion: applied localboot PXE guard to prevent installer loops", event.ManagementIP),
 		})
+		appLog.Basicf("[PROV] booking=%d Host %s completion: localboot PXE guard applied\n", event.BookingID, event.ManagementIP)
+
+		if mgmt, mgmtErr := db.NewHostManagementClient(hostRecord); mgmtErr != nil {
+			job.Events = append(job.Events, apiProvisioningEvent{
+				At:      now,
+				Level:   "warn",
+				Message: fmt.Sprintf("Host %s completion: failed to create management client for boot override clear: %v", event.ManagementIP, mgmtErr),
+			})
+			appLog.Warningf("[PROV] booking=%d Host %s completion: management client creation for boot override clear failed: %v\n", event.BookingID, event.ManagementIP, mgmtErr)
+		} else {
+			defer mgmt.Close()
+			if clearErr := mgmt.ClearBootOverride(); clearErr != nil {
+				job.Events = append(job.Events, apiProvisioningEvent{
+					At:      now,
+					Level:   "warn",
+					Message: fmt.Sprintf("Host %s completion: failed to clear firmware boot override: %v", event.ManagementIP, clearErr),
+				})
+				appLog.Warningf("[PROV] booking=%d Host %s completion: firmware boot override clear failed: %v\n", event.BookingID, event.ManagementIP, clearErr)
+			} else {
+				job.Events = append(job.Events, apiProvisioningEvent{
+					At:      now,
+					Level:   "info",
+					Message: fmt.Sprintf("Host %s completion: cleared firmware boot override (NoOverride)", event.ManagementIP),
+				})
+				appLog.Basicf("[PROV] booking=%d Host %s completion: firmware boot override cleared (NoOverride)\n", event.BookingID, event.ManagementIP)
+			}
+		}
 	}
 
 	anyInProgress := false
@@ -462,7 +535,15 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 
 		job.FinishedAt = &now
 	}
-	appLog.Basicf("[PROV] booking=%d Host %s reported install completion callback (stage=%s remote=%s)\n", event.BookingID, event.ManagementIP, stage, strings.TrimSpace(event.RemoteAddr))
+	if stageFailure {
+		appLog.Warningf("[PROV] booking=%d Host %s reported install failure callback (stage=%s remote=%s detail=%q)\n", event.BookingID, event.ManagementIP, stage, strings.TrimSpace(event.RemoteAddr), stageDetail)
+	} else {
+		if stageDetail != "" {
+			appLog.Basicf("[PROV] booking=%d Host %s reported install completion callback (stage=%s remote=%s detail=%q)\n", event.BookingID, event.ManagementIP, stage, strings.TrimSpace(event.RemoteAddr), stageDetail)
+		} else {
+			appLog.Basicf("[PROV] booking=%d Host %s reported install completion callback (stage=%s remote=%s)\n", event.BookingID, event.ManagementIP, stage, strings.TrimSpace(event.RemoteAddr))
+		}
+	}
 	if !anyInProgress {
 		appLog.Basicf("[PROV] booking=%d Install completion state is terminal: %s\n", event.BookingID, job.Status)
 	}
@@ -527,6 +608,10 @@ func runProvisioningHost(
 	provisioningAppendEvent(bookingID, "info", fmt.Sprintf("Applying PXE override for host %s", ip))
 
 	templateData := mergeTemplateData(globalTemplateData, hostRequest.TemplateData)
+	if templateData == nil {
+		templateData = map[string]string{}
+	}
+	templateData["template.boot.mode"] = bootMode.String()
 	templateData = provisioningInjectCompletionTemplateData(templateData, bookingID, ip)
 	assignedIP := strings.TrimSpace(hostRequest.AssignedIPv4)
 	provisioningAppendEvent(

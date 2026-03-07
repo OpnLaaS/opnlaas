@@ -39,8 +39,17 @@ autoinstall:
         uri: {{ .Templates.Common.Mirror }}
 {{- end }}
   storage:
+    grub:
+      reorder_uefi: false
     layout:
       name: direct
+{{- if eq (index .Profile.TemplateData "template.boot.mode") "Legacy" }}
+      # Legacy mode on mixed-disk hosts often boots the first/smallest logical disk.
+      # Force msdos + smallest disk selection so installer target aligns with firmware boot order.
+      ptable: msdos
+      match:
+        size: smallest
+{{- end }}
 {{- if .Network.Enabled }}
   network:
     version: 2
@@ -168,44 +177,6 @@ autoinstall:
 {{- end }}
 {{- if or .Templates.Autoinstall.EarlyCommands .Provisioning.CallbackEnabled }}
   early-commands:
-    - |
-        /bin/bash <<'OPN_DISK_PREP'
-        # Best-effort cleanup of stale RAID/LVM/signatures before Subiquity storage probe.
-        if command -v mdadm >/dev/null 2>&1; then
-          for MD in /dev/md/* /dev/md[0-9]*; do
-            [ -e "$MD" ] || continue
-            mdadm --stop "$MD" >/dev/null 2>&1 || true
-          done
-        fi
-
-        if command -v vgchange >/dev/null 2>&1; then
-          vgchange -an >/dev/null 2>&1 || true
-        fi
-
-        if command -v lsblk >/dev/null 2>&1; then
-          for DEV in $(lsblk -dpno NAME,TYPE 2>/dev/null | awk '$2=="disk"{print $1}'); do
-            case "$DEV" in
-              /dev/loop*|/dev/ram*|/dev/fd*|/dev/zram*)
-                continue
-                ;;
-            esac
-
-            if command -v wipefs >/dev/null 2>&1; then
-              wipefs -af "$DEV" >/dev/null 2>&1 || true
-            fi
-            if command -v sgdisk >/dev/null 2>&1; then
-              sgdisk --zap-all "$DEV" >/dev/null 2>&1 || true
-            fi
-          done
-        fi
-
-        if command -v partprobe >/dev/null 2>&1; then
-          partprobe >/dev/null 2>&1 || true
-        fi
-        if command -v udevadm >/dev/null 2>&1; then
-          udevadm settle >/dev/null 2>&1 || true
-        fi
-        OPN_DISK_PREP
 {{- range .Templates.Autoinstall.EarlyCommands }}
     - {{ . }}
 {{- end }}
@@ -232,23 +203,65 @@ OPN_PRE
 {{- end }}
     - |
         curtin in-target -- /bin/bash <<'OPN_GRUB_REPAIR'
-        # Best-effort: make local disk boot robust for both BIOS and UEFI firmware.
+        set -euo pipefail
+        LOG_DIR="/var/log/opnlaas-installer"
+        LOG_FILE="${LOG_DIR}/grub-repair.log"
+        mkdir -p "$LOG_DIR"
+
+        # Capture exactly what bootloader operations happened so failures are debuggable.
+        exec > >(tee -a "$LOG_FILE") 2>&1
+
+        echo "=== opnlaas grub repair start $(date -Iseconds) ==="
+        DISKS="$(lsblk -dpno NAME,TYPE 2>/dev/null | awk '$2=="disk"{print $1}' | tr '\n' ' ')"
+        echo "detected_disks=${DISKS}"
+
         if [ -d /sys/firmware/efi ]; then
+          echo "firmware_mode=uefi"
           # Build fallback UEFI path so firmware can boot even if NVRAM entries are missing.
           if [ -d /boot/efi ]; then
-            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck >/dev/null 2>&1 || true
-            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck --no-nvram --removable >/dev/null 2>&1 || true
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck --no-nvram --removable
+          else
+            echo "ERROR: /boot/efi missing in target while firmware is UEFI"
+            exit 1
           fi
         else
-          # Legacy BIOS path: stamp MBR bootloader on all likely local disks.
-          for DEV in /dev/sd[a-z] /dev/vd[a-z] /dev/xvd[a-z] /dev/nvme*n1; do
-            [ -b "$DEV" ] || continue
-            grub-install --target=i386-pc --recheck "$DEV" >/dev/null 2>&1 || true
+          echo "firmware_mode=legacy"
+          # Legacy BIOS path: stamp MBR bootloader on all detected local disks.
+          SUCCESS_COUNT=0
+          for DEV in $(lsblk -dpno NAME,TYPE 2>/dev/null | awk '$2=="disk"{print $1}'); do
+            case "$DEV" in
+              /dev/loop*|/dev/ram*|/dev/fd*|/dev/zram*|/dev/sr*)
+                continue
+                ;;
+            esac
+
+            if grub-install --target=i386-pc --recheck "$DEV"; then
+              echo "grub_install_ok=$DEV"
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            else
+              echo "grub_install_failed=$DEV"
+            fi
           done
+
+          if [ "$SUCCESS_COUNT" -eq 0 ]; then
+            echo "ERROR: grub-install failed on all detected disks"
+            exit 1
+          fi
         fi
 
-        update-grub >/dev/null 2>&1 || true
+        update-grub
+        echo "=== opnlaas grub repair complete $(date -Iseconds) ==="
         OPN_GRUB_REPAIR
+    - |
+        /bin/bash <<'OPN_INSTALLER_LOG_ARCHIVE'
+        # Persist installer evidence on the target OS for post-mortem debugging.
+        if [ -d /target ]; then
+          mkdir -p /target/var/log/opnlaas-installer >/dev/null 2>&1 || true
+          cp -a /var/log/installer/. /target/var/log/opnlaas-installer/ >/dev/null 2>&1 || true
+          lsblk -e7 -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL,SERIAL >/target/var/log/opnlaas-installer/lsblk-after-install.txt 2>/dev/null || true
+        fi
+        OPN_INSTALLER_LOG_ARCHIVE
 {{- range .Templates.Autoinstall.LateCommands }}
     - {{ . }}
 {{- end }}
@@ -257,11 +270,48 @@ OPN_PRE
         /bin/bash <<'OPN_PROV_CALLBACK_LATE'
         CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
         CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_late"
+        DETAIL="$( (
+          tail -n 20 /target/var/log/opnlaas-installer/grub-repair.log 2>/dev/null || true
+          tail -n 10 /target/var/log/opnlaas-installer/lsblk-after-install.txt 2>/dev/null || true
+        ) | tail -n 10 | tr '\n' '|' | tr -cd '[:alnum:][:space:]_:/.=|-' | tr ' ' '_' | cut -c1-700 )"
         if command -v curl >/dev/null 2>&1; then
-          curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          if [ -n "$DETAIL" ]; then
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          else
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
         elif command -v wget >/dev/null 2>&1; then
-          wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          if [ -n "$DETAIL" ]; then
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="${CALLBACK_DATA}&detail=${DETAIL}" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          else
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
         fi
         OPN_PROV_CALLBACK_LATE
 {{- end }}
+{{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+  error-commands:
+    - |
+        /bin/bash <<'OPN_PROV_CALLBACK_ERROR'
+        CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+        BASE_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_error"
+        DETAIL="$( (
+          grep -E -i 'error|fail|traceback|block_probe_fail|disk_probe_fail' /var/log/installer/subiquity-server-debug.log 2>/dev/null || true
+          tail -n 30 /target/var/log/opnlaas-installer/grub-repair.log 2>/dev/null || true
+        ) | tail -n 12 | tr '\n' '|' | tr -cd '[:alnum:][:space:]_:/.=|-' | tr ' ' '_' | cut -c1-700 )"
+        if command -v curl >/dev/null 2>&1; then
+          if [ -n "$DETAIL" ]; then
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$BASE_DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          else
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$BASE_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+        elif command -v wget >/dev/null 2>&1; then
+          if [ -n "$DETAIL" ]; then
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="${BASE_DATA}&detail=${DETAIL}" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          else
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$BASE_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+        fi
+        OPN_PROV_CALLBACK_ERROR
 {{- end }}

@@ -11,6 +11,7 @@ type ProvisioningInstallCallback struct {
 	ManagementIP string
 	Token        string
 	Stage        string
+	Detail       string
 	RemoteAddr   string
 	UserAgent    string
 }

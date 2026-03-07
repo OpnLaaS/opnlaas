@@ -552,6 +552,47 @@ func (c *HostManagementClient) SetPXEBoot(bootMode BootMode) (err error) {
 	return
 }
 
+func (c *HostManagementClient) redfishClearBootOverride() (err error) {
+	if err = c.ensureRedfishPrimarySystem(false); err != nil {
+		return
+	}
+
+	err = c.redfishPrimarySystem.SetBoot(&schemas.Boot{
+		BootSourceOverrideTarget:  schemas.NoneBootSource,
+		BootSourceOverrideEnabled: schemas.DisabledBootSourceOverrideEnabled,
+	})
+
+	return
+}
+
+func (c *HostManagementClient) ipmiClearBootOverride() (err error) {
+	errLegacy := c.ipmiClient.SetBootDevice(bg, ipmi.BootDeviceSelectorNoOverride, ipmi.BIOSBootTypeLegacy, false)
+	errEFI := c.ipmiClient.SetBootDevice(bg, ipmi.BootDeviceSelectorNoOverride, ipmi.BIOSBootTypeEFI, false)
+	if errLegacy == nil || errEFI == nil {
+		return nil
+	}
+
+	return errLegacy
+}
+
+func (c *HostManagementClient) ClearBootOverride() (err error) {
+	if !c.connected {
+		err = ErrNotConnected
+		return
+	}
+
+	switch c.Host.ManagementType {
+	case ManagementTypeRedfish:
+		err = c.redfishClearBootOverride()
+	case ManagementTypeIPMI:
+		err = c.ipmiClearBootOverride()
+	default:
+		err = ErrBadManagementType
+	}
+
+	return
+}
+
 // ---------- DATA COLLECTION ----------
 
 func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {

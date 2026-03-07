@@ -187,18 +187,7 @@ func newService() (svc *Service, err error) {
 		svc.defaultProfile.BootFilename = "pxelinux.0"
 	}
 
-	if svc.defaultProfile.ISOName == "" {
-		var isoName string
-		if isoName, err = pickDefaultISOName(); err != nil {
-			err = fmt.Errorf("pxe: determine default ISO: %w", err)
-			return
-		} else if isoName != "" {
-			svc.defaultProfile.ISOName = isoName
-			svc.log.Warningf("PXE default ISO not configured; falling back to %s\n", isoName)
-		} else {
-			svc.log.Warning("PXE default ISO not configured and no stored ISOs available; PXE profiles must be defined explicitly\n")
-		}
-	}
+	svc.log.Basic("PXE default ISO fallback disabled; PXE profiles must be defined explicitly\n")
 
 	svc.validateSyslinuxAssets()
 	svc.ensureArtifactAliases()
@@ -505,10 +494,8 @@ func (s *Service) serveProfileFile(rel string) (data []byte, err error) {
 	}
 
 	if profile == nil {
-		if profile = s.buildDefaultProfile(host, ""); profile == nil {
-			err = fmt.Errorf("no profile available for slug %s", slug)
-			return
-		}
+		err = fmt.Errorf("no profile available for slug %s", slug)
+		return
 	}
 
 	var iso *db.StoredISOImage
@@ -651,6 +638,10 @@ func (s *Service) handleProvisioningCompletionCallback(w http.ResponseWriter, r 
 	managementIP := strings.TrimSpace(r.FormValue("management_ip"))
 	token := strings.TrimSpace(r.FormValue("token"))
 	stage := strings.TrimSpace(r.FormValue("stage"))
+	detail := strings.TrimSpace(r.FormValue("detail"))
+	if len(detail) > 1024 {
+		detail = detail[:1024]
+	}
 	if stage == "" {
 		stage = "install_complete"
 	}
@@ -671,6 +662,7 @@ func (s *Service) handleProvisioningCompletionCallback(w http.ResponseWriter, r 
 		ManagementIP: managementIP,
 		Token:        token,
 		Stage:        stage,
+		Detail:       detail,
 		RemoteAddr:   r.RemoteAddr,
 		UserAgent:    r.UserAgent(),
 	}
@@ -688,10 +680,6 @@ func (s *Service) handleProvisioningCompletionCallback(w http.ResponseWriter, r 
 
 // buildDefaultProfile constructs a PXE profile based on default settings.
 func (s *Service) buildDefaultProfile(host *db.Host, mac string) (profile *db.HostPXEProfile) {
-	if s.defaultProfile.ISOName == "" {
-		return
-	}
-
 	profile = &db.HostPXEProfile{
 		ManagementIP: func() string {
 			if host != nil {
