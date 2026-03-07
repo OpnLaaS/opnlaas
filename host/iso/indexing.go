@@ -112,9 +112,10 @@ func buildIndex(image *iso9660.Image) (index []string, err error) {
 func buildIndexExternal(isoPath string) (index []string, err error) {
 	// Try xorriso
 	if _, err = exec.LookPath("xorriso"); err == nil {
+		isoLog.Basicf("Index fallback trying tool=xorriso source=%s\n", isoPath)
 		var output []byte
 		if output, err = exec.Command("xorriso", "-indev", isoPath, "-find", "/", "-print").Output(); err == nil {
-			return normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
+			if index, err = normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
 				subPath = strings.TrimSpace(line)
 				if subPath == "" || subPath == "/" {
 					ok = false
@@ -124,15 +125,22 @@ func buildIndexExternal(isoPath string) (index []string, err error) {
 				subPath = strings.ToLower(path.Clean(subPath))
 				ok = true
 				return
-			})
+			}); err == nil {
+				isoLog.Basicf("Index fallback success tool=xorriso source=%s entries=%d\n", isoPath, len(index))
+				return
+			}
+			isoLog.Warningf("Index fallback parse error tool=xorriso source=%s error=%v\n", isoPath, err)
+		} else {
+			isoLog.Warningf("Index fallback command failed tool=xorriso source=%s error=%v\n", isoPath, err)
 		}
 	}
 
 	// Try bsdtar
 	if _, err = exec.LookPath("bsdtar"); err == nil {
+		isoLog.Basicf("Index fallback trying tool=bsdtar source=%s\n", isoPath)
 		var output []byte
 		if output, err = exec.Command("bsdtar", "-tf", isoPath).Output(); err == nil {
-			return normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
+			if index, err = normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
 				subPath = strings.TrimSpace(line)
 				if subPath == "" {
 					ok = false
@@ -147,15 +155,22 @@ func buildIndexExternal(isoPath string) (index []string, err error) {
 				subPath = strings.ToLower(path.Clean(subPath))
 				ok = true
 				return
-			})
+			}); err == nil {
+				isoLog.Basicf("Index fallback success tool=bsdtar source=%s entries=%d\n", isoPath, len(index))
+				return
+			}
+			isoLog.Warningf("Index fallback parse error tool=bsdtar source=%s error=%v\n", isoPath, err)
+		} else {
+			isoLog.Warningf("Index fallback command failed tool=bsdtar source=%s error=%v\n", isoPath, err)
 		}
 	}
 
 	// Try 7z
 	if _, err = exec.LookPath("7z"); err == nil {
+		isoLog.Basicf("Index fallback trying tool=7z source=%s\n", isoPath)
 		var output []byte
 		if output, err = exec.Command("7z", "l", "-slt", "--", isoPath).Output(); err == nil {
-			return normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
+			if index, err = normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
 				if !strings.HasPrefix(line, "Path = ") {
 					ok = false
 					return
@@ -175,15 +190,22 @@ func buildIndexExternal(isoPath string) (index []string, err error) {
 				subPath = strings.ToLower(path.Clean(subPath))
 				ok = true
 				return
-			})
+			}); err == nil {
+				isoLog.Basicf("Index fallback success tool=7z source=%s entries=%d\n", isoPath, len(index))
+				return
+			}
+			isoLog.Warningf("Index fallback parse error tool=7z source=%s error=%v\n", isoPath, err)
+		} else {
+			isoLog.Warningf("Index fallback command failed tool=7z source=%s error=%v\n", isoPath, err)
 		}
 	}
 
 	// Try isoinfo
 	if _, err = exec.LookPath("isoinfo"); err == nil {
+		isoLog.Basicf("Index fallback trying tool=isoinfo source=%s\n", isoPath)
 		var output []byte
 		if output, err = exec.Command("isoinfo", "-J", "-R", "-f", "-i", isoPath).Output(); err == nil {
-			return normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
+			if index, err = normalizeIndexLines(strings.NewReader(string(output)), func(line string) (subPath string, ok bool) {
 				subPath = strings.TrimSpace(line)
 				if subPath == "" {
 					ok = false
@@ -198,10 +220,17 @@ func buildIndexExternal(isoPath string) (index []string, err error) {
 				subPath = strings.ToLower(path.Clean(subPath))
 				ok = true
 				return
-			})
+			}); err == nil {
+				isoLog.Basicf("Index fallback success tool=isoinfo source=%s entries=%d\n", isoPath, len(index))
+				return
+			}
+			isoLog.Warningf("Index fallback parse error tool=isoinfo source=%s error=%v\n", isoPath, err)
+		} else {
+			isoLog.Warningf("Index fallback command failed tool=isoinfo source=%s error=%v\n", isoPath, err)
 		}
 	}
 
+	isoLog.Errorf("Index fallback exhausted source=%s; no UDF-capable lister produced results\n", isoPath)
 	err = fmt.Errorf("no UDF-capable lister produced results; install xorriso or bsdtar or 7z")
 	return
 }
@@ -463,13 +492,18 @@ func readConfigs(image *iso9660.Image, configs []string) (allLines map[string][]
 }
 
 func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []string) (err error) {
+	isoLog.Basicf("Metadata detection start source=%s index_entries=%d\n", extracted.FullISOPath, len(index))
+
 	// 1) Gather content from bootloader configs + the index itself
 	configPaths, err := loadConfigs(index)
 	if err != nil {
+		isoLog.Warningf("Metadata config list failed source=%s error=%v\n", extracted.FullISOPath, err)
 		return
 	}
+	isoLog.Basicf("Metadata configs found source=%s count=%d\n", extracted.FullISOPath, len(configPaths))
 	configLines, err := readConfigs(image, configPaths)
 	if err != nil {
+		isoLog.Warningf("Metadata config read failed source=%s error=%v\n", extracted.FullISOPath, err)
 		return
 	}
 
@@ -928,13 +962,23 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 		gotVer := false
 		if ls, ok := readIf("/.alpine-release"); ok {
 			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
-				extracted.Version = v
-				gotVer = true
+				if m := regexp.MustCompile(`\b\d+\.\d+\.\d+\b`).FindString(v); m != "" {
+					extracted.Version = m
+					gotVer = true
+				} else if m := regexp.MustCompile(`\b\d+\.\d+\b`).FindString(v); m != "" {
+					extracted.Version = m
+					gotVer = true
+				}
 			}
 		} else if ls, ok := readIf("/alpine-release"); ok {
 			if v := strings.TrimSpace(firstLineOrEmpty(ls)); v != "" {
-				extracted.Version = v
-				gotVer = true
+				if m := regexp.MustCompile(`\b\d+\.\d+\.\d+\b`).FindString(v); m != "" {
+					extracted.Version = m
+					gotVer = true
+				} else if m := regexp.MustCompile(`\b\d+\.\d+\b`).FindString(v); m != "" {
+					extracted.Version = m
+					gotVer = true
+				}
 			}
 		}
 
@@ -971,6 +1015,17 @@ func detectMetaData(extracted *db.StoredISOImage, image *iso9660.Image, index []
 			extracted.Version = v
 		}
 	}
+
+	isoLog.Basicf(
+		"Metadata detection complete source=%s distro=%s distro_type=%s version=%s arch=%s preconfigure=%s name=%s\n",
+		extracted.FullISOPath,
+		extracted.DistroName,
+		extracted.DistroType,
+		extracted.Version,
+		extracted.Architecture,
+		extracted.PreConfigure,
+		extracted.Name,
+	)
 
 	return
 }

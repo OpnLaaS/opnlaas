@@ -34,6 +34,17 @@ func (s *Service) handlePXELinux(filename string, req *tftpRequestContext) (data
 		return
 	}
 
+	if profileRequestsLocalBoot(profile) {
+		data = []byte(localBootPXELinuxConfig())
+		if host != nil {
+			s.log.Basicf("PXE served localboot config=%s host=%s\n", filename, host.ManagementIP)
+		} else {
+			s.log.Basicf("PXE served localboot config=%s\n", filename)
+		}
+		flag = true
+		return
+	}
+
 	var iso *db.StoredISOImage
 	if iso, err = db.StoredISOImages.Select(profile.ISOName); err != nil {
 		flag = true
@@ -52,6 +63,28 @@ func (s *Service) handlePXELinux(filename string, req *tftpRequestContext) (data
 
 	flag = true
 	return
+}
+
+func profileRequestsLocalBoot(profile *db.HostPXEProfile) bool {
+	if profile == nil || profile.TemplateData == nil {
+		return false
+	}
+
+	value, ok := profile.TemplateData["template.pxe.localboot"]
+	if !ok {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func localBootPXELinuxConfig() string {
+	return "DEFAULT local\nPROMPT 0\nTIMEOUT 30\n\nLABEL local\n  LOCALBOOT 0\n"
 }
 
 // lookupProfileForPXELinux finds the host and PXE profile based on the given PXELinux filename.

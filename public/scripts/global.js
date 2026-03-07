@@ -1,5 +1,6 @@
 import { initTheming, changeDashboard } from "./lib/theme.js";
 import { getCurrentUser, postLogout } from "./api/api.js";
+import { dismissToasts, showErrorToast, showInfoToast, showSuccessToast, showToast } from "./lib/toast.js";
 
 changeDashboard();
 initTheming();
@@ -74,3 +75,11 @@ if (logoutBtnNav) {
 }
 
 hydrateNavUser();
+
+window.OpnToast = {
+    show: showToast,
+    info: showInfoToast,
+    success: showSuccessToast,
+    error: showErrorToast,
+    dismiss: dismissToasts,
+};

@@ -7,7 +7,7 @@ import (
 
 	"github.com/bougou/go-ipmi"
 	"github.com/stmcginnis/gofish"
-	"github.com/stmcginnis/gofish/redfish"
+	"github.com/stmcginnis/gofish/schemas"
 )
 
 type (
@@ -58,8 +58,8 @@ type (
 		// Redfish stuff
 		redfishClient         *gofish.APIClient
 		redfishService        *gofish.Service
-		redfishPrimaryChassis *redfish.Chassis
-		redfishPrimarySystem  *redfish.ComputerSystem
+		redfishPrimaryChassis *schemas.Chassis
+		redfishPrimarySystem  *schemas.ComputerSystem
 
 		// IPMI stuff
 		ipmiClient *ipmi.Client
@@ -82,6 +82,8 @@ type (
 		Specs                   HostSpecs              `gomysql:"specs" json:"specs"`
 		IsBooked                bool                   `gomysql:"is_booked" json:"is_booked"`
 		ActiveBookingID         int                    `gomysql:"active_booking_id" json:"active_booking_id"`
+		AssignedIPv4            string                 `gomysql:"assigned_ipv4" json:"assigned_ipv4"`
+		AssignedCIDR            string                 `gomysql:"assigned_cidr" json:"assigned_cidr"`
 		NetworkInterfaces       []HostNetworkInterface `gomysql:"mac_addresses" json:"mac_addresses"`
 		Management              *HostManagementClient  `json:"-"`
 	}
@@ -144,8 +146,10 @@ type (
 	}
 
 	BookingRequestHost struct {
-		ManagementIP string `json:"management_ip"`
-		ISOSelection string `json:"iso_selection"`
+		ManagementIP string            `json:"management_ip"`
+		ISOSelection string            `json:"iso_selection"`
+		AssignedIPv4 string            `json:"assigned_ipv4,omitempty"`
+		TemplateData map[string]string `json:"template_data,omitempty"`
 	}
 
 	BookingRequestCT struct {

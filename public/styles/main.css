@@ -20,6 +20,57 @@
     --color-font-muted: #6b7280;
 }
 
+@layer components {
+    .toast-card {
+        @apply border-background-muted text-font-primary;
+        transform: translateX(0);
+        opacity: 1;
+        transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .toast-card.toast-leaving {
+        opacity: 0;
+        transform: translateX(16px);
+    }
+
+    .toast-card p {
+        @apply text-sm leading-5 m-0;
+    }
+
+    .toast-card .toast-close {
+        @apply text-font-secondary;
+    }
+
+    .toast-card .toast-close:hover {
+        @apply text-font-primary;
+    }
+
+    .toast-card .toast-dot {
+        background: rgb(14 165 233);
+    }
+
+    .toast-card .toast-progress-bar {
+        width: 100%;
+        transition: width 90ms linear;
+        background: rgb(14 165 233);
+    }
+
+    .toast-card-info .toast-dot,
+    .toast-card-info .toast-progress-bar {
+        background: rgb(14 165 233);
+    }
+
+    .toast-card-success .toast-dot,
+    .toast-card-success .toast-progress-bar {
+        background: rgb(16 185 129);
+    }
+
+    .toast-card-error .toast-dot,
+    .toast-card-error .toast-progress-bar {
+        background: rgb(239 68 68);
+    }
+}
+
 @layer theme {
     :root,
     :host {

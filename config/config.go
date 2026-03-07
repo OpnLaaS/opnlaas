@@ -102,6 +102,16 @@ type Configuration struct {
 		} `toml:"http_server"` // HTTP server configuration
 	} `toml:"pxe"` // PXE services configuration
 
+	BookingNetworking struct {
+		SupernetCIDR      string   `toml:"supernet_cidr" default:"10.144.0.0/12" validate:"required"`        // Supernet pool used for booking-isolated subnets
+		BookingPrefix     int      `toml:"booking_prefix" default:"24" validate:"required,min=16,max=30"`    // Prefix size assigned to each booking subnet (e.g. 24)
+		GatewayIPv4       string   `toml:"gateway_ipv4" default:"10.0.0.1" validate:"required"`              // Gateway IPv4 used for deployed hosts (e.g. 10.0.0.1)
+		HostNetworkPrefix int      `toml:"host_network_prefix" default:"8" validate:"required,min=1,max=30"` // Prefix length configured on deployed hosts (e.g. 8 for 255.0.0.0)
+		HostStartOffset   int      `toml:"host_start_offset" default:"10" validate:"required,min=2,max=254"` // First host offset used for auto-prefilled host addresses
+		DNSServers        []string `toml:"dns_servers" default:"[]" validate:"dive,required"`                // Default DNS servers applied to provisioned hosts
+		DisableOtherNICs  bool     `toml:"disable_other_nics" default:"true"`                                // Disable non-primary interfaces after install
+	} `toml:"booking_networking"` // Booking network allocation and host static-IP defaults
+
 	Preconfigure struct {
 		Locale          string   `toml:"locale" default:"en_US" validate:"required"`                                // System locale (e.g. "en_US")
 		Timezone        string   `toml:"timezone" default:"UTC" validate:"required"`                                // System timezone (e.g. "UTC")

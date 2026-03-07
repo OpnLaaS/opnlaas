@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -589,6 +590,11 @@ func (s *Service) httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p == "/provisioning/complete" {
+		s.handleProvisioningCompletionCallback(w, r)
+		return
+	}
+
 	var logPrefix string = fmt.Sprintf("%s %s", r.Method, p)
 	if strings.HasPrefix(strings.ToLower(p), "/profiles/") {
 		var data []byte
@@ -627,6 +633,57 @@ func (s *Service) httpHandler(w http.ResponseWriter, r *http.Request) {
 
 	s.log.Basicf("HTTP served %s (%d bytes)\n", p, info.Size())
 	http.ServeContent(w, r, path.Base(p), info.ModTime(), file)
+}
+
+func (s *Service) handleProvisioningCompletionCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		s.log.Warningf("Provisioning callback parse failure remote=%s err=%v\n", r.RemoteAddr, err)
+		http.Error(w, "invalid callback body", http.StatusBadRequest)
+		return
+	}
+
+	bookingIDRaw := strings.TrimSpace(r.FormValue("booking_id"))
+	managementIP := strings.TrimSpace(r.FormValue("management_ip"))
+	token := strings.TrimSpace(r.FormValue("token"))
+	stage := strings.TrimSpace(r.FormValue("stage"))
+	if stage == "" {
+		stage = "install_complete"
+	}
+
+	if bookingIDRaw == "" || managementIP == "" || token == "" {
+		http.Error(w, "booking_id, management_ip, and token are required", http.StatusBadRequest)
+		return
+	}
+
+	bookingID, err := strconv.Atoi(bookingIDRaw)
+	if err != nil || bookingID <= 0 {
+		http.Error(w, "invalid booking_id", http.StatusBadRequest)
+		return
+	}
+
+	event := ProvisioningInstallCallback{
+		BookingID:    bookingID,
+		ManagementIP: managementIP,
+		Token:        token,
+		Stage:        stage,
+		RemoteAddr:   r.RemoteAddr,
+		UserAgent:    r.UserAgent(),
+	}
+
+	if err = emitProvisioningInstallCallback(event); err != nil {
+		s.log.Warningf("Provisioning callback rejected booking=%d host=%s stage=%s remote=%s err=%v\n", bookingID, managementIP, stage, r.RemoteAddr, err)
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	s.log.Basicf("Provisioning callback accepted booking=%d host=%s stage=%s remote=%s\n", bookingID, managementIP, stage, r.RemoteAddr)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok\n"))
 }
 
 // buildDefaultProfile constructs a PXE profile based on default settings.
@@ -808,6 +865,9 @@ func (s *Service) ensureStage2Artifacts() {
 
 	for _, rec := range records {
 		if rec == nil || strings.TrimSpace(rec.FullISOPath) == "" {
+			continue
+		}
+		if rec.PreConfigure != db.PreConfigureTypeKickstart {
 			continue
 		}
 

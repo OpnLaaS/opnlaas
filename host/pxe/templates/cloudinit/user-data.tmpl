@@ -41,14 +41,108 @@ autoinstall:
   storage:
     layout:
       name: direct
+{{- if .Network.Enabled }}
+  network:
+    version: 2
+    ethernets:
+      opnprimary:
+{{- if .Profile.BootMACAddress }}
+        match:
+          macaddress: "{{ .Profile.BootMACAddress }}"
+{{- end }}
+        dhcp4: false
+        dhcp6: false
+        addresses:
+          - "{{ .Network.IPv4Address }}/{{ .Network.Prefix }}"
+        routes:
+          - to: default
+            via: "{{ .Network.Gateway }}"
+{{- if .Network.DNSServers }}
+        nameservers:
+          addresses: [{{- range $i, $dns := .Network.DNSServers }}{{ if $i }}, {{ end }}"{{ $dns }}"{{- end }}]
+{{- end }}
+{{- end }}
   user-data:
     disable_root: {{ if .Templates.Autoinstall.DisableRoot }}true{{ else }}false{{ end }}
-{{- if .Templates.Autoinstall.PostScript }}
+{{- if or .Templates.Autoinstall.PostScript .Provisioning.CallbackEnabled .Network.Enabled .Network.DisableOtherNICs }}
     runcmd:
+{{- if .Templates.Autoinstall.PostScript }}
       - |
           /bin/bash <<'OPN_POST'
 {{ indent 10 .Templates.Autoinstall.PostScript }}
           OPN_POST
+{{- end }}
+{{- if .Network.Enabled }}
+      - |
+          /bin/bash <<'OPN_STATIC_NET'
+          PRIMARY_IF="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+          if [ -n "$PRIMARY_IF" ] && command -v nmcli >/dev/null 2>&1; then
+            PRIMARY_CON="$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$PRIMARY_IF" '$2==dev{print $1; exit}')"
+            if [ -z "$PRIMARY_CON" ]; then
+              PRIMARY_CON="$PRIMARY_IF"
+            fi
+
+            nmcli connection modify "$PRIMARY_CON" ipv4.method manual ipv4.addresses "{{ .Network.IPv4Address }}/{{ .Network.Prefix }}" ipv4.gateway "{{ .Network.Gateway }}" >/dev/null 2>&1 || true
+{{- if .Network.DNSServers }}
+            nmcli connection modify "$PRIMARY_CON" ipv4.dns "{{ join .Network.DNSServers "," }}" >/dev/null 2>&1 || true
+{{- end }}
+            nmcli connection up "$PRIMARY_CON" >/dev/null 2>&1 || true
+          elif [ -n "$PRIMARY_IF" ] && command -v netplan >/dev/null 2>&1; then
+            cat > /etc/netplan/99-opn-static.yaml <<EOF
+          network:
+            version: 2
+            ethernets:
+              opnprimary:
+                match:
+                  name: "$PRIMARY_IF"
+                dhcp4: false
+                dhcp6: false
+                addresses:
+                  - "{{ .Network.IPv4Address }}/{{ .Network.Prefix }}"
+                routes:
+                  - to: default
+                    via: "{{ .Network.Gateway }}"
+{{- if .Network.DNSServers }}
+                nameservers:
+                  addresses: [{{- range $i, $dns := .Network.DNSServers }}{{ if $i }}, {{ end }}"{{ $dns }}"{{- end }}]
+{{- end }}
+          EOF
+            netplan generate >/dev/null 2>&1 || true
+            netplan apply >/dev/null 2>&1 || true
+          fi
+          OPN_STATIC_NET
+{{- end }}
+{{- if .Network.DisableOtherNICs }}
+      - |
+          /bin/bash <<'OPN_DISABLE_NICS'
+          PRIMARY_IF="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+          if [ -n "$PRIMARY_IF" ] && command -v nmcli >/dev/null 2>&1; then
+            for DEV in $(nmcli -t -f DEVICE,TYPE device status 2>/dev/null | awk -F: '$2=="ethernet"{print $1}'); do
+              [ "$DEV" = "$PRIMARY_IF" ] && continue
+              nmcli device disconnect "$DEV" >/dev/null 2>&1 || true
+              nmcli device set "$DEV" managed no >/dev/null 2>&1 || true
+            done
+          fi
+
+          for DEV in $(ls /sys/class/net 2>/dev/null); do
+            [ "$DEV" = "$PRIMARY_IF" ] && continue
+            [ "$DEV" = "lo" ] && continue
+            ip link set "$DEV" down >/dev/null 2>&1 || true
+          done
+          OPN_DISABLE_NICS
+{{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+      - |
+          /bin/bash <<'OPN_PROV_CALLBACK'
+          CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+          CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=cloudinit_runcmd"
+          if command -v curl >/dev/null 2>&1; then
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          elif command -v wget >/dev/null 2>&1; then
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+          OPN_PROV_CALLBACK
+{{- end }}
 {{- end }}
 {{- if .Templates.ManagedUser.Username }}
     users:
@@ -72,13 +166,63 @@ autoinstall:
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if .Templates.Autoinstall.EarlyCommands }}
+{{- if or .Templates.Autoinstall.EarlyCommands .Provisioning.CallbackEnabled }}
   early-commands:
+    - |
+        /bin/bash <<'OPN_DISK_PREP'
+        # Best-effort cleanup of stale RAID/LVM/signatures before Subiquity storage probe.
+        if command -v mdadm >/dev/null 2>&1; then
+          for MD in /dev/md/* /dev/md[0-9]*; do
+            [ -e "$MD" ] || continue
+            mdadm --stop "$MD" >/dev/null 2>&1 || true
+          done
+        fi
+
+        if command -v vgchange >/dev/null 2>&1; then
+          vgchange -an >/dev/null 2>&1 || true
+        fi
+
+        if command -v lsblk >/dev/null 2>&1; then
+          for DEV in $(lsblk -dpno NAME,TYPE 2>/dev/null | awk '$2=="disk"{print $1}'); do
+            case "$DEV" in
+              /dev/loop*|/dev/ram*|/dev/fd*|/dev/zram*)
+                continue
+                ;;
+            esac
+
+            if command -v wipefs >/dev/null 2>&1; then
+              wipefs -af "$DEV" >/dev/null 2>&1 || true
+            fi
+            if command -v sgdisk >/dev/null 2>&1; then
+              sgdisk --zap-all "$DEV" >/dev/null 2>&1 || true
+            fi
+          done
+        fi
+
+        if command -v partprobe >/dev/null 2>&1; then
+          partprobe >/dev/null 2>&1 || true
+        fi
+        if command -v udevadm >/dev/null 2>&1; then
+          udevadm settle >/dev/null 2>&1 || true
+        fi
+        OPN_DISK_PREP
 {{- range .Templates.Autoinstall.EarlyCommands }}
     - {{ . }}
 {{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+    - |
+        /bin/bash <<'OPN_PROV_CALLBACK_EARLY'
+        CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+        CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_early"
+        if command -v curl >/dev/null 2>&1; then
+          curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+        elif command -v wget >/dev/null 2>&1; then
+          wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+        fi
+        OPN_PROV_CALLBACK_EARLY
 {{- end }}
-{{- if or .Templates.Autoinstall.PreScript .Templates.Autoinstall.LateCommands }}
+{{- end }}
+{{- if or .Templates.Autoinstall.PreScript .Templates.Autoinstall.LateCommands .Provisioning.CallbackEnabled }}
   late-commands:
 {{- if .Templates.Autoinstall.PreScript }}
     - |
@@ -86,7 +230,38 @@ autoinstall:
 {{ indent 8 .Templates.Autoinstall.PreScript }}
 OPN_PRE
 {{- end }}
+    - |
+        curtin in-target -- /bin/bash <<'OPN_GRUB_REPAIR'
+        # Best-effort: make local disk boot robust for both BIOS and UEFI firmware.
+        if [ -d /sys/firmware/efi ]; then
+          # Build fallback UEFI path so firmware can boot even if NVRAM entries are missing.
+          if [ -d /boot/efi ]; then
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck >/dev/null 2>&1 || true
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck --no-nvram --removable >/dev/null 2>&1 || true
+          fi
+        else
+          # Legacy BIOS path: stamp MBR bootloader on all likely local disks.
+          for DEV in /dev/sd[a-z] /dev/vd[a-z] /dev/xvd[a-z] /dev/nvme*n1; do
+            [ -b "$DEV" ] || continue
+            grub-install --target=i386-pc --recheck "$DEV" >/dev/null 2>&1 || true
+          done
+        fi
+
+        update-grub >/dev/null 2>&1 || true
+        OPN_GRUB_REPAIR
 {{- range .Templates.Autoinstall.LateCommands }}
     - {{ . }}
+{{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+    - |
+        /bin/bash <<'OPN_PROV_CALLBACK_LATE'
+        CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+        CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_late"
+        if command -v curl >/dev/null 2>&1; then
+          curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+        elif command -v wget >/dev/null 2>&1; then
+          wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+        fi
+        OPN_PROV_CALLBACK_LATE
 {{- end }}
 {{- end }}

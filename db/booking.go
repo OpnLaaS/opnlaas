@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/netip"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,10 +29,62 @@ var (
 	ErrCartNotFound      = errors.New("cart not found")
 )
 
+func cleanupStaleCartReservationsLocked() {
+	for ip, holder := range hostCartOwners {
+		cart, ok := bookingCarts[holder]
+		if !ok || cart == nil {
+			delete(hostCartOwners, ip)
+			continue
+		}
+
+		if _, exists := cart.Hosts[ip]; !exists {
+			delete(hostCartOwners, ip)
+		}
+	}
+}
+
+func normalizeHostBookingState(host *Host) (isBooked bool, err error) {
+	if host == nil {
+		return false, nil
+	}
+
+	if !host.IsBooked {
+		return false, nil
+	}
+
+	if host.ActiveBookingID <= 0 {
+		host.IsBooked = false
+		host.ActiveBookingID = 0
+		host.AssignedIPv4 = ""
+		host.AssignedCIDR = ""
+		err = Hosts.Update(host)
+		return false, err
+	}
+
+	var booking *Booking
+	if booking, err = BookingByID(host.ActiveBookingID); err != nil {
+		return true, err
+	}
+
+	if booking == nil {
+		host.IsBooked = false
+		host.ActiveBookingID = 0
+		host.AssignedIPv4 = ""
+		host.AssignedCIDR = ""
+		err = Hosts.Update(host)
+		return false, err
+	}
+
+	return true, nil
+}
+
 type BookingCart struct {
-	Owner     string                        `json:"owner"`
-	Hosts     map[string]BookingRequestHost `json:"hosts"`
-	UpdatedAt time.Time                     `json:"updated_at"`
+	Owner       string                        `json:"owner"`
+	Hosts       map[string]BookingRequestHost `json:"hosts"`
+	NetworkCIDR string                        `json:"network_cidr,omitempty"`
+	GatewayIPv4 string                        `json:"gateway_ipv4,omitempty"`
+	DNSServers  []string                      `json:"dns_servers,omitempty"`
+	UpdatedAt   time.Time                     `json:"updated_at"`
 }
 
 // newBookingCart allocates a fresh cart for an owner.
@@ -50,6 +104,9 @@ func (c *BookingCart) clone() *BookingCart {
 
 	cloned := newBookingCart(c.Owner)
 	maps.Copy(cloned.Hosts, c.Hosts)
+	cloned.NetworkCIDR = c.NetworkCIDR
+	cloned.GatewayIPv4 = c.GatewayIPv4
+	cloned.DNSServers = append([]string(nil), c.DNSServers...)
 	cloned.UpdatedAt = c.UpdatedAt
 
 	return cloned
@@ -83,6 +140,90 @@ func appendUniqueString(values []string, v string) []string {
 	}
 
 	return append(values, v)
+}
+
+func cartNetworkPrefix(c *BookingCart) (prefix netip.Prefix, ok bool) {
+	if c == nil || c.NetworkCIDR == "" {
+		return netip.Prefix{}, false
+	}
+
+	parsed, err := netip.ParsePrefix(c.NetworkCIDR)
+	if err != nil || !parsed.Addr().Is4() {
+		return netip.Prefix{}, false
+	}
+
+	return parsed.Masked(), true
+}
+
+func ipv4NetworkAndBroadcast(prefix netip.Prefix) (network netip.Addr, broadcast netip.Addr, err error) {
+	if !prefix.Addr().Is4() {
+		return network, broadcast, fmt.Errorf("prefix %s is not ipv4", prefix.String())
+	}
+
+	base := prefix.Masked().Addr().As4()
+	baseUint := (uint32(base[0]) << 24) | (uint32(base[1]) << 16) | (uint32(base[2]) << 8) | uint32(base[3])
+	hostBits := uint32(32 - prefix.Bits())
+	size := uint32(1) << hostBits
+	lastUint := baseUint + size - 1
+
+	network = netip.AddrFrom4(base)
+	broadcast = netip.AddrFrom4([4]byte{
+		byte(lastUint >> 24),
+		byte(lastUint >> 16),
+		byte(lastUint >> 8),
+		byte(lastUint),
+	})
+	return
+}
+
+func validateCartHostAssignedIPLocked(cart *BookingCart, host BookingRequestHost) (err error) {
+	if cart == nil {
+		return nil
+	}
+
+	var assigned string = host.AssignedIPv4
+	if assigned == "" {
+		return nil
+	}
+
+	prefix, ok := cartNetworkPrefix(cart)
+	if !ok {
+		return fmt.Errorf("set booking network before assigning per-host IPs")
+	}
+
+	addr, addrErr := netip.ParseAddr(assigned)
+	if addrErr != nil || !addr.Is4() {
+		return fmt.Errorf("assigned_ipv4 %s is invalid", assigned)
+	}
+
+	if !prefix.Contains(addr) {
+		return fmt.Errorf("assigned_ipv4 %s is outside cart network %s", assigned, prefix.String())
+	}
+
+	network, broadcast, nbErr := ipv4NetworkAndBroadcast(prefix)
+	if nbErr != nil {
+		return nbErr
+	}
+
+	if addr == network || addr == broadcast {
+		return fmt.Errorf("assigned_ipv4 %s cannot be network or broadcast address", assigned)
+	}
+
+	if gateway := cart.GatewayIPv4; gateway != "" && strings.TrimSpace(gateway) == assigned {
+		return fmt.Errorf("assigned_ipv4 %s conflicts with gateway", assigned)
+	}
+
+	for managementIP, existing := range cart.Hosts {
+		if managementIP == host.ManagementIP {
+			continue
+		}
+
+		if existing.AssignedIPv4 != "" && strings.EqualFold(existing.AssignedIPv4, assigned) {
+			return fmt.Errorf("assigned_ipv4 %s already used by host %s", assigned, managementIP)
+		}
+	}
+
+	return nil
 }
 
 func removeInt(values []int, target int) []int {
@@ -159,6 +300,103 @@ func UpdateBooking(record *Booking) (err error) {
 func DeleteBooking(bookingID int) (err error) {
 	err = withBookingLock(bookingID, func() error {
 		return bookings.Delete(bookingID)
+	})
+	return
+}
+
+// DeleteBookingCascade removes a booking and its linked records, then clears the per-booking lock entry.
+func DeleteBookingCascade(bookingID int) (err error) {
+	err = withBookingLock(bookingID, func() error {
+		booking, err := bookings.Select(bookingID)
+		if err != nil {
+			return err
+		}
+
+		if booking == nil {
+			return ErrBookingNotFound
+		}
+
+		for _, managementIP := range booking.OwnedHostManagementIPs {
+			host, hostErr := Hosts.Select(managementIP)
+			if hostErr != nil {
+				return hostErr
+			}
+
+			if host == nil || host.ActiveBookingID != bookingID {
+				continue
+			}
+
+			host.IsBooked = false
+			host.ActiveBookingID = 0
+			host.AssignedIPv4 = ""
+			host.AssignedCIDR = ""
+			if updateErr := Hosts.Update(host); updateErr != nil {
+				return updateErr
+			}
+		}
+
+		people, err := bookingPeople.SelectAllWithFilter(gomysql.NewFilter().KeyCmp(bookingPeople.FieldBySQLName("booking_id"), gomysql.OpEqual, bookingID))
+		if err != nil {
+			return err
+		}
+		for _, person := range people {
+			if person == nil {
+				continue
+			}
+
+			if err = bookingPeople.Delete(person.ID); err != nil {
+				return err
+			}
+		}
+
+		requests, err := bookingRequests.SelectAllWithFilter(gomysql.NewFilter().KeyCmp(bookingRequests.FieldBySQLName("booking_id"), gomysql.OpEqual, bookingID))
+		if err != nil {
+			return err
+		}
+		for _, request := range requests {
+			if request == nil {
+				continue
+			}
+
+			if err = bookingRequests.Delete(request.ID); err != nil {
+				return err
+			}
+		}
+
+		containers, err := bookingContainers.SelectAllWithFilter(gomysql.NewFilter().KeyCmp(bookingContainers.FieldBySQLName("booking_id"), gomysql.OpEqual, bookingID))
+		if err != nil {
+			return err
+		}
+		for _, container := range containers {
+			if container == nil {
+				continue
+			}
+
+			if err = bookingContainers.Delete(container.ProxmoxID); err != nil {
+				return err
+			}
+		}
+
+		vms, err := bookingVMs.SelectAllWithFilter(gomysql.NewFilter().KeyCmp(bookingVMs.FieldBySQLName("booking_id"), gomysql.OpEqual, bookingID))
+		if err != nil {
+			return err
+		}
+		for _, vm := range vms {
+			if vm == nil {
+				continue
+			}
+
+			if err = bookingVMs.Delete(vm.ProxmoxID); err != nil {
+				return err
+			}
+		}
+
+		if err = bookings.Delete(bookingID); err != nil {
+			return err
+		}
+
+		bookingLocks.Delete(bookingID)
+		return nil
 	})
 	return
 }
@@ -477,6 +715,8 @@ func ReleaseHostFromBooking(bookingID int, managementIP string) (err error) {
 		if host != nil {
 			host.IsBooked = false
 			host.ActiveBookingID = 0
+			host.AssignedIPv4 = ""
+			host.AssignedCIDR = ""
 			if err := Hosts.Update(host); err != nil {
 				return err
 			}
@@ -492,13 +732,22 @@ func ReleaseHostFromBooking(bookingID int, managementIP string) (err error) {
 
 // availableHostsForCart filters hosts that are free or reserved by the owner.
 func availableHostsForCart(owner string) (records []*Host, err error) {
+	bookingCartLock.Lock()
+	defer bookingCartLock.Unlock()
+	cleanupStaleCartReservationsLocked()
+
 	var hosts []*Host
 	if hosts, err = Hosts.SelectAll(); err != nil {
 		return
 	}
 
 	for _, h := range hosts {
-		if h.IsBooked && h.ActiveBookingID != 0 {
+		var booked bool
+		if booked, err = normalizeHostBookingState(h); err != nil {
+			return
+		}
+
+		if booked {
 			continue
 		}
 
@@ -567,10 +816,53 @@ func ResetBookingCart(owner string) {
 	}
 }
 
+// SetCartNetwork configures booking-network metadata for a cart.
+func SetCartNetwork(owner string, networkCIDR string, gatewayIPv4 string, dnsServers []string) (err error) {
+	bookingCartLock.Lock()
+	defer bookingCartLock.Unlock()
+	cleanupStaleCartReservationsLocked()
+
+	cart := getOrCreateCart(owner)
+
+	networkCIDR = strings.TrimSpace(networkCIDR)
+	if networkCIDR == "" {
+		return fmt.Errorf("network_cidr is required")
+	}
+
+	parsedPrefix, parseErr := netip.ParsePrefix(networkCIDR)
+	if parseErr != nil || !parsedPrefix.Addr().Is4() {
+		return fmt.Errorf("network_cidr must be valid IPv4 CIDR")
+	}
+	parsedPrefix = parsedPrefix.Masked()
+
+	gatewayIPv4 = strings.TrimSpace(gatewayIPv4)
+	if gatewayIPv4 != "" {
+		gatewayAddr, gwErr := netip.ParseAddr(gatewayIPv4)
+		if gwErr != nil || !gatewayAddr.Is4() {
+			return fmt.Errorf("gateway_ipv4 must be valid IPv4 address")
+		}
+		gatewayIPv4 = gatewayAddr.String()
+	}
+
+	cart.NetworkCIDR = parsedPrefix.String()
+	cart.GatewayIPv4 = gatewayIPv4
+	cart.DNSServers = append([]string(nil), dnsServers...)
+
+	for _, host := range cart.Hosts {
+		if err = validateCartHostAssignedIPLocked(cart, host); err != nil {
+			return
+		}
+	}
+
+	cart.UpdatedAt = time.Now()
+	return nil
+}
+
 // AddHostToCart validates and reserves a host in the owner's cart.
 func AddHostToCart(owner string, host BookingRequestHost) (err error) {
 	bookingCartLock.Lock()
 	defer bookingCartLock.Unlock()
+	cleanupStaleCartReservationsLocked()
 
 	var dbHost *Host
 	if dbHost, err = Hosts.Select(host.ManagementIP); err != nil {
@@ -582,7 +874,12 @@ func AddHostToCart(owner string, host BookingRequestHost) (err error) {
 		return
 	}
 
-	if dbHost.IsBooked {
+	var booked bool
+	if booked, err = normalizeHostBookingState(dbHost); err != nil {
+		return
+	}
+
+	if booked {
 		err = ErrHostAlreadyBooked
 		return
 	}
@@ -602,7 +899,20 @@ func AddHostToCart(owner string, host BookingRequestHost) (err error) {
 		}
 	}
 
+	host.AssignedIPv4 = strings.TrimSpace(host.AssignedIPv4)
+	if host.AssignedIPv4 != "" {
+		if parsed, parseErr := netip.ParseAddr(host.AssignedIPv4); parseErr != nil || !parsed.Is4() {
+			return fmt.Errorf("assigned_ipv4 %s is invalid", host.AssignedIPv4)
+		} else {
+			host.AssignedIPv4 = parsed.String()
+		}
+	}
+
 	cart := getOrCreateCart(owner)
+	if err = validateCartHostAssignedIPLocked(cart, host); err != nil {
+		return
+	}
+
 	cart.Hosts[host.ManagementIP] = host
 	cart.UpdatedAt = time.Now()
 	hostCartOwners[host.ManagementIP] = owner
@@ -613,6 +923,7 @@ func AddHostToCart(owner string, host BookingRequestHost) (err error) {
 func RemoveHostFromCart(owner string, managementIP string) {
 	bookingCartLock.Lock()
 	defer bookingCartLock.Unlock()
+	cleanupStaleCartReservationsLocked()
 
 	if cart, ok := bookingCarts[owner]; ok && cart != nil {
 		delete(cart.Hosts, managementIP)
@@ -625,6 +936,10 @@ func RemoveHostFromCart(owner string, managementIP string) {
 
 // CartCounts returns the number of hosts in the cart (virtual always zero).
 func CartCounts(owner string) (hostCount int, virtualCount int, err error) {
+	bookingCartLock.Lock()
+	cleanupStaleCartReservationsLocked()
+	bookingCartLock.Unlock()
+
 	var cart *BookingCart
 	if cart, err = BookingCartSnapshot(owner); err != nil {
 		return

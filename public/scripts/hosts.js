@@ -4,6 +4,7 @@
 
 import { dateTimeFormat, validateIP, reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
+import { showErrorToast, showSuccessToast } from "./lib/toast.js";
 
 /**
  * Variable declaration for DOM elements
@@ -33,6 +34,12 @@ const cancelButtons = {
 
 const hostFormElement = document.getElementById("hostForm");
 const isoForm = document.getElementById("uploadISOForm");
+const isoInput = isoForm?.querySelector('[name="iso-input"]');
+const isoSubmitBtn = document.getElementById("submitISOBtn");
+const isoSubmitLabel = document.getElementById("submitISOLabel");
+const isoCancelBtn = document.getElementById("cancelISOBtn");
+const isoUploadSpinner = document.getElementById("iso-upload-spinner");
+const isoSelectionStatus = document.getElementById("iso-selection-status");
 
 /**
  * Logic for host expansion cards and host power dropdown
@@ -51,6 +58,24 @@ function toggleHostExpansionCard(button) {
         collapsible.classList.add("max-h-0", "opacity-0");
         collapsible.classList.remove("collapsible-open", "opacity-100");
         arrow.style.transform = "";
+    }
+}
+
+function toggleISOExpansionCard(button) {
+    const section = button.closest("section");
+    const collapsible = section?.querySelector('[data-role="iso-details"]');
+    const arrow = button.querySelector("svg");
+    if (!collapsible) return;
+    const isCollapsed = collapsible.classList.contains("max-h-0");
+
+    if (isCollapsed) {
+        collapsible.classList.remove("max-h-0", "opacity-0");
+        collapsible.classList.add("max-h-96", "opacity-100");
+        if (arrow) arrow.style.transform = "rotate(180deg)";
+    } else {
+        collapsible.classList.add("max-h-0", "opacity-0");
+        collapsible.classList.remove("max-h-96", "opacity-100");
+        if (arrow) arrow.style.transform = "";
     }
 }
 
@@ -76,6 +101,7 @@ function closeAllMenus() {
 }
 
 window.toggleHostExpansionCard = toggleHostExpansionCard;
+window.toggleISOExpansionCard = toggleISOExpansionCard;
 window.togglePowerMenu = togglePowerMenu;
 window.closeAllMenus = closeAllMenus;
 
@@ -179,7 +205,7 @@ async function powerControl(button) {
                 errorBox.textContent = fallback;
                 errorBox.classList.remove("hidden");
             } else {
-                alert(fallback);
+                showErrorToast(fallback);
             }
             return;
         } else {
@@ -196,6 +222,7 @@ async function powerControl(button) {
                 const node = hostSection?.querySelector(`[data-field="${selector}"]`);
                 if (node) node.textContent = `As of ${formattedTime}`;
             });
+            showSuccessToast(`${btnText} queued for ${deviceAddress}`);
         }
 
         closeAllMenus();
@@ -205,7 +232,7 @@ async function powerControl(button) {
             errorBox.textContent = "Failed to change power state.";
             errorBox.classList.remove("hidden");
         } else {
-            alert("Failed to change power state.");
+            showErrorToast("Failed to change power state.");
         }
     } finally {
         menuButtons.forEach((btn) => {
@@ -235,14 +262,15 @@ async function unenrollHost(button) {
             if (!hostList.children.length) {
                 hostEmpty?.classList.remove("hidden");
             }
+            showSuccessToast(`Host ${deviceAddress} removed.`);
         } else {
-            alert(response?.body?.message || "Failed to remove host.");
+            showErrorToast(response?.body?.message || "Failed to remove host.");
             button.disabled = false;
             button.textContent = defaultText;
         }
     } catch (err) {
         console.error(err);
-        alert("Failed to remove host.");
+        showErrorToast("Failed to remove host.");
         button.disabled = false;
         button.textContent = defaultText;
     } finally {
@@ -306,6 +334,8 @@ function resetHostForm() {
 
 function resetISOForm() {
     isoForm?.reset();
+    setISOSelectionLoading(false, "");
+    setISOUploadLoading(false);
 }
 
 function closeForm(formKey) {
@@ -430,27 +460,78 @@ if (isoForm) {
     isoForm.addEventListener("submit", uploadISO);
 }
 
+if (isoInput) {
+    isoInput.addEventListener("change", async () => {
+        const file = isoInput.files?.[0];
+        if (!file) {
+            setISOSelectionLoading(false, "");
+            return;
+        }
+
+        setISOSelectionLoading(true, `Preparing ${file.name}...`);
+        isoSubmitBtn.disabled = true;
+        // Let the browser breathe before enabling upload to make status transitions visible.
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        isoSubmitBtn.disabled = false;
+        setISOSelectionLoading(false, `Ready: ${file.name}`);
+    });
+}
+
+function setISOSelectionLoading(isLoading, message) {
+    if (!isoSelectionStatus) return;
+    isoSelectionStatus.textContent = message || "";
+    isoSelectionStatus.classList.toggle("hidden", !message);
+    isoSelectionStatus.classList.toggle("italic", isLoading);
+}
+
+function setISOUploadLoading(isLoading) {
+    if (isoUploadSpinner) {
+        isoUploadSpinner.classList.toggle("hidden", !isLoading);
+    }
+    if (isoSubmitLabel) {
+        isoSubmitLabel.textContent = isLoading ? "Uploading..." : "Upload";
+    }
+    if (isoSubmitBtn) isoSubmitBtn.disabled = isLoading;
+    if (isoCancelBtn) isoCancelBtn.disabled = isLoading;
+    if (isoInput) isoInput.disabled = isLoading;
+}
+
 async function uploadISO(e) {
     e.preventDefault();
     if (!isoForm) return;
-    const input = isoForm.querySelector('[name="iso-input"]');
-    const file = input?.files?.[0];
+    const file = isoInput?.files?.[0];
     const fd = new FormData();
 
     if (!file) {
         return;
     }
 
+    setISOUploadLoading(true);
+    setISOSelectionLoading(false, `Uploading ${file.name}...`);
+    // Ensure loading UI paints before starting multipart upload work.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     fd.append("iso_image", file, file.name);
-    const response = await API.postIsoImage(fd);
 
-    if (response.status_code !== 200) {
-        alert(response?.body?.message || "Failed to upload ISO.");
+    try {
+        const response = await API.postIsoImage(fd);
+
+        if (response.status_code !== 200) {
+            showErrorToast(response?.body?.message || "Failed to upload ISO.");
+            setISOUploadLoading(false);
+            setISOSelectionLoading(false, `Upload failed: ${file.name}`);
+            return;
+        }
+
+        showSuccessToast(`ISO uploaded: ${file.name}`);
+        resetISOForm();
+        closeForm("iso");
+        window.location.reload();
+    } catch (err) {
+        console.error(err);
+        showErrorToast("Failed to upload ISO.");
+        setISOUploadLoading(false);
+        setISOSelectionLoading(false, `Upload failed: ${file.name}`);
     }
-
-    resetISOForm();
-    closeForm("iso");
-    window.location.reload();
 }
 
 /**
@@ -480,12 +561,13 @@ async function removeISO(button) {
             if (!isoList.children.length) {
                 isoEmpty?.classList.remove("hidden");
             }
+            showSuccessToast(`ISO removed: ${isoFileName}`);
         } else {
-            alert(response?.body?.message || "Failed to remove ISO file.");
+            showErrorToast(response?.body?.message || "Failed to remove ISO file.");
         }
     } catch (err) {
         console.error(err);
-        alert("Failed to remove ISO file.");
+        showErrorToast("Failed to remove ISO file.");
     } 
 }
 
@@ -681,11 +763,15 @@ async function renderISOs() {
             return;
         }
 
-        // Get ISOs from API and convert to array
-        const isoData = await API.getIsoImages();
+        // Get ISOs + enum labels
+        const [isoData, distroTypeData, preconfigureTypeData] = await Promise.all([
+            API.getIsoImages(),
+            API.getDistroTypes(),
+            API.getPreconfigureTypes(),
+        ]);
         const isos = Array.isArray(isoData.body) ? isoData.body : [];
-
-        console.log(isoData)
+        const distroTypes = reverseObject(distroTypeData?.body || {});
+        const preconfigureTypes = reverseObject(preconfigureTypeData?.body || {});
 
         isoList.innerHTML = "";
 
@@ -698,11 +784,22 @@ async function renderISOs() {
         isoEmpty?.classList.add("hidden");
         isos.forEach((iso) => {
             const frag = isoTemplate.content.cloneNode(true);
+            const version = (iso.version || "").trim() || "Unknown version";
+            const architecture = (iso.architecture || "").trim() || "Unknown arch";
+            const sizeGB = Number.isFinite(iso.size) ? `${(iso.size / (1024 ** 3)).toFixed(2)} GB` : "—";
 
-            // Fill in template with ISO date (name, version, etc.)
-            frag.querySelector('[data-field="name"]').textContent = iso.name;
-            frag.querySelector('[data-field="file-path"]').innerHTML += ` ${iso.full_iso_path}`;
-            frag.querySelector('[data-field="file-size"]').innerHTML += ` ${(iso.size / (1024 ** 3)).toFixed(2)} GB`;
+            // Fill in template with ISO details
+            frag.querySelector('[data-field="name"]').textContent = iso.name || "Unnamed ISO";
+            frag.querySelector('[data-field="summary"]').textContent = `${version} • ${architecture}`;
+            frag.querySelector('[data-field="distro-name"]').textContent = iso.distro_name || "—";
+            frag.querySelector('[data-field="version"]').textContent = version;
+            frag.querySelector('[data-field="architecture"]').textContent = architecture;
+            frag.querySelector('[data-field="distro-type"]').textContent = resolveEnum(distroTypes, iso.distro_type);
+            frag.querySelector('[data-field="preconfigure-type"]').textContent = resolveEnum(preconfigureTypes, iso.preconfigure_type);
+            frag.querySelector('[data-field="file-size"]').textContent = sizeGB;
+            frag.querySelector('[data-field="file-path"]').textContent = iso.full_iso_path || "—";
+            frag.querySelector('[data-field="kernel-path"]').textContent = iso.kernel_path || "—";
+            frag.querySelector('[data-field="initrd-path"]').textContent = iso.initrd_path || "—";
 
             isoList.appendChild(frag);
         });
