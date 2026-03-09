@@ -685,12 +685,36 @@ func apiISOImagesCreate(c *fiber.Ctx) (err error) {
 }
 
 func apiISOImagesDelete(c *fiber.Ctx) (err error) {
-	var (
-		isoName string = c.Params("iso_name")
-	)
+	var isoName string = strings.TrimSpace(c.Params("iso_name"))
+	if isoName == "" {
+		isoName = strings.TrimSpace(c.Query("name"))
+	}
+	if isoName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "iso name is required"})
+	}
 
-	err = db.StoredISOImages.Delete(isoName)
-	return
+	var report *iso.PurgeReport
+	if report, err = iso.PurgeStoredISOByName(isoName); err != nil {
+		if errors.Is(err, iso.ErrStoredISONotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "ISO not found"})
+		}
+
+		log.Errorf("iso purge failed iso_name=%s error=%v", isoName, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to purge ISO artifacts"})
+	}
+
+	log.Infof(
+		"iso purge complete iso_name=%s removed_paths=%d updated_profiles=%d",
+		report.ISOName,
+		len(report.RemovedPaths),
+		len(report.UpdatedPXEProfileIPs),
+	)
+	return c.JSON(fiber.Map{
+		"message":               "ISO purged successfully",
+		"iso_name":              report.ISOName,
+		"removed_paths":         report.RemovedPaths,
+		"updated_profile_hosts": report.UpdatedPXEProfileIPs,
+	})
 }
 
 func apiISOImagesList(c *fiber.Ctx) (err error) {

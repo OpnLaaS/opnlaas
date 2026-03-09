@@ -128,13 +128,18 @@ func createOutputs(extracted *db.StoredISOImage, img *iso9660.Image, sourceImage
 		return
 	}
 
-	// if httpArtifacts != "" {
-	// 	stage2Dir := filepath.Join(httpArtifacts, "stage2")
-	// 	if err = copyWholeISO(sourceImage, stage2Dir); err != nil {
-	// 		fmt.Println(err)
-	// 		return
-	// 	}
-	// }
+	// Precompute stage2 once during ISO import for Kickstart-based distros.
+	// Startup reconciliation still exists as a safety net for stale/missing artifacts.
+	if extracted.PreConfigure == db.PreConfigureTypeKickstart && strings.TrimSpace(httpArtifacts) != "" {
+		var (
+			stage2Dir string = filepath.Join(httpArtifacts, "stage2")
+			stage2ISO string = chooseFirstNonEmpty(primaryISO, sourceImage)
+		)
+		if err = EnsureStage2Artifacts(stage2ISO, stage2Dir); err != nil {
+			err = fmt.Errorf("prepare stage2 artifacts %s: %w", stage2Dir, err)
+			return
+		}
+	}
 
 	extracted.FullISOPath = chooseFirstNonEmpty(filepath.Join(httpArtifacts, "image.iso"), filepath.Join(tftpArtifacts, "image.iso"), storageISO)
 	extracted.KernelPath = chooseFirstNonEmpty(filepath.Join(tftpArtifacts, "kernel"), filepath.Join(httpArtifacts, "kernel"), filepath.Join(storageDir, filepath.Base(kernelISOPath)))

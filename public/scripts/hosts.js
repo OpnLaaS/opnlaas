@@ -545,7 +545,12 @@ async function removeISO(button) {
         return;
     }
 
-    const isoFileName = isoFile.textContent;
+    const isoFileName = (section?.dataset?.isoName || isoFile.textContent || "").trim();
+    if (!isoFileName) {
+        showErrorToast("Unable to determine ISO name for deletion.");
+        return;
+    }
+
     const confirmRemoval = window.confirm(`Remove ISO file ${isoFileName} from inventory?`);
     if (!confirmRemoval) { 
         return;
@@ -787,9 +792,10 @@ async function renderISOs() {
             const version = (iso.version || "").trim() || "Unknown version";
             const architecture = (iso.architecture || "").trim() || "Unknown arch";
             const sizeGB = Number.isFinite(iso.size) ? `${(iso.size / (1024 ** 3)).toFixed(2)} GB` : "—";
+            const isoName = (iso.name || "Unnamed ISO").trim();
 
             // Fill in template with ISO details
-            frag.querySelector('[data-field="name"]').textContent = iso.name || "Unnamed ISO";
+            frag.querySelector('[data-field="name"]').textContent = isoName;
             frag.querySelector('[data-field="summary"]').textContent = `${version} • ${architecture}`;
             frag.querySelector('[data-field="distro-name"]').textContent = iso.distro_name || "—";
             frag.querySelector('[data-field="version"]').textContent = version;
@@ -800,6 +806,10 @@ async function renderISOs() {
             frag.querySelector('[data-field="file-path"]').textContent = iso.full_iso_path || "—";
             frag.querySelector('[data-field="kernel-path"]').textContent = iso.kernel_path || "—";
             frag.querySelector('[data-field="initrd-path"]').textContent = iso.initrd_path || "—";
+            const isoSection = frag.querySelector("section");
+            if (isoSection) {
+                isoSection.dataset.isoName = isoName;
+            }
 
             isoList.appendChild(frag);
         });

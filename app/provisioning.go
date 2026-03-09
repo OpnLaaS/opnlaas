@@ -313,7 +313,7 @@ func provisioningInjectCompletionTemplateData(templateData map[string]string, bo
 
 func isTerminalProvisioningCallbackStage(stage string) bool {
 	switch strings.ToLower(strings.TrimSpace(stage)) {
-	case "", "install_complete", "kickstart_post", "cloudinit_runcmd", "autoinstall_late":
+	case "", "install_complete", "kickstart_post", "cloudinit_runcmd":
 		return true
 	default:
 		return false
@@ -322,7 +322,29 @@ func isTerminalProvisioningCallbackStage(stage string) bool {
 
 func isFailureProvisioningCallbackStage(stage string) bool {
 	switch strings.ToLower(strings.TrimSpace(stage)) {
-	case "autoinstall_error", "kickstart_error", "install_failed":
+	case "autoinstall_error", "kickstart_error", "install_failed", "autoinstall_disk_wipe_failed", "kickstart_disk_wipe_failed", "autoinstall_disk_mismatch_failed", "kickstart_disk_mismatch_failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isCompletionPreparationProvisioningCallbackStage(stage string) bool {
+	switch strings.ToLower(strings.TrimSpace(stage)) {
+	case "autoinstall_late":
+		return true
+	default:
+		return false
+	}
+}
+
+func shouldIncludeProvisioningCallbackDetailInEvent(stage string, stageFailure bool) bool {
+	if stageFailure {
+		return true
+	}
+
+	switch strings.ToLower(strings.TrimSpace(stage)) {
+	case "autoinstall_disk_audit", "kickstart_disk_audit":
 		return true
 	default:
 		return false
@@ -373,6 +395,7 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 	}
 	stageTerminal := isTerminalProvisioningCallbackStage(stage)
 	stageFailure := isFailureProvisioningCallbackStage(stage)
+	stageCompletionPreparation := isCompletionPreparationProvisioningCallbackStage(stage)
 	stageDetail := strings.TrimSpace(event.Detail)
 	if len(stageDetail) > 512 {
 		stageDetail = stageDetail[:512]
@@ -386,8 +409,10 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 			hostState.Message = fmt.Sprintf("Installer failure callback received (%s)", stage)
 		}
 	} else if stageTerminal {
-		hostState.Status = "completed"
-		hostState.Message = fmt.Sprintf("Installer completion callback received (%s)", stage)
+		if hostState.Status != "failed" {
+			hostState.Status = "completed"
+			hostState.Message = fmt.Sprintf("Installer completion callback received (%s)", stage)
+		}
 	} else if hostState.Status != "completed" && hostState.Status != "failed" {
 		hostState.Status = "installing"
 		hostState.Message = fmt.Sprintf("Installer progress callback received (%s)", stage)
@@ -407,11 +432,13 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 		strings.TrimSpace(event.RemoteAddr),
 		stageTerminal,
 	)
-	if stageFailure {
-		callbackMessage = fmt.Sprintf("%s failure=%t", callbackMessage, stageFailure)
-	}
-	if stageDetail != "" {
-		callbackMessage = fmt.Sprintf("%s detail=%q", callbackMessage, stageDetail)
+	if shouldIncludeProvisioningCallbackDetailInEvent(stage, stageFailure) {
+		if stageFailure {
+			callbackMessage = fmt.Sprintf("%s failure=%t", callbackMessage, stageFailure)
+		}
+		if stageDetail != "" {
+			callbackMessage = fmt.Sprintf("%s detail=%q", callbackMessage, stageDetail)
+		}
 	}
 
 	job.Events = append(job.Events, apiProvisioningEvent{
@@ -420,7 +447,7 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 		Message: callbackMessage,
 	})
 
-	if !stageTerminal && !stageFailure {
+	if !stageTerminal && !stageFailure && !stageCompletionPreparation {
 		if stageDetail != "" {
 			appLog.Basicf(
 				"[PROV] booking=%d Host %s reported installer progress callback (stage=%s remote=%s detail=%q)\n",
@@ -595,6 +622,42 @@ func runProvisioningWorkflow(bookingID int, owner string, hosts []db.BookingRequ
 	}
 }
 
+func retryProvisioningAction(
+	attempts int,
+	initialDelay time.Duration,
+	action func() error,
+	onRetry func(failedAttempt int, err error, nextDelay time.Duration),
+) (err error) {
+	if attempts < 1 {
+		attempts = 1
+	}
+	if initialDelay <= 0 {
+		initialDelay = time.Second
+	}
+
+	delay := initialDelay
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if err = action(); err == nil {
+			return nil
+		}
+
+		if attempt >= attempts {
+			break
+		}
+
+		if onRetry != nil {
+			onRetry(attempt, err, delay)
+		}
+
+		time.Sleep(delay)
+		if delay < 30*time.Second {
+			delay *= 2
+		}
+	}
+
+	return err
+}
+
 func runProvisioningHost(
 	bookingID int,
 	hostRequest db.BookingRequestHost,
@@ -654,11 +717,41 @@ func runProvisioningHost(
 
 	managementOwned := false
 	if host.Management == nil {
-		if host.Management, err = db.NewHostManagementClient(host); err != nil {
+		var management *db.HostManagementClient
+		if err = retryProvisioningAction(
+			5,
+			2*time.Second,
+			func() error {
+				var createErr error
+				management, createErr = db.NewHostManagementClient(host)
+				if createErr != nil {
+					if management != nil {
+						management.Close()
+					}
+					return createErr
+				}
+				return nil
+			},
+			func(failedAttempt int, retryErr error, nextDelay time.Duration) {
+				provisioningAppendEvent(
+					bookingID,
+					"warn",
+					fmt.Sprintf(
+						"Host %s management client creation attempt %d/5 failed: %v (retrying in %s)",
+						ip,
+						failedAttempt,
+						retryErr,
+						nextDelay.Round(time.Second),
+					),
+				)
+			},
+		); err != nil {
 			provisioningUpdateHost(bookingID, ip, "failed", fmt.Sprintf("Failed to create management client: %v", err))
 			provisioningAppendEvent(bookingID, "error", fmt.Sprintf("Host %s management client creation failed: %v", ip, err))
 			return false
 		}
+
+		host.Management = management
 		managementOwned = true
 	}
 
@@ -680,14 +773,54 @@ func runProvisioningHost(
 		provisioningUpdateHost(bookingID, ip, "setting_boot", fmt.Sprintf("Attempt %d/2: setting one-time PXE boot", attempt))
 		provisioningAppendEvent(bookingID, "info", fmt.Sprintf("Host %s attempt %d/2 setting one-time PXE boot", ip, attempt))
 
-		if err = host.Management.SetPXEBoot(bootMode); err != nil {
+		if err = retryProvisioningAction(
+			3,
+			2*time.Second,
+			func() error {
+				return host.Management.SetPXEBoot(bootMode)
+			},
+			func(failedAttempt int, retryErr error, nextDelay time.Duration) {
+				provisioningAppendEvent(
+					bookingID,
+					"warn",
+					fmt.Sprintf(
+						"Host %s attempt %d/2 set PXE boot transient failure %d/3: %v (retrying in %s)",
+						ip,
+						attempt,
+						failedAttempt,
+						retryErr,
+						nextDelay.Round(time.Second),
+					),
+				)
+			},
+		); err != nil {
 			provisioningAppendEvent(bookingID, "error", fmt.Sprintf("Host %s attempt %d/2 set PXE boot failed: %v", ip, attempt, err))
 			continue
 		}
 
 		provisioningUpdateHost(bookingID, ip, "restarting", fmt.Sprintf("Attempt %d/2: restarting host into PXE", attempt))
 		provisioningAppendEvent(bookingID, "info", fmt.Sprintf("Host %s attempt %d/2 restarting (force=%t)", ip, attempt, forceRestart))
-		if err = host.Management.ResetPowerState(forceRestart); err != nil {
+		if err = retryProvisioningAction(
+			3,
+			2*time.Second,
+			func() error {
+				return host.Management.ResetPowerState(forceRestart)
+			},
+			func(failedAttempt int, retryErr error, nextDelay time.Duration) {
+				provisioningAppendEvent(
+					bookingID,
+					"warn",
+					fmt.Sprintf(
+						"Host %s attempt %d/2 restart transient failure %d/3: %v (retrying in %s)",
+						ip,
+						attempt,
+						failedAttempt,
+						retryErr,
+						nextDelay.Round(time.Second),
+					),
+				)
+			},
+		); err != nil {
 			provisioningAppendEvent(bookingID, "error", fmt.Sprintf("Host %s attempt %d/2 restart failed: %v", ip, attempt, err))
 			continue
 		}

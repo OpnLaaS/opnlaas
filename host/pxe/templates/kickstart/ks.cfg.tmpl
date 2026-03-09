@@ -13,11 +13,274 @@ rootpw --lock
 {{- end }}
 firewall --disabled
 selinux --permissive
-text
 zerombr
-clearpart --all --initlabel
-autopart --type=lvm
 reboot
+
+%pre --log=/tmp/ks-pre.log
+/bin/bash <<'OPN_DISK_WIPE_PRE'
+set -euo pipefail
+
+sanitize_detail() {
+  printf '%s' "${1:-}" | tr -cd '[:alnum:][:space:]_:/.=|,-' | tr ' ' '_' | cut -c1-240
+}
+
+send_callback() {
+  STAGE="$1"
+  DETAIL="$(sanitize_detail "${2:-}")"
+{{- if .Provisioning.CallbackEnabled }}
+  CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+  CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=${STAGE}"
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$DETAIL" ]; then
+      curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+    else
+      curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    POST_DATA="$CALLBACK_DATA"
+    if [ -n "$DETAIL" ]; then
+      POST_DATA="${POST_DATA}&detail=${DETAIL}"
+    fi
+    wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$POST_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+  fi
+{{- end }}
+}
+
+on_fail() {
+  RC="$?"
+  LINE="${BASH_LINENO[0]:-unknown}"
+  CMD="${BASH_COMMAND:-unknown}"
+  send_callback "kickstart_disk_wipe_failed" "rc=${RC}|line=${LINE}|cmd=${CMD}"
+}
+trap on_fail ERR
+
+list_physical_disks() {
+  for SYSDEV in /sys/block/*; do
+    [ -e "$SYSDEV" ] || continue
+    DEV_NAME="${SYSDEV##*/}"
+    case "$DEV_NAME" in
+      loop*|ram*|fd*|zram*|sr*|dm-*|md*)
+        continue
+        ;;
+    esac
+
+    DEV_PATH="/dev/${DEV_NAME}"
+    [ -b "$DEV_PATH" ] || continue
+    echo "$DEV_PATH"
+  done
+}
+
+choose_primary_boot_disk() {
+  # Prefer by-path ordering because it is typically stable across reboots and closer to controller order.
+  if [ -d /dev/disk/by-path ]; then
+    SEEN=""
+    while IFS= read -r LINK_PATH; do
+      [ -L "$LINK_PATH" ] || continue
+      case "$LINK_PATH" in
+        *-part[0-9]*)
+          continue
+          ;;
+      esac
+      DEV_PATH="$(readlink -f "$LINK_PATH" 2>/dev/null || true)"
+      [ -n "$DEV_PATH" ] || continue
+      [ -b "$DEV_PATH" ] || continue
+      case "$DEV_PATH" in
+        /dev/loop*|/dev/ram*|/dev/fd*|/dev/zram*|/dev/sr*|/dev/dm-*|/dev/md*)
+          continue
+          ;;
+      esac
+      case " $SEEN " in
+        *" $DEV_PATH "*)
+          continue
+          ;;
+      esac
+      SEEN="${SEEN} ${DEV_PATH}"
+      echo "$DEV_PATH"
+      return 0
+    done < <(find /dev/disk/by-path -maxdepth 1 -type l 2>/dev/null | LC_ALL=C sort)
+  fi
+
+  for DEV in $(list_physical_disks); do
+    echo "$DEV"
+    return 0
+  done
+  return 1
+}
+
+deactivate_storage_layers() {
+  if command -v swapoff >/dev/null 2>&1; then
+    swapoff -a >/dev/null 2>&1 || true
+  fi
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop multipathd >/dev/null 2>&1 || true
+  fi
+  if command -v multipath >/dev/null 2>&1; then
+    multipath -F >/dev/null 2>&1 || true
+  fi
+  if command -v vgchange >/dev/null 2>&1; then
+    vgchange -an >/dev/null 2>&1 || true
+  fi
+  if command -v mdadm >/dev/null 2>&1; then
+    mdadm --stop --scan >/dev/null 2>&1 || true
+  fi
+  if command -v dmsetup >/dev/null 2>&1; then
+    dmsetup remove_all >/dev/null 2>&1 || true
+  fi
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle >/dev/null 2>&1 || true
+  fi
+}
+
+check_http_available() {
+  URL="$1"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsS -m 8 -I "$URL" >/dev/null 2>&1
+    return $?
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    wget -q --spider -T 8 "$URL" >/dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
+
+configure_install_repos() {
+  STAGE2_URL="{{ .Artifacts.Stage2HTTP }}"
+  STAGE2_URL="${STAGE2_URL%/}"
+  REPO_KS="/tmp/opn-repos.ks"
+  : > "$REPO_KS"
+
+  if [ -z "$STAGE2_URL" ]; then
+    send_callback "kickstart_repo_config_failed" "empty_stage2_url"
+    return 0
+  fi
+
+  BASEOS_URL="${STAGE2_URL}/BaseOS"
+  APPSTREAM_URL="${STAGE2_URL}/AppStream"
+  ROOT_REPO_URL="${STAGE2_URL}"
+
+  if check_http_available "${BASEOS_URL}/repodata/repomd.xml"; then
+    echo "url --url=${BASEOS_URL}" >> "$REPO_KS"
+    if check_http_available "${APPSTREAM_URL}/repodata/repomd.xml"; then
+      echo "repo --name=appstream --baseurl=${APPSTREAM_URL}" >> "$REPO_KS"
+      send_callback "kickstart_repo_configured" "baseurl=${BASEOS_URL}|appstream=${APPSTREAM_URL}"
+    else
+      send_callback "kickstart_repo_configured" "baseurl=${BASEOS_URL}|appstream=missing"
+    fi
+    return 0
+  fi
+
+  if check_http_available "${ROOT_REPO_URL}/repodata/repomd.xml"; then
+    echo "url --url=${ROOT_REPO_URL}" >> "$REPO_KS"
+    send_callback "kickstart_repo_configured" "baseurl=${ROOT_REPO_URL}|mode=root"
+    return 0
+  fi
+
+  # Fallback to stage2 root even if probe fails, so installer never defaults to nearest mirror.
+  echo "url --url=${ROOT_REPO_URL}" >> "$REPO_KS"
+  send_callback "kickstart_repo_config_fallback" "baseurl=${ROOT_REPO_URL}|reason=repodata_probe_failed"
+  return 0
+}
+
+send_callback "kickstart_disk_wipe_started"
+deactivate_storage_layers
+DISK_COUNT=0
+PRIMARY_BOOT_DISK="$(choose_primary_boot_disk || true)"
+IS_ROCKY="{{- if and .ISO (or (eq .ISO.DistroName "Rocky Linux") (eq .ISO.DistroName "Rocky")) -}}1{{- else -}}0{{- end -}}"
+if [ "$IS_ROCKY" = "1" ]; then
+  # Rocky's storage scan can hang when multipath probing is active on non-mpath systems.
+  cat >/etc/multipath.conf <<'OPN_MULTIPATH_EOF'
+defaults {
+  user_friendly_names no
+}
+blacklist {
+  devnode "*"
+}
+OPN_MULTIPATH_EOF
+  if command -v modprobe >/dev/null 2>&1; then
+    modprobe -r dm_multipath >/dev/null 2>&1 || true
+  fi
+  deactivate_storage_layers
+fi
+for DEV in $(list_physical_disks); do
+  DISK_COUNT=$((DISK_COUNT + 1))
+
+  if command -v wipefs >/dev/null 2>&1; then
+    wipefs -a -f "$DEV" || true
+  fi
+  if command -v sgdisk >/dev/null 2>&1; then
+    sgdisk --zap-all --clear "$DEV" || true
+  fi
+  if command -v blkdiscard >/dev/null 2>&1; then
+    blkdiscard -f "$DEV" || true
+  fi
+  if command -v kpartx >/dev/null 2>&1; then
+    kpartx -dv "$DEV" >/dev/null 2>&1 || true
+  fi
+
+  dd if=/dev/zero of="$DEV" bs=1M count=16 conv=fsync,notrunc status=none >/dev/null 2>&1 || dd if=/dev/zero of="$DEV" bs=1M count=16 conv=fsync,notrunc >/dev/null 2>&1 || true
+  SIZE_BYTES="$(blockdev --getsize64 "$DEV" 2>/dev/null || echo 0)"
+  if [ "$SIZE_BYTES" -gt 33554432 ]; then
+    TAIL_SEEK_MB=$((SIZE_BYTES / 1048576 - 16))
+    dd if=/dev/zero of="$DEV" bs=1M count=16 seek="$TAIL_SEEK_MB" conv=fsync,notrunc status=none >/dev/null 2>&1 || dd if=/dev/zero of="$DEV" bs=1M count=16 seek="$TAIL_SEEK_MB" conv=fsync,notrunc >/dev/null 2>&1 || true
+  fi
+done
+
+if [ "$DISK_COUNT" -eq 0 ]; then
+  send_callback "kickstart_disk_wipe_failed" "no_eligible_disks_found"
+  exit 1
+fi
+
+if [ -z "$PRIMARY_BOOT_DISK" ]; then
+  send_callback "kickstart_disk_wipe_failed" "no_primary_boot_disk_selected"
+  exit 1
+fi
+
+PRIMARY_BOOT_DRIVE="${PRIMARY_BOOT_DISK#/dev/}"
+OTHER_DRIVES=""
+for DEV in $(list_physical_disks); do
+  DRIVE="${DEV#/dev/}"
+  if [ "$DRIVE" = "$PRIMARY_BOOT_DRIVE" ]; then
+    continue
+  fi
+  if [ -z "$OTHER_DRIVES" ]; then
+    OTHER_DRIVES="$DRIVE"
+  else
+    OTHER_DRIVES="${OTHER_DRIVES},${DRIVE}"
+  fi
+done
+
+if [ "$IS_ROCKY" = "1" ] && [ -n "$OTHER_DRIVES" ]; then
+  IGNOREDISK_DIRECTIVE="ignoredisk --drives=${OTHER_DRIVES}"
+else
+  IGNOREDISK_DIRECTIVE="ignoredisk --only-use=${PRIMARY_BOOT_DRIVE}"
+fi
+
+if [ -d /sys/firmware/efi ]; then
+  BOOTLOADER_DIRECTIVE="bootloader --boot-drive=${PRIMARY_BOOT_DRIVE}"
+else
+  BOOTLOADER_DIRECTIVE="bootloader --location=mbr --boot-drive=${PRIMARY_BOOT_DRIVE}"
+fi
+cat > /tmp/opn-storage.ks <<KS_STORAGE_EOF
+${IGNOREDISK_DIRECTIVE}
+${BOOTLOADER_DIRECTIVE}
+clearpart --all --initlabel --drives=${PRIMARY_BOOT_DRIVE}
+autopart --type=lvm
+KS_STORAGE_EOF
+echo "$PRIMARY_BOOT_DISK" > /tmp/opn-primary-disk
+
+deactivate_storage_layers
+for DEV in $(list_physical_disks); do
+  blockdev --rereadpt "$DEV" >/dev/null 2>&1 || true
+done
+partprobe >/dev/null 2>&1 || true
+configure_install_repos
+send_callback "kickstart_disk_wipe_complete" "primary_boot_disk=${PRIMARY_BOOT_DISK}|ignoredisk=${IGNOREDISK_DIRECTIVE}"
+OPN_DISK_WIPE_PRE
+%end
+
+%include /tmp/opn-storage.ks
+%include /tmp/opn-repos.ks
 
 {{- if .Templates.ManagedUser.Username }}
 user --name={{ .Templates.ManagedUser.Username }}{{ if .Templates.ManagedUser.PasswordHash }} --password={{ .Templates.ManagedUser.PasswordHash }} --iscrypted{{ else }} --lock{{ end }}{{ if .Templates.ManagedUser.AllowSudo }} --groups=wheel{{ end }}
@@ -25,7 +288,7 @@ user --name={{ .Templates.ManagedUser.Username }}{{ if .Templates.ManagedUser.Pa
 {{- if .Templates.GivenUser.Username }}
 user --name={{ .Templates.GivenUser.Username }}{{ if .Templates.GivenUser.PasswordHash }} --password={{ .Templates.GivenUser.PasswordHash }} --iscrypted{{ else }} --lock{{ end }}{{ if .Templates.GivenUser.AllowSudo }} --groups=wheel{{ end }}
 {{- end }}
-%packages
+%packages --ignoremissing
 @core
 {{- range .Templates.Common.Packages }}
 {{ . }}
@@ -35,11 +298,103 @@ user --name={{ .Templates.GivenUser.Username }}{{ if .Templates.GivenUser.Passwo
 
 %post --nochroot --log=/mnt/sysimage/root/ks-post-nochroot.log
 CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+AUDIT_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=kickstart_disk_audit"
+MISMATCH_FAIL_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=kickstart_disk_mismatch_failed"
 CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=kickstart_post_nochroot"
-if command -v curl >/dev/null 2>&1; then
-  curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
-elif command -v wget >/dev/null 2>&1; then
-  wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+send_callback() {
+  DATA="$1"
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$DETAIL" ]; then
+      curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+    else
+      curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if [ -n "$DETAIL" ]; then
+      wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="${DATA}&detail=${DETAIL}" "$CALLBACK_URL" >/dev/null 2>&1 || true
+    else
+      wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+TARGET_ROOT_SRC="$(awk '$2=="/mnt/sysimage"{print $1; exit}' /proc/mounts 2>/dev/null || true)"
+resolve_to_disk() {
+  NODE="$1"
+  TREE_DISK="$(lsblk -nrspo NAME,TYPE "$NODE" 2>/dev/null | awk '$2=="disk"{print $1; exit}')"
+  if [ -n "$TREE_DISK" ]; then
+    echo "$TREE_DISK"
+    return 0
+  fi
+
+  DEPTH=0
+  while [ -n "$NODE" ] && [ "$DEPTH" -lt 12 ]; do
+    NODE_TYPE="$(lsblk -ndo TYPE "$NODE" 2>/dev/null | sed -n '1p')"
+    if [ "$NODE_TYPE" = "disk" ]; then
+      echo "$NODE"
+      return 0
+    fi
+    PARENT_NAME="$(lsblk -ndo PKNAME "$NODE" 2>/dev/null | sed -n '1p')"
+    [ -n "$PARENT_NAME" ] || break
+    NODE="/dev/${PARENT_NAME}"
+    DEPTH=$((DEPTH + 1))
+  done
+  return 1
+}
+first_physical_disk() {
+  for SYSDEV in /sys/block/*; do
+    [ -e "$SYSDEV" ] || continue
+    DEV_NAME="${SYSDEV##*/}"
+    case "$DEV_NAME" in
+      loop*|ram*|fd*|zram*|sr*|dm-*|md*)
+        continue
+        ;;
+    esac
+    DEV_PATH="/dev/${DEV_NAME}"
+    [ -b "$DEV_PATH" ] || continue
+    echo "$DEV_PATH"
+    return 0
+  done
+  return 1
+}
+TARGET_ROOT_DISK=""
+if [ -n "$TARGET_ROOT_SRC" ]; then
+  TARGET_ROOT_DISK="$(resolve_to_disk "$TARGET_ROOT_SRC" 2>/dev/null || true)"
+fi
+PRIMARY_BOOT_DISK="$(cat /tmp/opn-primary-disk 2>/dev/null | sed -n '1p')"
+if [ -z "$PRIMARY_BOOT_DISK" ]; then
+  PRIMARY_BOOT_DISK="$(first_physical_disk 2>/dev/null || true)"
+fi
+ROOT_PRIMARY_MISMATCH="unknown"
+if [ -n "$PRIMARY_BOOT_DISK" ] && [ -n "$TARGET_ROOT_DISK" ]; then
+  if [ "$PRIMARY_BOOT_DISK" = "$TARGET_ROOT_DISK" ]; then
+    ROOT_PRIMARY_MISMATCH="no"
+  else
+    ROOT_PRIMARY_MISMATCH="yes"
+  fi
+fi
+DETAIL="$( (
+  if [ -d /sys/firmware/efi ]; then
+    echo "firmware_mode=uefi"
+  else
+    echo "firmware_mode=legacy"
+  fi
+  if [ -n "$TARGET_ROOT_SRC" ]; then
+    echo "target_root=${TARGET_ROOT_SRC}"
+  fi
+  if [ -n "$TARGET_ROOT_DISK" ]; then
+    echo "target_root_disk=${TARGET_ROOT_DISK}"
+  fi
+  if [ -n "$PRIMARY_BOOT_DISK" ]; then
+    echo "primary_boot_disk=${PRIMARY_BOOT_DISK}"
+  fi
+  echo "root_primary_mismatch=${ROOT_PRIMARY_MISMATCH}"
+  lsblk -dpno NAME,SIZE,TYPE,MODEL,SERIAL 2>/dev/null | awk '$3=="disk" && $1 !~ /\/dev\/(loop|ram|fd|zram|sr)/ {print}' | head -n 6 | sed 's/[[:space:]]\+/ /g' | sed 's/^/disk=/'
+) | tr '\n' '|' | tr -cd '[:alnum:][:space:]_:/.=|,-' | tr ' ' '_' | cut -c1-700 )"
+send_callback "$AUDIT_DATA"
+if [ "$ROOT_PRIMARY_MISMATCH" = "yes" ]; then
+  send_callback "$MISMATCH_FAIL_DATA"
+else
+  send_callback "$CALLBACK_DATA"
 fi
 %end
 {{- end }}
