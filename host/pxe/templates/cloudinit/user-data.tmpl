@@ -39,16 +39,120 @@ autoinstall:
         uri: {{ .Templates.Common.Mirror }}
 {{- end }}
   storage:
+    grub:
+      reorder_uefi: false
     layout:
       name: direct
+{{- if eq (index .Profile.TemplateData "template.boot.mode") "Legacy" }}
+      # Legacy mode requires an msdos partition table for BIOS boot.
+      ptable: msdos
+      # Early-commands rewrite this placeholder to the first physical disk name
+      # (lexicographic /sys/block order: sda, sdb, nvme0n1, ...).
+      match:
+        path: "__OPN_INSTALL_DISK__"
+{{- end }}
+{{- if .Network.Enabled }}
+  network:
+    version: 2
+    ethernets:
+      opnprimary:
+{{- if .Profile.BootMACAddress }}
+        match:
+          macaddress: "{{ .Profile.BootMACAddress }}"
+{{- end }}
+        dhcp4: false
+        dhcp6: false
+        addresses:
+          - "{{ .Network.IPv4Address }}/{{ .Network.Prefix }}"
+        routes:
+          - to: default
+            via: "{{ .Network.Gateway }}"
+{{- if .Network.DNSServers }}
+        nameservers:
+          addresses: [{{- range $i, $dns := .Network.DNSServers }}{{ if $i }}, {{ end }}"{{ $dns }}"{{- end }}]
+{{- end }}
+{{- end }}
   user-data:
     disable_root: {{ if .Templates.Autoinstall.DisableRoot }}true{{ else }}false{{ end }}
-{{- if .Templates.Autoinstall.PostScript }}
+{{- if or .Templates.Autoinstall.PostScript .Provisioning.CallbackEnabled .Network.Enabled .Network.DisableOtherNICs }}
     runcmd:
+{{- if .Templates.Autoinstall.PostScript }}
       - |
           /bin/bash <<'OPN_POST'
 {{ indent 10 .Templates.Autoinstall.PostScript }}
           OPN_POST
+{{- end }}
+{{- if .Network.Enabled }}
+      - |
+          /bin/bash <<'OPN_STATIC_NET'
+          PRIMARY_IF="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+          if [ -n "$PRIMARY_IF" ] && command -v nmcli >/dev/null 2>&1; then
+            PRIMARY_CON="$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$PRIMARY_IF" '$2==dev{print $1; exit}')"
+            if [ -z "$PRIMARY_CON" ]; then
+              PRIMARY_CON="$PRIMARY_IF"
+            fi
+
+            nmcli connection modify "$PRIMARY_CON" ipv4.method manual ipv4.addresses "{{ .Network.IPv4Address }}/{{ .Network.Prefix }}" ipv4.gateway "{{ .Network.Gateway }}" >/dev/null 2>&1 || true
+{{- if .Network.DNSServers }}
+            nmcli connection modify "$PRIMARY_CON" ipv4.dns "{{ join .Network.DNSServers "," }}" >/dev/null 2>&1 || true
+{{- end }}
+            nmcli connection up "$PRIMARY_CON" >/dev/null 2>&1 || true
+          elif [ -n "$PRIMARY_IF" ] && command -v netplan >/dev/null 2>&1; then
+            cat > /etc/netplan/99-opn-static.yaml <<EOF
+          network:
+            version: 2
+            ethernets:
+              opnprimary:
+                match:
+                  name: "$PRIMARY_IF"
+                dhcp4: false
+                dhcp6: false
+                addresses:
+                  - "{{ .Network.IPv4Address }}/{{ .Network.Prefix }}"
+                routes:
+                  - to: default
+                    via: "{{ .Network.Gateway }}"
+{{- if .Network.DNSServers }}
+                nameservers:
+                  addresses: [{{- range $i, $dns := .Network.DNSServers }}{{ if $i }}, {{ end }}"{{ $dns }}"{{- end }}]
+{{- end }}
+          EOF
+            netplan generate >/dev/null 2>&1 || true
+            netplan apply >/dev/null 2>&1 || true
+          fi
+          OPN_STATIC_NET
+{{- end }}
+{{- if .Network.DisableOtherNICs }}
+      - |
+          /bin/bash <<'OPN_DISABLE_NICS'
+          PRIMARY_IF="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+          if [ -n "$PRIMARY_IF" ] && command -v nmcli >/dev/null 2>&1; then
+            for DEV in $(nmcli -t -f DEVICE,TYPE device status 2>/dev/null | awk -F: '$2=="ethernet"{print $1}'); do
+              [ "$DEV" = "$PRIMARY_IF" ] && continue
+              nmcli device disconnect "$DEV" >/dev/null 2>&1 || true
+              nmcli device set "$DEV" managed no >/dev/null 2>&1 || true
+            done
+          fi
+
+          for DEV in $(ls /sys/class/net 2>/dev/null); do
+            [ "$DEV" = "$PRIMARY_IF" ] && continue
+            [ "$DEV" = "lo" ] && continue
+            ip link set "$DEV" down >/dev/null 2>&1 || true
+          done
+          OPN_DISABLE_NICS
+{{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+      - |
+          /bin/bash <<'OPN_PROV_CALLBACK'
+          CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+          CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=cloudinit_runcmd"
+          if command -v curl >/dev/null 2>&1; then
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          elif command -v wget >/dev/null 2>&1; then
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+          OPN_PROV_CALLBACK
+{{- end }}
 {{- end }}
 {{- if .Templates.ManagedUser.Username }}
     users:
@@ -72,13 +176,119 @@ autoinstall:
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if .Templates.Autoinstall.EarlyCommands }}
   early-commands:
+    - |
+        /bin/bash <<'OPN_DISK_WIPE'
+        set -euo pipefail
+
+        sanitize_detail() {
+          printf '%s' "${1:-}" | tr -cd '[:alnum:][:space:]_:/.=|,-' | tr ' ' '_' | cut -c1-240
+        }
+
+        send_callback() {
+          STAGE="$1"
+          DETAIL="$(sanitize_detail "${2:-}")"
+{{- if .Provisioning.CallbackEnabled }}
+          CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+          CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=${STAGE}"
+          if command -v curl >/dev/null 2>&1; then
+            if [ -n "$DETAIL" ]; then
+              curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+            else
+              curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+            fi
+          elif command -v wget >/dev/null 2>&1; then
+            POST_DATA="$CALLBACK_DATA"
+            if [ -n "$DETAIL" ]; then
+              POST_DATA="${POST_DATA}&detail=${DETAIL}"
+            fi
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$POST_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+{{- end }}
+        }
+
+        on_fail() {
+          RC="$?"
+          LINE="${BASH_LINENO[0]:-unknown}"
+          CMD="${BASH_COMMAND:-unknown}"
+          send_callback "autoinstall_disk_wipe_failed" "rc=${RC}|line=${LINE}|cmd=${CMD}"
+        }
+        trap on_fail ERR
+
+        list_physical_disks() {
+          for SYSDEV in /sys/block/*; do
+            [ -e "$SYSDEV" ] || continue
+            DEV_NAME="${SYSDEV##*/}"
+            case "$DEV_NAME" in
+              loop*|ram*|fd*|zram*|sr*|dm-*|md*)
+                continue
+                ;;
+            esac
+
+            DEV_PATH="/dev/${DEV_NAME}"
+            [ -b "$DEV_PATH" ] || continue
+            echo "$DEV_PATH"
+          done
+        }
+
+        send_callback "autoinstall_disk_wipe_started"
+        FIRST_DISK=""
+        for DEV in $(list_physical_disks); do
+          FIRST_DISK="$DEV"
+          break
+        done
+        if [ -z "$FIRST_DISK" ]; then
+          send_callback "autoinstall_disk_wipe_failed" "no_eligible_disks_found"
+          exit 1
+        fi
+
+        for CFG in /autoinstall.yaml /run/autoinstall.yaml; do
+          [ -f "$CFG" ] || continue
+          sed -i "s|__OPN_INSTALL_DISK__|${FIRST_DISK}|g" "$CFG" || true
+        done
+        send_callback "autoinstall_disk_selected" "install_disk=${FIRST_DISK}"
+
+        DISK_COUNT=0
+        for DEV in $(list_physical_disks); do
+          DISK_COUNT=$((DISK_COUNT + 1))
+
+          if command -v wipefs >/dev/null 2>&1; then
+            wipefs -a -f "$DEV" || true
+          fi
+          if command -v sgdisk >/dev/null 2>&1; then
+            sgdisk --zap-all --clear "$DEV" || true
+          fi
+          if command -v blkdiscard >/dev/null 2>&1; then
+            blkdiscard -f "$DEV" || true
+          fi
+
+          dd if=/dev/zero of="$DEV" bs=1M count=16 conv=fsync,notrunc status=none >/dev/null 2>&1 || dd if=/dev/zero of="$DEV" bs=1M count=16 conv=fsync,notrunc >/dev/null 2>&1 || true
+          SIZE_BYTES="$(blockdev --getsize64 "$DEV" 2>/dev/null || echo 0)"
+          if [ "$SIZE_BYTES" -gt 33554432 ]; then
+            TAIL_SEEK_MB=$((SIZE_BYTES / 1048576 - 16))
+            dd if=/dev/zero of="$DEV" bs=1M count=16 seek="$TAIL_SEEK_MB" conv=fsync,notrunc status=none >/dev/null 2>&1 || dd if=/dev/zero of="$DEV" bs=1M count=16 seek="$TAIL_SEEK_MB" conv=fsync,notrunc >/dev/null 2>&1 || true
+          fi
+        done
+
+        partprobe >/dev/null 2>&1 || true
+        send_callback "autoinstall_disk_wipe_complete"
+        OPN_DISK_WIPE
 {{- range .Templates.Autoinstall.EarlyCommands }}
     - {{ . }}
 {{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+    - |
+        /bin/bash <<'OPN_PROV_CALLBACK_EARLY'
+        CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+        CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_early"
+        if command -v curl >/dev/null 2>&1; then
+          curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+        elif command -v wget >/dev/null 2>&1; then
+          wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$CALLBACK_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+        fi
+        OPN_PROV_CALLBACK_EARLY
 {{- end }}
-{{- if or .Templates.Autoinstall.PreScript .Templates.Autoinstall.LateCommands }}
+{{- if or .Templates.Autoinstall.PreScript .Templates.Autoinstall.LateCommands .Provisioning.CallbackEnabled }}
   late-commands:
 {{- if .Templates.Autoinstall.PreScript }}
     - |
@@ -86,7 +296,231 @@ autoinstall:
 {{ indent 8 .Templates.Autoinstall.PreScript }}
 OPN_PRE
 {{- end }}
+    - |
+        curtin in-target -- /bin/bash <<'OPN_GRUB_REPAIR'
+        set -euo pipefail
+        LOG_DIR="/var/log/opnlaas-installer"
+        LOG_FILE="${LOG_DIR}/grub-repair.log"
+        mkdir -p "$LOG_DIR"
+
+        # Capture exactly what bootloader operations happened so failures are debuggable.
+        exec > >(tee -a "$LOG_FILE") 2>&1
+
+        echo "=== opnlaas grub repair start $(date -Iseconds) ==="
+        DISKS="$(lsblk -dpno NAME,TYPE 2>/dev/null | awk '$2=="disk"{print $1}' | tr '\n' ' ')"
+        echo "detected_disks=${DISKS}"
+
+        list_physical_disks() {
+          for SYSDEV in /sys/block/*; do
+            [ -e "$SYSDEV" ] || continue
+            DEV_NAME="${SYSDEV##*/}"
+            case "$DEV_NAME" in
+              loop*|ram*|fd*|zram*|sr*|dm-*|md*)
+                continue
+                ;;
+            esac
+            DEV_PATH="/dev/${DEV_NAME}"
+            [ -b "$DEV_PATH" ] || continue
+            echo "$DEV_PATH"
+          done
+        }
+
+        if [ -d /sys/firmware/efi ]; then
+          echo "firmware_mode=uefi"
+          # Build fallback UEFI path so firmware can boot even if NVRAM entries are missing.
+          if [ -d /boot/efi ]; then
+            if command -v efibootmgr >/dev/null 2>&1; then
+              EXISTING_UBUNTU_IDS="$(efibootmgr | awk 'BEGIN{IGNORECASE=1} /^Boot[0-9A-Fa-f]{4}\*?/ && $0 ~ /ubuntu/ {id=substr($1,5,4); gsub(/\*/,"",id); print toupper(id)}')"
+              if [ -n "$EXISTING_UBUNTU_IDS" ]; then
+                echo "existing_ubuntu_boot_entries=$(echo "$EXISTING_UBUNTU_IDS" | tr '\n' ',' | sed 's/,$//')"
+                for ID in $EXISTING_UBUNTU_IDS; do
+                  efibootmgr -b "$ID" -B || true
+                done
+              fi
+            fi
+
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck --no-nvram --removable
+
+            if command -v efibootmgr >/dev/null 2>&1; then
+              NEW_UBUNTU_ID="$(efibootmgr | awk 'BEGIN{IGNORECASE=1} /^Boot[0-9A-Fa-f]{4}\*?/ && $0 ~ /ubuntu/ {id=substr($1,5,4); gsub(/\*/,"",id); print toupper(id); exit}')"
+              BOOT_ORDER="$(efibootmgr | awk -F'BootOrder: ' 'NF > 1 {print $2; exit}' | tr -d '[:space:]')"
+              if [ -n "$NEW_UBUNTU_ID" ]; then
+                echo "new_ubuntu_boot_entry=$NEW_UBUNTU_ID"
+                efibootmgr -n "$NEW_UBUNTU_ID" || true
+
+                if [ -n "$BOOT_ORDER" ]; then
+                  REMAINING_ORDER="$(printf '%s' "$BOOT_ORDER" | tr ',' '\n' | awk -v head="$NEW_UBUNTU_ID" 'toupper($0) != toupper(head)' | paste -sd, -)"
+                  if [ -n "$REMAINING_ORDER" ]; then
+                    efibootmgr -o "${NEW_UBUNTU_ID},${REMAINING_ORDER}" || true
+                  else
+                    efibootmgr -o "$NEW_UBUNTU_ID" || true
+                  fi
+                fi
+              fi
+            fi
+          else
+            echo "ERROR: /boot/efi missing in target while firmware is UEFI"
+            exit 1
+          fi
+        else
+          echo "firmware_mode=legacy"
+          # Legacy BIOS path: stamp MBR bootloader on all detected local disks and
+          # require the first BIOS-visible disk to be bootable (matches LOCALBOOT behavior).
+          BOOT_DISK=""
+          for DEV in $(list_physical_disks); do
+            BOOT_DISK="$DEV"
+            break
+          done
+          echo "primary_boot_disk=${BOOT_DISK}"
+
+          SUCCESS_COUNT=0
+          BOOT_DISK_OK=0
+          for DEV in $(list_physical_disks); do
+            if grub-install --target=i386-pc --recheck "$DEV"; then
+              echo "grub_install_ok=$DEV"
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              if [ -n "$BOOT_DISK" ] && [ "$DEV" = "$BOOT_DISK" ]; then
+                BOOT_DISK_OK=1
+              fi
+            else
+              echo "grub_install_failed=$DEV"
+            fi
+          done
+
+          if [ "$SUCCESS_COUNT" -eq 0 ]; then
+            echo "ERROR: grub-install failed on all detected disks"
+            exit 1
+          fi
+          if [ -n "$BOOT_DISK" ] && [ "$BOOT_DISK_OK" -ne 1 ]; then
+            echo "ERROR: grub-install failed on primary boot disk ${BOOT_DISK}"
+            exit 1
+          fi
+        fi
+
+        update-grub
+        echo "=== opnlaas grub repair complete $(date -Iseconds) ==="
+        OPN_GRUB_REPAIR
+    - |
+        /bin/bash <<'OPN_INSTALLER_LOG_ARCHIVE'
+        # Persist installer evidence on the target OS for post-mortem debugging.
+        if [ -d /target ]; then
+          mkdir -p /target/var/log/opnlaas-installer >/dev/null 2>&1 || true
+          cp -a /var/log/installer/. /target/var/log/opnlaas-installer/ >/dev/null 2>&1 || true
+          lsblk -e7 -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL,SERIAL >/target/var/log/opnlaas-installer/lsblk-after-install.txt 2>/dev/null || true
+        fi
+        OPN_INSTALLER_LOG_ARCHIVE
 {{- range .Templates.Autoinstall.LateCommands }}
     - {{ . }}
 {{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+    - |
+        /bin/bash <<'OPN_PROV_CALLBACK_LATE'
+        CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+        AUDIT_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_disk_audit"
+        MISMATCH_FAIL_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_disk_mismatch_failed"
+        CALLBACK_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_late"
+        send_callback() {
+          DATA="$1"
+          if command -v curl >/dev/null 2>&1; then
+            if [ -n "$DETAIL" ]; then
+              curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+            else
+              curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+            fi
+          elif command -v wget >/dev/null 2>&1; then
+            if [ -n "$DETAIL" ]; then
+              wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="${DATA}&detail=${DETAIL}" "$CALLBACK_URL" >/dev/null 2>&1 || true
+            else
+              wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+            fi
+          fi
+        }
+        TARGET_ROOT_SRC="$(awk '$2=="/target"{print $1; exit}' /proc/mounts 2>/dev/null || true)"
+        TARGET_ROOT_DISK=""
+        if [ -n "$TARGET_ROOT_SRC" ]; then
+          TARGET_ROOT_PARENT="$(lsblk -ndo PKNAME "$TARGET_ROOT_SRC" 2>/dev/null | sed -n '1p')"
+          if [ -n "$TARGET_ROOT_PARENT" ]; then
+            TARGET_ROOT_DISK="/dev/${TARGET_ROOT_PARENT}"
+          fi
+        fi
+        list_physical_disks() {
+          for SYSDEV in /sys/block/*; do
+            [ -e "$SYSDEV" ] || continue
+            DEV_NAME="${SYSDEV##*/}"
+            case "$DEV_NAME" in
+              loop*|ram*|fd*|zram*|sr*|dm-*|md*)
+                continue
+                ;;
+            esac
+            DEV_PATH="/dev/${DEV_NAME}"
+            [ -b "$DEV_PATH" ] || continue
+            echo "$DEV_PATH"
+          done
+        }
+        PRIMARY_BOOT_DISK=""
+        for DEV in $(list_physical_disks); do
+          PRIMARY_BOOT_DISK="$DEV"
+          break
+        done
+        ROOT_PRIMARY_MISMATCH="unknown"
+        if [ -n "$PRIMARY_BOOT_DISK" ] && [ -n "$TARGET_ROOT_DISK" ]; then
+          if [ "$PRIMARY_BOOT_DISK" = "$TARGET_ROOT_DISK" ]; then
+            ROOT_PRIMARY_MISMATCH="no"
+          else
+            ROOT_PRIMARY_MISMATCH="yes"
+          fi
+        fi
+        DETAIL="$( (
+          if [ -d /sys/firmware/efi ]; then
+            echo "firmware_mode=uefi"
+          else
+            echo "firmware_mode=legacy"
+          fi
+          if [ -n "$TARGET_ROOT_SRC" ]; then
+            echo "target_root=${TARGET_ROOT_SRC}"
+          fi
+          if [ -n "$TARGET_ROOT_DISK" ]; then
+            echo "target_root_disk=${TARGET_ROOT_DISK}"
+          fi
+          if [ -n "$PRIMARY_BOOT_DISK" ]; then
+            echo "primary_boot_disk=${PRIMARY_BOOT_DISK}"
+          fi
+          echo "root_primary_mismatch=${ROOT_PRIMARY_MISMATCH}"
+          grep -E '^(grub_install_ok|grub_install_failed|new_ubuntu_boot_entry)=' /target/var/log/opnlaas-installer/grub-repair.log 2>/dev/null | tail -n 8 || true
+          lsblk -dpno NAME,SIZE,TYPE,MODEL,SERIAL 2>/dev/null | awk '$3=="disk" && $1 !~ /\/dev\/(loop|ram|fd|zram|sr)/ {print}' | head -n 6 | sed 's/[[:space:]]\+/ /g' | sed 's/^/disk=/'
+        ) | tr '\n' '|' | tr -cd '[:alnum:][:space:]_:/.=|,-' | tr ' ' '_' | cut -c1-700 )"
+        send_callback "$AUDIT_DATA"
+        if [ "$ROOT_PRIMARY_MISMATCH" = "yes" ]; then
+          send_callback "$MISMATCH_FAIL_DATA"
+          exit 0
+        fi
+        send_callback "$CALLBACK_DATA"
+        OPN_PROV_CALLBACK_LATE
+{{- end }}
+{{- end }}
+{{- if .Provisioning.CallbackEnabled }}
+  error-commands:
+    - |
+        /bin/bash <<'OPN_PROV_CALLBACK_ERROR'
+        CALLBACK_URL="{{ .Provisioning.CallbackURL }}"
+        BASE_DATA="booking_id={{ .Provisioning.BookingID }}&management_ip={{ .Provisioning.ManagementIP }}&token={{ .Provisioning.CallbackToken }}&stage=autoinstall_error"
+        DETAIL="$( (
+          grep -E -i 'error|fail|traceback|block_probe_fail|disk_probe_fail' /var/log/installer/subiquity-server-debug.log 2>/dev/null || true
+          tail -n 30 /target/var/log/opnlaas-installer/grub-repair.log 2>/dev/null || true
+        ) | tail -n 12 | tr '\n' '|' | tr -cd '[:alnum:][:space:]_:/.=|-' | tr ' ' '_' | cut -c1-700 )"
+        if command -v curl >/dev/null 2>&1; then
+          if [ -n "$DETAIL" ]; then
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$BASE_DATA" --data "detail=$DETAIL" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          else
+            curl -fsS -m 12 -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "$BASE_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+        elif command -v wget >/dev/null 2>&1; then
+          if [ -n "$DETAIL" ]; then
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="${BASE_DATA}&detail=${DETAIL}" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          else
+            wget -q -T 12 -O - --header="Content-Type: application/x-www-form-urlencoded" --post-data="$BASE_DATA" "$CALLBACK_URL" >/dev/null 2>&1 || true
+          fi
+        fi
+        OPN_PROV_CALLBACK_ERROR
 {{- end }}

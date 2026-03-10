@@ -11,7 +11,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +31,8 @@ var (
 	serviceOnce sync.Once
 	serviceErr  error
 	instance    *Service
+
+	repomdLocationPattern = regexp.MustCompile(`location\s+href="([^"]+)"`)
 )
 
 // Service wires together the DHCP, TFTP, and HTTP helpers that make up PXE boot.
@@ -186,18 +190,7 @@ func newService() (svc *Service, err error) {
 		svc.defaultProfile.BootFilename = "pxelinux.0"
 	}
 
-	if svc.defaultProfile.ISOName == "" {
-		var isoName string
-		if isoName, err = pickDefaultISOName(); err != nil {
-			err = fmt.Errorf("pxe: determine default ISO: %w", err)
-			return
-		} else if isoName != "" {
-			svc.defaultProfile.ISOName = isoName
-			svc.log.Warningf("PXE default ISO not configured; falling back to %s\n", isoName)
-		} else {
-			svc.log.Warning("PXE default ISO not configured and no stored ISOs available; PXE profiles must be defined explicitly\n")
-		}
-	}
+	svc.log.Basic("PXE default ISO fallback disabled; PXE profiles must be defined explicitly\n")
 
 	svc.validateSyslinuxAssets()
 	svc.ensureArtifactAliases()
@@ -504,10 +497,8 @@ func (s *Service) serveProfileFile(rel string) (data []byte, err error) {
 	}
 
 	if profile == nil {
-		if profile = s.buildDefaultProfile(host, ""); profile == nil {
-			err = fmt.Errorf("no profile available for slug %s", slug)
-			return
-		}
+		err = fmt.Errorf("no profile available for slug %s", slug)
+		return
 	}
 
 	var iso *db.StoredISOImage
@@ -589,6 +580,11 @@ func (s *Service) httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p == "/provisioning/complete" {
+		s.handleProvisioningCompletionCallback(w, r)
+		return
+	}
+
 	var logPrefix string = fmt.Sprintf("%s %s", r.Method, p)
 	if strings.HasPrefix(strings.ToLower(p), "/profiles/") {
 		var data []byte
@@ -629,12 +625,64 @@ func (s *Service) httpHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, path.Base(p), info.ModTime(), file)
 }
 
-// buildDefaultProfile constructs a PXE profile based on default settings.
-func (s *Service) buildDefaultProfile(host *db.Host, mac string) (profile *db.HostPXEProfile) {
-	if s.defaultProfile.ISOName == "" {
+func (s *Service) handleProvisioningCompletionCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
+	if err := r.ParseForm(); err != nil {
+		s.log.Warningf("Provisioning callback parse failure remote=%s err=%v\n", r.RemoteAddr, err)
+		http.Error(w, "invalid callback body", http.StatusBadRequest)
+		return
+	}
+
+	bookingIDRaw := strings.TrimSpace(r.FormValue("booking_id"))
+	managementIP := strings.TrimSpace(r.FormValue("management_ip"))
+	token := strings.TrimSpace(r.FormValue("token"))
+	stage := strings.TrimSpace(r.FormValue("stage"))
+	detail := strings.TrimSpace(r.FormValue("detail"))
+	if len(detail) > 1024 {
+		detail = detail[:1024]
+	}
+	if stage == "" {
+		stage = "install_complete"
+	}
+
+	if bookingIDRaw == "" || managementIP == "" || token == "" {
+		http.Error(w, "booking_id, management_ip, and token are required", http.StatusBadRequest)
+		return
+	}
+
+	bookingID, err := strconv.Atoi(bookingIDRaw)
+	if err != nil || bookingID <= 0 {
+		http.Error(w, "invalid booking_id", http.StatusBadRequest)
+		return
+	}
+
+	event := ProvisioningInstallCallback{
+		BookingID:    bookingID,
+		ManagementIP: managementIP,
+		Token:        token,
+		Stage:        stage,
+		Detail:       detail,
+		RemoteAddr:   r.RemoteAddr,
+		UserAgent:    r.UserAgent(),
+	}
+
+	if err = emitProvisioningInstallCallback(event); err != nil {
+		s.log.Warningf("Provisioning callback rejected booking=%d host=%s stage=%s remote=%s err=%v\n", bookingID, managementIP, stage, r.RemoteAddr, err)
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	s.log.Basicf("Provisioning callback accepted booking=%d host=%s stage=%s remote=%s\n", bookingID, managementIP, stage, r.RemoteAddr)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok\n"))
+}
+
+// buildDefaultProfile constructs a PXE profile based on default settings.
+func (s *Service) buildDefaultProfile(host *db.Host, mac string) (profile *db.HostPXEProfile) {
 	profile = &db.HostPXEProfile{
 		ManagementIP: func() string {
 			if host != nil {
@@ -810,10 +858,21 @@ func (s *Service) ensureStage2Artifacts() {
 		if rec == nil || strings.TrimSpace(rec.FullISOPath) == "" {
 			continue
 		}
+		if rec.PreConfigure != db.PreConfigureTypeKickstart {
+			continue
+		}
 
 		var dest string = filepath.Join(root, filepath.FromSlash(path.Join("artifacts", rec.Name, "stage2")))
-		if _, err = os.Stat(filepath.Join(dest, ".treeinfo")); err == nil {
+		var (
+			refresh bool
+			reason  string
+		)
+		if refresh, reason = stage2NeedsRefresh(rec.FullISOPath, dest); !refresh {
 			continue
+		}
+
+		if strings.TrimSpace(reason) != "" {
+			s.log.Basicf("PXE stage2 refresh required for %s: %s\n", rec.Name, reason)
 		}
 
 		if err = isoextract.EnsureStage2Artifacts(rec.FullISOPath, dest); err != nil {
@@ -822,4 +881,94 @@ func (s *Service) ensureStage2Artifacts() {
 			s.log.Basicf("PXE stage2 artifacts prepared for %s\n", rec.Name)
 		}
 	}
+}
+
+// stage2NeedsRefresh reports whether stage2 artifacts should be rebuilt.
+func stage2NeedsRefresh(imagePath, stage2Dir string) (refresh bool, reason string) {
+	var treeinfoPath string = filepath.Join(stage2Dir, ".treeinfo")
+	treeinfoInfo, treeinfoErr := os.Stat(treeinfoPath)
+	if treeinfoErr != nil {
+		refresh = true
+		reason = "missing .treeinfo"
+		return
+	}
+
+	if !stage2RepoMetadataComplete(stage2Dir) {
+		refresh = true
+		reason = "incomplete repodata"
+		return
+	}
+
+	if imageInfo, imageErr := os.Stat(imagePath); imageErr == nil {
+		// If ISO has been replaced/updated, force stage2 rebuild to avoid stale metadata.
+		if imageInfo.ModTime().After(treeinfoInfo.ModTime().Add(1 * time.Second)) {
+			refresh = true
+			reason = "iso newer than stage2"
+			return
+		}
+	}
+
+	refresh = false
+	return
+}
+
+// stage2RepoMetadataComplete validates that repomd.xml-referenced metadata files exist.
+func stage2RepoMetadataComplete(stage2Dir string) bool {
+	// Fedora-style: repodata in stage2 root.
+	if repodataComplete(stage2Dir) {
+		return true
+	}
+
+	// RHEL-family style: BaseOS/AppStream split repositories.
+	baseOSDir := filepath.Join(stage2Dir, "BaseOS")
+	if !repodataComplete(baseOSDir) {
+		return false
+	}
+
+	appStreamDir := filepath.Join(stage2Dir, "AppStream")
+	if repomdExists(appStreamDir) && !repodataComplete(appStreamDir) {
+		return false
+	}
+
+	return true
+}
+
+func repomdExists(repoRoot string) bool {
+	_, err := os.Stat(filepath.Join(repoRoot, "repodata", "repomd.xml"))
+	return err == nil
+}
+
+func repodataComplete(repoRoot string) bool {
+	repomdPath := filepath.Join(repoRoot, "repodata", "repomd.xml")
+	repomdRaw, err := os.ReadFile(repomdPath)
+	if err != nil {
+		return false
+	}
+
+	matches := repomdLocationPattern.FindAllStringSubmatch(string(repomdRaw), -1)
+	if len(matches) == 0 {
+		return false
+	}
+
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		ref := strings.TrimSpace(match[1])
+		if ref == "" {
+			continue
+		}
+
+		rel := filepath.Clean(filepath.FromSlash(ref))
+		if rel == "." || strings.HasPrefix(rel, "..") {
+			return false
+		}
+
+		targetPath := filepath.Join(repoRoot, rel)
+		if _, err = os.Stat(targetPath); err != nil {
+			return false
+		}
+	}
+
+	return true
 }

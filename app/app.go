@@ -1,12 +1,15 @@
 package app
 
 import (
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	recovermw "github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/template/html/v2"
 	"github.com/opnlaas/opnlaas/config"
 )
@@ -16,8 +19,25 @@ func CreateApp() (app *fiber.App) {
 	templateEngine.Reload(config.Config.WebServer.ReloadTemplatesOnEachRender)
 
 	app = fiber.New(fiber.Config{
-		Views:     templateEngine,
-		BodyLimit: 10 * 1024 * 1024 * 1024, // i think thats 10 GB
+		Views:        templateEngine,
+		BodyLimit:    10 * 1024 * 1024 * 1024, // i think thats 10 GB
+		ErrorHandler: appErrorHandler,
+	})
+	app.Use(recovermw.New())
+	app.Use(func(c *fiber.Ctx) error {
+		if c.Method() == fiber.MethodPost && c.Path() == "/api/iso-images" {
+			started := time.Now()
+			appLog.Basicf("iso upload request start remote=%s content_length=%d\n", c.IP(), c.Request().Header.ContentLength())
+			err := c.Next()
+			if err != nil {
+				appLog.Errorf("iso upload request failed remote=%s duration=%s error=%v", c.IP(), time.Since(started), err)
+				return err
+			}
+			appLog.Basicf("iso upload request end remote=%s status=%d duration=%s\n", c.IP(), c.Response().StatusCode(), time.Since(started))
+			return nil
+		}
+
+		return c.Next()
 	})
 
 	// Pages
@@ -26,7 +46,7 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/", showLanding)
 	app.Get("/login", showLogin)
 	app.Get("/logout", routesMustBeLoggedIn, showLogout)
-	app.Get("/dashboard", showDashboard)
+	app.Get("/dashboard", routesMustBeLoggedIn, showDashboard)
 	app.Get("/hosts", showHosts)
 
 	// Auth API
@@ -51,26 +71,52 @@ func CreateApp() (app *fiber.App) {
 	// Hosts API
 	app.Get("/api/hosts", apiHostsAll)
 	app.Get("/api/hosts/:management_ip", apiHostByManagementIP)
+	app.Get("/api/operations/:operation_id", apiMustBeLoggedIn, apiAsyncOperationByID)
 	app.Post("/api/hosts", apiMustBeLoggedIn, apiMustBeAdmin, apiHostCreate)
 	app.Delete("/api/hosts/:management_ip", apiMustBeLoggedIn, apiMustBeAdmin, apiHostDelete)
-	app.Post("/api/hosts/:management_ip/power/:action", apiMustBeLoggedIn, apiMustBeAdmin, apiHostPowerControl)
+	app.Post("/api/hosts/:management_ip/reprobe-system-info", apiMustBeLoggedIn, apiMustBeAdmin, apiHostReprobeSystemInfo)
+	app.Post("/api/hosts/:management_ip/power/:action", apiMustBeLoggedIn, apiHostPowerControl)
 
 	// ISO Images API
 	app.Post("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesCreate)
-	app.Get("/api/iso-images", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesList)
+	app.Get("/api/iso-images", apiMustBeLoggedIn, apiISOImagesList)
 	app.Delete("/api/iso-images/:iso_name", apiMustBeLoggedIn, apiMustBeAdmin, apiISOImagesDelete)
 
 	// Booking API
 	app.Post("/api/bookings", apiMustBeLoggedIn, apiBookingCreate)
 	app.Get("/api/bookings", apiMustBeLoggedIn, apiBookingList)
-	app.Post("/api/bookings/:booking_id/requests", apiMustBeLoggedIn, apiBookingCreateRequest)
+	app.Get("/api/bookings/me", apiMustBeLoggedIn, apiBookingMyList)
+	app.Get("/api/bookings/network/prefill", apiMustBeLoggedIn, apiBookingNetworkPrefill)
+	app.Post("/api/bookings/deploy", apiMustBeLoggedIn, apiBookingDeploy)
 	app.Get("/api/bookings/cart", apiMustBeLoggedIn, apiBookingCartSnapshot)
+	app.Post("/api/bookings/cart/network", apiMustBeLoggedIn, apiBookingCartSetNetwork)
 	app.Post("/api/bookings/cart/hosts", apiMustBeLoggedIn, apiBookingCartAddHost)
 	app.Delete("/api/bookings/cart/hosts/:management_ip", apiMustBeLoggedIn, apiBookingCartRemoveHost)
 	app.Get("/api/bookings/cart/counts", apiMustBeLoggedIn, apiBookingCartCounts)
 	app.Get("/api/bookings/cart/hosts/available", apiMustBeLoggedIn, apiBookingCartAvailableHosts)
+	app.Get("/api/bookings/:booking_id", apiMustBeLoggedIn, apiBookingByID)
+	app.Get("/api/bookings/:booking_id/provisioning", apiMustBeLoggedIn, apiBookingProvisioningStatus)
+	app.Post("/api/bookings/:booking_id/provisioning/cancel", apiMustBeLoggedIn, apiBookingProvisioningCancel)
+	app.Delete("/api/bookings/:booking_id", apiMustBeLoggedIn, apiBookingDestroy)
+	app.Post("/api/bookings/:booking_id/requests", apiMustBeLoggedIn, apiBookingCreateRequest)
 
 	return
+}
+
+func appErrorHandler(c *fiber.Ctx, err error) error {
+	code := fiber.StatusInternalServerError
+	var fiberErr *fiber.Error
+	if errors.As(err, &fiberErr) {
+		code = fiberErr.Code
+	}
+
+	appLog.Errorf("request error method=%s path=%s status=%d remote=%s err=%v\n", c.Method(), c.OriginalURL(), code, c.IP(), err)
+
+	if strings.HasPrefix(c.Path(), "/api/") {
+		return c.Status(code).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	return c.Status(code).SendString(err.Error())
 }
 
 func discoverTLSKeys(dir string) (certPath, keyPath string, found bool) {

@@ -29,7 +29,24 @@ func (s *Service) handlePXELinux(filename string, req *tftpRequestContext) (data
 		flag = true
 		return
 	} else if profile == nil {
+		data = []byte(localBootPXELinuxConfig())
+		if host != nil {
+			s.log.Basicf("PXE served fallback localboot config=%s host=%s (no explicit profile)\n", filename, host.ManagementIP)
+		} else {
+			s.log.Basicf("PXE served fallback localboot config=%s (no explicit profile)\n", filename)
+		}
 		err = nil
+		flag = true
+		return
+	}
+
+	if profileRequestsLocalBoot(profile) {
+		data = []byte(localBootPXELinuxConfig())
+		if host != nil {
+			s.log.Basicf("PXE served localboot config=%s host=%s\n", filename, host.ManagementIP)
+		} else {
+			s.log.Basicf("PXE served localboot config=%s\n", filename)
+		}
 		flag = true
 		return
 	}
@@ -54,15 +71,34 @@ func (s *Service) handlePXELinux(filename string, req *tftpRequestContext) (data
 	return
 }
 
+func profileRequestsLocalBoot(profile *db.HostPXEProfile) bool {
+	if profile == nil || profile.TemplateData == nil {
+		return false
+	}
+
+	value, ok := profile.TemplateData["template.pxe.localboot"]
+	if !ok {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func localBootPXELinuxConfig() string {
+	return "DEFAULT local\nPROMPT 0\nTIMEOUT 30\n\nLABEL local\n  LOCALBOOT 0\n"
+}
+
 // lookupProfileForPXELinux finds the host and PXE profile based on the given PXELinux filename.
 func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext) (host *db.Host, profile *db.HostPXEProfile, err error) {
 	name = strings.ToLower(name)
 
-	var bootMAC string
-
 	if strings.HasPrefix(name, "01-") && len(name) > 3 {
 		var mac string = strings.ReplaceAll(name[3:], "-", ":")
-		bootMAC = mac
 
 		if profile = s.overrideProfileForMAC(mac); profile != nil {
 			if host, err = s.hostCache.ByMAC(mac); err != nil {
@@ -81,10 +117,6 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 			host = candidate
 			if profile, err = s.profileCache.ByIP(candidate.ManagementIP); err != nil {
 				return
-			}
-
-			if profile == nil {
-				profile = s.buildDefaultProfile(candidate, mac)
 			}
 		}
 
@@ -111,10 +143,6 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 					if profile, err = s.profileCache.ByIP(host.ManagementIP); err != nil {
 						return
 					}
-				}
-
-				if profile == nil {
-					profile = s.buildDefaultProfile(host, "")
 				}
 			}
 
@@ -155,20 +183,8 @@ func (s *Service) lookupProfileForPXELinux(name string, req *tftpRequestContext)
 						return
 					}
 				}
-
-				if profile == nil {
-					profile = s.buildDefaultProfile(host, "")
-				}
 			}
 		}
-	}
-
-	if profile == nil && host != nil {
-		profile = s.buildDefaultProfile(host, "")
-	}
-
-	if profile == nil {
-		profile = s.buildDefaultProfile(host, bootMAC)
 	}
 
 	return

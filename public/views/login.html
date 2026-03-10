@@ -13,19 +13,19 @@
             </div>
 
 
-            <form method="post" action="/api/auth/login" class="space-y-5 flex flex-col items-center">
+            <form id="login-form" method="post" action="/api/auth/login" autocomplete="on" class="space-y-5 flex flex-col items-center">
                 {{if .LoginError}}
                 <div class="w-100 bg-red-200 text-red-700 p-3 rounded-md border border-red-300 mb-4">
                     {{.LoginError}}
                 </div>
                 {{end}}
                 <div class="text-input">
-                    <label>Username</label>
-                    <input type="text" name="username" autocomplete="username" required>
+                    <label for="login-username">Username</label>
+                    <input id="login-username" type="text" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
                 </div>
                 <div class="text-input">
-                    <label>Password</label>
-                    <input type="password" name="password" autocomplete="current-password" required>
+                    <label for="login-password">Password</label>
+                    <input id="login-password" type="password" name="password" autocomplete="current-password" required>
                 </div>
 
                 <div class="text-input">
@@ -42,3 +42,41 @@
         </div>
     </div>
 </div>
+
+<script>
+    (() => {
+        const usernameInput = document.getElementById("login-username");
+        const passwordInput = document.getElementById("login-password");
+        if (!usernameInput || !passwordInput) return;
+        if (!window.isSecureContext || !("credentials" in navigator)) return;
+
+        let inFlight = false;
+        const tryAutofillHint = async () => {
+            if (inFlight) return;
+            if ((usernameInput.value || "").trim() && (passwordInput.value || "").trim()) return;
+
+            inFlight = true;
+            try {
+                const credential = await navigator.credentials.get({
+                    password: true,
+                    mediation: "optional",
+                });
+                if (!credential) return;
+
+                if (!usernameInput.value && credential.id) {
+                    usernameInput.value = credential.id;
+                }
+                if (!passwordInput.value && credential.password) {
+                    passwordInput.value = credential.password;
+                }
+            } catch (_) {
+                // Ignore unsupported environments and user-cancelled requests.
+            } finally {
+                inFlight = false;
+            }
+        };
+
+        usernameInput.addEventListener("focus", tryAutofillHint);
+        passwordInput.addEventListener("focus", tryAutofillHint);
+    })();
+</script>

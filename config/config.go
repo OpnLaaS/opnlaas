@@ -102,6 +102,22 @@ type Configuration struct {
 		} `toml:"http_server"` // HTTP server configuration
 	} `toml:"pxe"` // PXE services configuration
 
+	BookingNetworking struct {
+		SupernetCIDR      string   `toml:"supernet_cidr" default:"10.144.0.0/12" validate:"required"`        // Supernet pool used for booking-isolated subnets
+		BookingPrefix     int      `toml:"booking_prefix" default:"24" validate:"required,min=16,max=30"`    // Prefix size assigned to each booking subnet (e.g. 24)
+		GatewayIPv4       string   `toml:"gateway_ipv4" default:"10.0.0.1" validate:"required"`              // Gateway IPv4 used for deployed hosts (e.g. 10.0.0.1)
+		HostNetworkPrefix int      `toml:"host_network_prefix" default:"8" validate:"required,min=1,max=30"` // Prefix length configured on deployed hosts (e.g. 8 for 255.0.0.0)
+		HostStartOffset   int      `toml:"host_start_offset" default:"10" validate:"required,min=2,max=254"` // First host offset used for auto-prefilled host addresses
+		DNSServers        []string `toml:"dns_servers" default:"[]" validate:"dive,required"`                // Default DNS servers applied to provisioned hosts
+		DisableOtherNICs  bool     `toml:"disable_other_nics" default:"true"`                                // Disable non-primary interfaces after install
+	} `toml:"booking_networking"` // Booking network allocation and host static-IP defaults
+
+	Booking struct {
+		DefaultDurationDays int    `toml:"default_duration_days" default:"32" validate:"required,min=1,max=365"` // Default booking duration in days for new deployments
+		MaxDurationDays     int    `toml:"max_duration_days" default:"32" validate:"required,min=1,max=365"`     // Maximum booking duration in days allowed for new deployments
+		ServerDNSName       string `toml:"server_dns_name" default:"laas.cyber.lab" validate:"required"`         // Server DNS suffix used when generating hostnames (e.g. "laas-dev.cyber.lab")
+	} `toml:"booking"` // Booking lifecycle defaults and limits
+
 	Preconfigure struct {
 		Locale          string   `toml:"locale" default:"en_US" validate:"required"`                                // System locale (e.g. "en_US")
 		Timezone        string   `toml:"timezone" default:"UTC" validate:"required"`                                // System timezone (e.g. "UTC")
@@ -161,6 +177,11 @@ func loadConfig(path string) (err error) {
 	// Validate required fields
 	if err = validator.New(validator.WithRequiredStructEnabled()).Struct(Config); err != nil {
 		err = fmt.Errorf("validate config: %w", err)
+		return
+	}
+
+	if Config.Booking.DefaultDurationDays > Config.Booking.MaxDurationDays {
+		err = fmt.Errorf("validate config: booking.default_duration_days (%d) must be <= booking.max_duration_days (%d)", Config.Booking.DefaultDurationDays, Config.Booking.MaxDurationDays)
 	}
 
 	return

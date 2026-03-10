@@ -61,7 +61,8 @@ func (s *Service) buildDHCPOffer(req *dhcpv4.DHCPv4) (offer *dhcpv4.DHCPv4, err 
 	if profile, err = s.profileForMAC(mac); err != nil {
 		return
 	} else if profile == nil {
-		err = fmt.Errorf("no PXE profile available for %s", mac)
+		// No managed PXE profile for this MAC; ignore request so unmanaged hosts
+		// are left to existing DHCP/boot behavior.
 		return
 	}
 
@@ -99,7 +100,8 @@ func (s *Service) buildDHCPAck(req *dhcpv4.DHCPv4) (response *dhcpv4.DHCPv4, err
 	if profile, err = s.profileForMAC(mac); err != nil {
 		return
 	} else if profile == nil {
-		err = fmt.Errorf("no PXE profile available for %s", mac)
+		// No managed PXE profile for this MAC; ignore request so unmanaged hosts
+		// are left to existing DHCP/boot behavior.
 		return
 	}
 
@@ -137,12 +139,15 @@ func (s *Service) leaseIPForProfile(mac string, profile *db.HostPXEProfile) (lea
 		return
 	}
 
-	if lease = parseIPv4(profile.IPv4Address); lease != nil {
-		if err = s.ensureIPWithinRange(lease); err != nil {
-			lease = nil
+	staticIP := strings.TrimSpace(profile.IPv4Address)
+	if staticIP != "" {
+		if lease = parseIPv4(staticIP); lease == nil {
+			err = fmt.Errorf("invalid profile static ip %q", staticIP)
 			return
 		}
 
+		// Static/profile-assigned addresses are authoritative and may be outside
+		// the dynamic DHCP lease pool configured by ip_range_start/ip_range_end.
 		return
 	}
 
@@ -150,12 +155,12 @@ func (s *Service) leaseIPForProfile(mac string, profile *db.HostPXEProfile) (lea
 		var leased net.IP
 		if leased = s.leases.Get(mac); leased != nil {
 			if err = s.ensureIPWithinRange(leased); err != nil {
-				lease = nil
+				// Stale cached lease outside the dynamic range: clear and allocate a new one.
+				s.leases.Set(mac, nil)
+			} else {
+				lease = leased
 				return
 			}
-
-			lease = leased
-			return
 		}
 	}
 
@@ -343,7 +348,6 @@ func (s *Service) decorateReply(resp *dhcpv4.DHCPv4, profile *db.HostPXEProfile)
 // profileForMAC retrieves the PXE profile associated with the given MAC address.
 func (s *Service) profileForMAC(mac string) (profile *db.HostPXEProfile, err error) {
 	if mac = strings.TrimSpace(mac); mac == "" {
-		profile = s.buildDefaultProfile(nil, "")
 		return
 	}
 
@@ -362,7 +366,15 @@ func (s *Service) profileForMAC(mac string) (profile *db.HostPXEProfile, err err
 		return
 	}
 
-	profile = s.buildDefaultProfile(host, mac)
+	if host == nil {
+		return
+	}
+
+	if profile = s.overrideProfileForHost(host); profile != nil {
+		return
+	}
+
+	profile, err = s.profileCache.ByIP(host.ManagementIP)
 	return
 }
 

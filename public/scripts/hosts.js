@@ -4,6 +4,7 @@
 
 import { dateTimeFormat, validateIP, reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
+import { showErrorToast, showInfoToast, showSuccessToast, showWarningToast } from "./lib/toast.js";
 
 /**
  * Variable declaration for DOM elements
@@ -33,6 +34,12 @@ const cancelButtons = {
 
 const hostFormElement = document.getElementById("hostForm");
 const isoForm = document.getElementById("uploadISOForm");
+const isoInput = isoForm?.querySelector('[name="iso-input"]');
+const isoSubmitBtn = document.getElementById("submitISOBtn");
+const isoSubmitLabel = document.getElementById("submitISOLabel");
+const isoCancelBtn = document.getElementById("cancelISOBtn");
+const isoUploadSpinner = document.getElementById("iso-upload-spinner");
+const isoSelectionStatus = document.getElementById("iso-selection-status");
 
 /**
  * Logic for host expansion cards and host power dropdown
@@ -51,6 +58,24 @@ function toggleHostExpansionCard(button) {
         collapsible.classList.add("max-h-0", "opacity-0");
         collapsible.classList.remove("collapsible-open", "opacity-100");
         arrow.style.transform = "";
+    }
+}
+
+function toggleISOExpansionCard(button) {
+    const section = button.closest("section");
+    const collapsible = section?.querySelector('[data-role="iso-details"]');
+    const arrow = button.querySelector("svg");
+    if (!collapsible) return;
+    const isCollapsed = collapsible.classList.contains("max-h-0");
+
+    if (isCollapsed) {
+        collapsible.classList.remove("max-h-0", "opacity-0");
+        collapsible.classList.add("max-h-96", "opacity-100");
+        if (arrow) arrow.style.transform = "rotate(180deg)";
+    } else {
+        collapsible.classList.add("max-h-0", "opacity-0");
+        collapsible.classList.remove("max-h-96", "opacity-100");
+        if (arrow) arrow.style.transform = "";
     }
 }
 
@@ -76,6 +101,7 @@ function closeAllMenus() {
 }
 
 window.toggleHostExpansionCard = toggleHostExpansionCard;
+window.toggleISOExpansionCard = toggleISOExpansionCard;
 window.togglePowerMenu = togglePowerMenu;
 window.closeAllMenus = closeAllMenus;
 
@@ -148,6 +174,67 @@ function setPowerButtonLoading(button, isLoading, txt) {
     }
 }
 
+function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function normalizeOperationStatus(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    if (normalized === "success" || normalized === "warning" || normalized === "error") {
+        return normalized;
+    }
+    if (normalized === "failed") return "error";
+    if (normalized === "warn") return "warning";
+    return normalized || "running";
+}
+
+function operationTerminal(status) {
+    const normalized = normalizeOperationStatus(status);
+    return normalized === "success" || normalized === "warning" || normalized === "error";
+}
+
+async function waitForOperationTerminal(operationID, timeoutMs = 180000, intervalMs = 1500) {
+    const startedAt = Date.now();
+    while ((Date.now() - startedAt) < timeoutMs) {
+        const response = await API.getOperationByID(operationID);
+        if (response.status_code === 404) {
+            await sleep(intervalMs);
+            continue;
+        }
+        if (response.status_code !== 200) {
+            const message = response?.body?.message || `Failed to load operation ${operationID}`;
+            throw new Error(message);
+        }
+
+        const operation = response.body || {};
+        if (operationTerminal(operation.status)) {
+            return operation;
+        }
+        await sleep(intervalMs);
+    }
+
+    throw new Error("Timed out waiting for power action to finish.");
+}
+
+async function monitorHostPowerOperation(operationID, deviceAddress) {
+    try {
+        const operation = await waitForOperationTerminal(operationID);
+        const status = normalizeOperationStatus(operation.status);
+        const message = operation?.message || `Power action finished for ${deviceAddress}`;
+        if (status === "success") {
+            showSuccessToast(message);
+        } else if (status === "warning") {
+            showWarningToast(message);
+        } else {
+            showErrorToast(message);
+        }
+    } catch (err) {
+        showErrorToast(err?.message || `Failed to track power action for ${deviceAddress}.`);
+    } finally {
+        await renderHosts();
+    }
+}
+
 async function powerControl(button) {
     const btnText = (button.dataset.originalLabel || button.textContent || "").trim();
     const ipNode = getDeviceIP(button);
@@ -172,18 +259,26 @@ async function powerControl(button) {
         const response = await API.postHostPowerControl(deviceAddress, powerAction);
 
         const message = response?.body?.message;
-        const isOK = response.status_code === 200;
+        const isOK = response.status_code === 200 || response.status_code === 202;
         if (!isOK) {
             const fallback = message || "Failed to change power state.";
             if (errorBox) {
                 errorBox.textContent = fallback;
                 errorBox.classList.remove("hidden");
             } else {
-                alert(fallback);
+                showErrorToast(fallback);
             }
             return;
         } else {
-            // body.power_state is new
+            const operationID = `${response?.body?.operation?.id || ""}`.trim();
+            if (operationID) {
+                showInfoToast(message || `${btnText} queued for ${deviceAddress}`);
+                closeAllMenus();
+                void monitorHostPowerOperation(operationID, deviceAddress);
+                return;
+            }
+
+            // Backward compatibility path: treat 200 synchronous responses as immediate completion.
             const newPowerState = resolveEnum(reverseObject((await API.getPowerStates()).body), response.body.power_state);
             const hostSection = button.closest("section");
             const powerNode = hostSection?.querySelector('[data-field="power"]');
@@ -196,6 +291,7 @@ async function powerControl(button) {
                 const node = hostSection?.querySelector(`[data-field="${selector}"]`);
                 if (node) node.textContent = `As of ${formattedTime}`;
             });
+            showSuccessToast(message || `${btnText} completed for ${deviceAddress}`);
         }
 
         closeAllMenus();
@@ -205,7 +301,55 @@ async function powerControl(button) {
             errorBox.textContent = "Failed to change power state.";
             errorBox.classList.remove("hidden");
         } else {
-            alert("Failed to change power state.");
+            showErrorToast("Failed to change power state.");
+        }
+    } finally {
+        menuButtons.forEach((btn) => {
+            btn.disabled = false;
+        });
+        setPowerButtonLoading(button, false);
+    }
+}
+
+async function reprobeHostSystemInfo(button) {
+    const ipNode = getDeviceIP(button);
+    if (!ipNode) return;
+    const deviceAddress = ipNode.textContent;
+
+    const menu = button.closest(".power-menu");
+    const menuButtons = menu ? Array.from(menu.querySelectorAll("button")) : [];
+    const errorBox = menu?.querySelector('[data-role="power-error"]');
+    if (errorBox) {
+        errorBox.textContent = "";
+        errorBox.classList.add("hidden");
+    }
+
+    try {
+        menuButtons.forEach((btn) => btn.disabled = true);
+        setPowerButtonLoading(button, true, "Re-probing...");
+
+        const response = await API.postHostReprobeSystemInfo(deviceAddress);
+        if (response.status_code !== 200) {
+            const message = response?.body?.message || "Failed to re-probe host system info.";
+            if (errorBox) {
+                errorBox.textContent = message;
+                errorBox.classList.remove("hidden");
+            } else {
+                showErrorToast(message);
+            }
+            return;
+        }
+
+        showSuccessToast(`Re-probed system info for ${deviceAddress}`);
+        closeAllMenus();
+        await renderHosts();
+    } catch (err) {
+        console.error(err);
+        if (errorBox) {
+            errorBox.textContent = "Failed to re-probe host system info.";
+            errorBox.classList.remove("hidden");
+        } else {
+            showErrorToast("Failed to re-probe host system info.");
         }
     } finally {
         menuButtons.forEach((btn) => {
@@ -235,14 +379,15 @@ async function unenrollHost(button) {
             if (!hostList.children.length) {
                 hostEmpty?.classList.remove("hidden");
             }
+            showSuccessToast(`Host ${deviceAddress} removed.`);
         } else {
-            alert(response?.body?.message || "Failed to remove host.");
+            showErrorToast(response?.body?.message || "Failed to remove host.");
             button.disabled = false;
             button.textContent = defaultText;
         }
     } catch (err) {
         console.error(err);
-        alert("Failed to remove host.");
+        showErrorToast("Failed to remove host.");
         button.disabled = false;
         button.textContent = defaultText;
     } finally {
@@ -251,6 +396,7 @@ async function unenrollHost(button) {
 }
 
 window.powerControl = powerControl;
+window.reprobeHostSystemInfo = reprobeHostSystemInfo;
 window.unenrollHost = unenrollHost;
 
 /**
@@ -306,6 +452,8 @@ function resetHostForm() {
 
 function resetISOForm() {
     isoForm?.reset();
+    setISOSelectionLoading(false, "");
+    setISOUploadLoading(false);
 }
 
 function closeForm(formKey) {
@@ -430,27 +578,78 @@ if (isoForm) {
     isoForm.addEventListener("submit", uploadISO);
 }
 
+if (isoInput) {
+    isoInput.addEventListener("change", async () => {
+        const file = isoInput.files?.[0];
+        if (!file) {
+            setISOSelectionLoading(false, "");
+            return;
+        }
+
+        setISOSelectionLoading(true, `Preparing ${file.name}...`);
+        isoSubmitBtn.disabled = true;
+        // Let the browser breathe before enabling upload to make status transitions visible.
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        isoSubmitBtn.disabled = false;
+        setISOSelectionLoading(false, `Ready: ${file.name}`);
+    });
+}
+
+function setISOSelectionLoading(isLoading, message) {
+    if (!isoSelectionStatus) return;
+    isoSelectionStatus.textContent = message || "";
+    isoSelectionStatus.classList.toggle("hidden", !message);
+    isoSelectionStatus.classList.toggle("italic", isLoading);
+}
+
+function setISOUploadLoading(isLoading) {
+    if (isoUploadSpinner) {
+        isoUploadSpinner.classList.toggle("hidden", !isLoading);
+    }
+    if (isoSubmitLabel) {
+        isoSubmitLabel.textContent = isLoading ? "Uploading..." : "Upload";
+    }
+    if (isoSubmitBtn) isoSubmitBtn.disabled = isLoading;
+    if (isoCancelBtn) isoCancelBtn.disabled = isLoading;
+    if (isoInput) isoInput.disabled = isLoading;
+}
+
 async function uploadISO(e) {
     e.preventDefault();
     if (!isoForm) return;
-    const input = isoForm.querySelector('[name="iso-input"]');
-    const file = input?.files?.[0];
+    const file = isoInput?.files?.[0];
     const fd = new FormData();
 
     if (!file) {
         return;
     }
 
+    setISOUploadLoading(true);
+    setISOSelectionLoading(false, `Uploading ${file.name}...`);
+    // Ensure loading UI paints before starting multipart upload work.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     fd.append("iso_image", file, file.name);
-    const response = await API.postIsoImage(fd);
 
-    if (response.status_code !== 200) {
-        alert(response?.body?.message || "Failed to upload ISO.");
+    try {
+        const response = await API.postIsoImage(fd);
+
+        if (response.status_code !== 200) {
+            showErrorToast(response?.body?.message || "Failed to upload ISO.");
+            setISOUploadLoading(false);
+            setISOSelectionLoading(false, `Upload failed: ${file.name}`);
+            return;
+        }
+
+        showSuccessToast(`ISO uploaded: ${file.name}`);
+        resetISOForm();
+        closeForm("iso");
+        window.location.reload();
+    } catch (err) {
+        console.error(err);
+        showErrorToast("Failed to upload ISO.");
+        setISOUploadLoading(false);
+        setISOSelectionLoading(false, `Upload failed: ${file.name}`);
     }
-
-    resetISOForm();
-    closeForm("iso");
-    window.location.reload();
 }
 
 /**
@@ -464,7 +663,12 @@ async function removeISO(button) {
         return;
     }
 
-    const isoFileName = isoFile.textContent;
+    const isoFileName = (section?.dataset?.isoName || isoFile.textContent || "").trim();
+    if (!isoFileName) {
+        showErrorToast("Unable to determine ISO name for deletion.");
+        return;
+    }
+
     const confirmRemoval = window.confirm(`Remove ISO file ${isoFileName} from inventory?`);
     if (!confirmRemoval) { 
         return;
@@ -480,12 +684,13 @@ async function removeISO(button) {
             if (!isoList.children.length) {
                 isoEmpty?.classList.remove("hidden");
             }
+            showSuccessToast(`ISO removed: ${isoFileName}`);
         } else {
-            alert(response?.body?.message || "Failed to remove ISO file.");
+            showErrorToast(response?.body?.message || "Failed to remove ISO file.");
         }
     } catch (err) {
         console.error(err);
-        alert("Failed to remove ISO file.");
+        showErrorToast("Failed to remove ISO file.");
     } 
 }
 
@@ -585,7 +790,19 @@ async function renderHosts() {
 
             // header
             frag.querySelector('[data-field="name"]').textContent = host.model;
-            frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
+            const formFactorLabel = resolveEnum(formFactors, host.form_factor);
+            const formFactorNormalized = String(formFactorLabel || "").trim().toLowerCase();
+            const vendorLabel = resolveEnum(vendorNames, host.vendor);
+            const vendorSummary = vendorLabel && vendorLabel !== "—" ? vendorLabel : "Vendor unknown";
+            const bookingSummary = host.is_booked
+                ? (Number(host.active_booking_id) > 0 ? `Booked (#${host.active_booking_id})` : "Booked")
+                : "Available";
+            const summaryParts = [];
+            if (formFactorLabel && formFactorLabel !== "—" && formFactorNormalized !== "other") {
+                summaryParts.push(formFactorLabel);
+            }
+            summaryParts.push(vendorSummary, bookingSummary);
+            frag.querySelector('[data-field="form_factor"]').textContent = summaryParts.join(" • ");
             const powerLabel = resolveEnum(powerStates, host.last_known_power_state);
             const powerNode = frag.querySelector('[data-field="power"]');
             powerNode.textContent = powerLabel;
@@ -603,7 +820,7 @@ async function renderHosts() {
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
             frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
-            frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
+            frag.querySelector('[data-field="vendor"]').textContent = vendorSummary;
 
             // memory
             const mem = host.specs?.memory || {};
@@ -681,11 +898,15 @@ async function renderISOs() {
             return;
         }
 
-        // Get ISOs from API and convert to array
-        const isoData = await API.getIsoImages();
+        // Get ISOs + enum labels
+        const [isoData, distroTypeData, preconfigureTypeData] = await Promise.all([
+            API.getIsoImages(),
+            API.getDistroTypes(),
+            API.getPreconfigureTypes(),
+        ]);
         const isos = Array.isArray(isoData.body) ? isoData.body : [];
-
-        console.log(isoData)
+        const distroTypes = reverseObject(distroTypeData?.body || {});
+        const preconfigureTypes = reverseObject(preconfigureTypeData?.body || {});
 
         isoList.innerHTML = "";
 
@@ -698,11 +919,27 @@ async function renderISOs() {
         isoEmpty?.classList.add("hidden");
         isos.forEach((iso) => {
             const frag = isoTemplate.content.cloneNode(true);
+            const version = (iso.version || "").trim() || "Unknown version";
+            const architecture = (iso.architecture || "").trim() || "Unknown arch";
+            const sizeGB = Number.isFinite(iso.size) ? `${(iso.size / (1024 ** 3)).toFixed(2)} GB` : "—";
+            const isoName = (iso.name || "Unnamed ISO").trim();
 
-            // Fill in template with ISO date (name, version, etc.)
-            frag.querySelector('[data-field="name"]').textContent = iso.name;
-            frag.querySelector('[data-field="file-path"]').innerHTML += ` ${iso.full_iso_path}`;
-            frag.querySelector('[data-field="file-size"]').innerHTML += ` ${(iso.size / (1024 ** 3)).toFixed(2)} GB`;
+            // Fill in template with ISO details
+            frag.querySelector('[data-field="name"]').textContent = isoName;
+            frag.querySelector('[data-field="summary"]').textContent = `${version} • ${architecture}`;
+            frag.querySelector('[data-field="distro-name"]').textContent = iso.distro_name || "—";
+            frag.querySelector('[data-field="version"]').textContent = version;
+            frag.querySelector('[data-field="architecture"]').textContent = architecture;
+            frag.querySelector('[data-field="distro-type"]').textContent = resolveEnum(distroTypes, iso.distro_type);
+            frag.querySelector('[data-field="preconfigure-type"]').textContent = resolveEnum(preconfigureTypes, iso.preconfigure_type);
+            frag.querySelector('[data-field="file-size"]').textContent = sizeGB;
+            frag.querySelector('[data-field="file-path"]').textContent = iso.full_iso_path || "—";
+            frag.querySelector('[data-field="kernel-path"]').textContent = iso.kernel_path || "—";
+            frag.querySelector('[data-field="initrd-path"]').textContent = iso.initrd_path || "—";
+            const isoSection = frag.querySelector("section");
+            if (isoSection) {
+                isoSection.dataset.isoName = isoName;
+            }
 
             isoList.appendChild(frag);
         });

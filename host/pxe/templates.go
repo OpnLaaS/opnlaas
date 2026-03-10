@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"hash/crc32"
+	"net/netip"
 	"path"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,8 @@ type TemplateContext struct {
 	Profile             *db.HostPXEProfile
 	ISO                 *db.StoredISOImage
 	Identifiers         TemplateIdentifiers
+	Provisioning        TemplateProvisioning
+	Network             TemplateStaticNetwork
 	Artifacts           ArtifactPaths
 	KernelArgs          []string
 	KernelArgsJoined    string
@@ -76,6 +79,25 @@ type TemplateIdentifiers struct {
 	Hostname   string
 	InstanceID string
 	Slug       string
+}
+
+type TemplateProvisioning struct {
+	BookingID       string
+	ManagementIP    string
+	CallbackToken   string
+	CallbackURL     string
+	CallbackEnabled bool
+}
+
+type TemplateStaticNetwork struct {
+	Enabled          bool
+	IPv4Address      string
+	CIDRBlock        string
+	Prefix           int
+	Netmask          string
+	Gateway          string
+	DNSServers       []string
+	DisableOtherNICs bool
 }
 
 type ArtifactPaths struct {
@@ -171,6 +193,7 @@ func (s *Service) buildTemplateContext(host *db.Host, profile *db.HostPXEProfile
 	ctx.KernelArgsJoined = strings.Join(ctx.KernelArgs, " ")
 	ctx.DNSServers = s.dnsServersForProfile(profile)
 	ctx.Templates = s.templateDefaults.Clone()
+	s.applyTemplateDataOverrides(ctx)
 	return ctx
 }
 
@@ -252,10 +275,6 @@ func (s *Service) buildKernelArgs(ctx *TemplateContext) (args []string) {
 
 		args = append(args, fmt.Sprintf("ds=nocloud-net;s=%s", data))
 
-		if data = ctx.ProfileFileHTTP("cloud-init/user-data"); data != "" && strings.HasPrefix(data, "http") {
-			args = append(args, fmt.Sprintf("autoinstall url=%s", data))
-		}
-
 	case db.PreConfigureTypeKickstart:
 		args = append(args, "ksdevice=bootif")
 
@@ -316,5 +335,189 @@ func (ctx *TemplateContext) ProfileFileHTTP(name string) (http string) {
 	}
 
 	http = fmt.Sprintf("%s/%s", base, strings.TrimPrefix(name, "/"))
+	return
+}
+
+func (s *Service) applyTemplateDataOverrides(ctx *TemplateContext) {
+	if ctx == nil || ctx.Profile == nil || len(ctx.Profile.TemplateData) == 0 {
+		return
+	}
+
+	data := ctx.Profile.TemplateData
+
+	if v := strings.TrimSpace(data["template.timezone"]); v != "" {
+		ctx.Templates.Common.Timezone = v
+	}
+
+	if v := strings.TrimSpace(data["template.locale"]); v != "" {
+		ctx.Templates.Common.Locale = v
+	}
+
+	if v := strings.TrimSpace(data["template.keyboard_layout"]); v != "" {
+		ctx.Templates.Common.KeyboardLayout = v
+	}
+
+	if v := strings.TrimSpace(data["template.mirror"]); v != "" {
+		ctx.Templates.Common.Mirror = v
+	}
+
+	if raw := strings.TrimSpace(data["template.packages"]); raw != "" {
+		ctx.Templates.Common.Packages = parseTemplateList(raw)
+	}
+
+	if script := strings.TrimSpace(data["template.late_script"]); script != "" {
+		ctx.Templates.Autoinstall.PostScript = appendTemplateScript(ctx.Templates.Autoinstall.PostScript, script)
+		ctx.Templates.Kickstart.PostScript = appendTemplateScript(ctx.Templates.Kickstart.PostScript, script)
+	}
+
+	if v := strings.TrimSpace(data["template.identifiers.hostname"]); v != "" {
+		ctx.Identifiers.Hostname = v
+	}
+
+	if v := strings.TrimSpace(data["template.provisioning.booking_id"]); v != "" {
+		ctx.Provisioning.BookingID = v
+	}
+
+	if v := strings.TrimSpace(data["template.provisioning.management_ip"]); v != "" {
+		ctx.Provisioning.ManagementIP = v
+	}
+
+	if v := strings.TrimSpace(data["template.provisioning.callback_token"]); v != "" {
+		ctx.Provisioning.CallbackToken = v
+	}
+
+	if ctx.Provisioning.BookingID != "" && ctx.Provisioning.ManagementIP != "" && ctx.Provisioning.CallbackToken != "" {
+		ctx.Provisioning.CallbackURL = s.absoluteURL("/provisioning/complete")
+		ctx.Provisioning.CallbackEnabled = true
+	}
+
+	if v := strings.TrimSpace(data["template.network.ipv4"]); v != "" {
+		ctx.Network.IPv4Address = v
+	}
+
+	if v := strings.TrimSpace(data["template.network.cidr"]); v != "" {
+		ctx.Network.CIDRBlock = v
+		if prefix, err := parsePrefixBitsFromCIDR(v); err == nil {
+			ctx.Network.Prefix = prefix
+			if ctx.Network.Netmask == "" {
+				ctx.Network.Netmask = ipv4MaskFromPrefix(prefix)
+			}
+		}
+	}
+
+	if v := strings.TrimSpace(data["template.network.netmask"]); v != "" {
+		ctx.Network.Netmask = v
+		if ctx.Network.Prefix == 0 {
+			if parsedPrefix, err := prefixFromIPv4Mask(v); err == nil {
+				ctx.Network.Prefix = parsedPrefix
+			}
+		}
+	}
+
+	if v := strings.TrimSpace(data["template.network.gateway"]); v != "" {
+		ctx.Network.Gateway = v
+	}
+
+	if v := strings.TrimSpace(data["template.network.dns"]); v != "" {
+		ctx.Network.DNSServers = parseTemplateList(v)
+	}
+
+	if v := strings.TrimSpace(data["template.network.disable_other_nics"]); v != "" {
+		ctx.Network.DisableOtherNICs = parseTemplateBool(v)
+	}
+
+	ctx.Network.Enabled = ctx.Network.IPv4Address != "" && ctx.Network.Netmask != "" && ctx.Network.Gateway != ""
+}
+
+func parseTemplateBool(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func parsePrefixBitsFromCIDR(raw string) (bits int, err error) {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
+	if err != nil || !prefix.Addr().Is4() {
+		return 0, fmt.Errorf("invalid ipv4 cidr")
+	}
+
+	return prefix.Bits(), nil
+}
+
+func ipv4MaskFromPrefix(bits int) (mask string) {
+	if bits <= 0 {
+		return "0.0.0.0"
+	}
+	if bits >= 32 {
+		return "255.255.255.255"
+	}
+
+	value := ^uint32(0) << (32 - bits)
+	mask = fmt.Sprintf(
+		"%d.%d.%d.%d",
+		(value>>24)&0xff,
+		(value>>16)&0xff,
+		(value>>8)&0xff,
+		value&0xff,
+	)
+	return
+}
+
+func prefixFromIPv4Mask(mask string) (bits int, err error) {
+	addr, err := netip.ParseAddr(strings.TrimSpace(mask))
+	if err != nil || !addr.Is4() {
+		return 0, fmt.Errorf("invalid ipv4 mask")
+	}
+
+	octets := addr.As4()
+	value := (uint32(octets[0]) << 24) | (uint32(octets[1]) << 16) | (uint32(octets[2]) << 8) | uint32(octets[3])
+	bits = 0
+	seenZero := false
+	for i := 31; i >= 0; i-- {
+		isOne := ((value >> uint(i)) & 1) == 1
+		if isOne {
+			if seenZero {
+				return 0, fmt.Errorf("non-contiguous netmask")
+			}
+			bits++
+		} else {
+			seenZero = true
+		}
+	}
+
+	return bits, nil
+}
+
+func parseTemplateList(raw string) (values []string) {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	for _, line := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r' || r == '\t'
+	}) {
+		if line = strings.TrimSpace(line); line != "" {
+			values = append(values, line)
+		}
+	}
+
+	return
+}
+
+func appendTemplateScript(existing string, extra string) (out string) {
+	existing = strings.TrimSpace(existing)
+	extra = strings.TrimSpace(extra)
+	if existing == "" {
+		return extra
+	}
+
+	if extra == "" {
+		return existing
+	}
+
+	out = existing + "\n\n" + extra
 	return
 }

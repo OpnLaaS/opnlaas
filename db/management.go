@@ -3,12 +3,13 @@ package db
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bougou/go-ipmi"
 	"github.com/opnlaas/opnlaas/config"
 	"github.com/stmcginnis/gofish"
-	"github.com/stmcginnis/gofish/redfish"
+	"github.com/stmcginnis/gofish/schemas"
 )
 
 var (
@@ -57,7 +58,7 @@ func (c *HostManagementClient) redfishInit() (err error) {
 
 	c.redfishService = c.redfishClient.Service
 
-	var chassisList []*redfish.Chassis
+	var chassisList []*schemas.Chassis
 	if chassisList, err = c.redfishService.Chassis(); err != nil {
 		return
 	}
@@ -69,7 +70,7 @@ func (c *HostManagementClient) redfishInit() (err error) {
 
 	c.redfishPrimaryChassis = chassisList[0]
 
-	var systemList []*redfish.ComputerSystem
+	var systemList []*schemas.ComputerSystem
 	if systemList, err = c.redfishService.Systems(); err != nil {
 		return
 	}
@@ -104,27 +105,211 @@ func (c *HostManagementClient) Close() {
 	c.connected = false
 }
 
-// ---------- POWER MANAGEMENT ----------
+func (c *HostManagementClient) refreshRedfishPrimarySystem() (err error) {
+	if c.redfishService == nil {
+		return ErrNotConnected
+	}
 
-func (c *HostManagementClient) redfishPowerState(forcePoll bool) (state PowerState, err error) {
-	if forcePoll {
-		if c.redfishService == nil {
-			err = ErrNotConnected
-			return
+	var systems []*schemas.ComputerSystem
+	if systems, err = c.redfishService.Systems(); err != nil {
+		return
+	}
+
+	if len(systems) == 0 || systems[0] == nil {
+		return ErrNoSystemFound
+	}
+
+	c.redfishPrimarySystem = systems[0]
+	return
+}
+
+func (c *HostManagementClient) ensureRedfishPrimarySystem(forceRefresh bool) (err error) {
+	if forceRefresh || c.redfishPrimarySystem == nil {
+		return c.refreshRedfishPrimarySystem()
+	}
+
+	return nil
+}
+
+func numberAnyToInt(v any) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int8:
+		return int(n)
+	case int16:
+		return int(n)
+	case int32:
+		return int(n)
+	case int64:
+		return int(n)
+	case uint:
+		return int(n)
+	case uint8:
+		return int(n)
+	case uint16:
+		return int(n)
+	case uint32:
+		return int(n)
+	case uint64:
+		return int(n)
+	case float32:
+		return int(n)
+	case float64:
+		return int(n)
+	case *int:
+		if n != nil {
+			return *n
 		}
-
-		var systems []*redfish.ComputerSystem
-		if systems, err = c.redfishService.Systems(); err == nil && len(systems) > 0 {
-			c.redfishPrimarySystem = systems[0]
-		} else if err != nil {
-			return
+	case *int8:
+		if n != nil {
+			return int(*n)
+		}
+	case *int16:
+		if n != nil {
+			return int(*n)
+		}
+	case *int32:
+		if n != nil {
+			return int(*n)
+		}
+	case *int64:
+		if n != nil {
+			return int(*n)
+		}
+	case *uint:
+		if n != nil {
+			return int(*n)
+		}
+	case *uint8:
+		if n != nil {
+			return int(*n)
+		}
+	case *uint16:
+		if n != nil {
+			return int(*n)
+		}
+	case *uint32:
+		if n != nil {
+			return int(*n)
+		}
+	case *uint64:
+		if n != nil {
+			return int(*n)
+		}
+	case *float32:
+		if n != nil {
+			return int(*n)
+		}
+	case *float64:
+		if n != nil {
+			return int(*n)
 		}
 	}
 
+	return 0
+}
+
+func numberAnyToInt64(v any) int64 {
+	switch n := v.(type) {
+	case int:
+		return int64(n)
+	case int8:
+		return int64(n)
+	case int16:
+		return int64(n)
+	case int32:
+		return int64(n)
+	case int64:
+		return n
+	case uint:
+		return int64(n)
+	case uint8:
+		return int64(n)
+	case uint16:
+		return int64(n)
+	case uint32:
+		return int64(n)
+	case uint64:
+		return int64(n)
+	case float32:
+		return int64(n)
+	case float64:
+		return int64(n)
+	case *int:
+		if n != nil {
+			return int64(*n)
+		}
+	case *int8:
+		if n != nil {
+			return int64(*n)
+		}
+	case *int16:
+		if n != nil {
+			return int64(*n)
+		}
+	case *int32:
+		if n != nil {
+			return int64(*n)
+		}
+	case *int64:
+		if n != nil {
+			return *n
+		}
+	case *uint:
+		if n != nil {
+			return int64(*n)
+		}
+	case *uint8:
+		if n != nil {
+			return int64(*n)
+		}
+	case *uint16:
+		if n != nil {
+			return int64(*n)
+		}
+	case *uint32:
+		if n != nil {
+			return int64(*n)
+		}
+	case *uint64:
+		if n != nil {
+			return int64(*n)
+		}
+	case *float32:
+		if n != nil {
+			return int64(*n)
+		}
+	case *float64:
+		if n != nil {
+			return int64(*n)
+		}
+	}
+
+	return 0
+}
+
+func firstNonEmpty(values ...string) (out string) {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+
+	return
+}
+
+// ---------- POWER MANAGEMENT ----------
+
+func (c *HostManagementClient) redfishPowerState(forcePoll bool) (state PowerState, err error) {
+	if err = c.ensureRedfishPrimarySystem(forcePoll); err != nil {
+		return
+	}
+
 	switch c.redfishPrimarySystem.PowerState {
-	case redfish.OnPowerState:
+	case schemas.OnPowerState:
 		state = PowerStateOn
-	case redfish.OffPowerState:
+	case schemas.OffPowerState:
 		state = PowerStateOff
 	default:
 		state = PowerStateUnknown
@@ -158,11 +343,7 @@ func (c *HostManagementClient) PowerState(forcePoll bool) (state PowerState, err
 	case ManagementTypeRedfish:
 		state, err = c.redfishPowerState(forcePoll)
 	case ManagementTypeIPMI:
-		if forcePoll {
-			err = fmt.Errorf("forcePoll not implemented for IPMI")
-			return
-		}
-
+		// IPMI calls are always live; forcePoll is a no-op.
 		state, err = c.ipmiPowerState()
 	default:
 		err = ErrBadManagementType
@@ -174,21 +355,25 @@ func (c *HostManagementClient) PowerState(forcePoll bool) (state PowerState, err
 }
 
 func (c *HostManagementClient) redfishSetPowerState(desiredState PowerState, force bool) (err error) {
-	var action redfish.ResetType
+	if err = c.ensureRedfishPrimarySystem(false); err != nil {
+		return
+	}
+
+	var action schemas.ResetType
 	switch desiredState {
 	case PowerStateOn:
-		action = redfish.OnResetType
+		action = schemas.OnResetType
 	case PowerStateOff:
-		action = redfish.GracefulShutdownResetType
+		action = schemas.GracefulShutdownResetType
 		if force {
-			action = redfish.ForceOffResetType
+			action = schemas.ForceOffResetType
 		}
 	default:
 		err = ErrInvalidState
 		return
 	}
 
-	err = c.redfishPrimarySystem.Reset(action)
+	_, err = c.redfishPrimarySystem.Reset(action)
 	return
 }
 
@@ -231,22 +416,43 @@ func (c *HostManagementClient) SetPowerState(desiredState PowerState, force bool
 }
 
 func (c *HostManagementClient) redfishResetPowerState(force bool) (err error) {
-	var action redfish.ResetType
-	if force {
-		// action = redfish.ForceRestartResetType
-		action = redfish.OnResetType
-	} else {
-		// action = redfish.PowerCycleResetType
-		action = redfish.OnResetType
+	var state PowerState
+	if state, err = c.redfishPowerState(true); err != nil {
+		return
 	}
 
-	err = c.redfishPrimarySystem.Reset(action)
+	if state == PowerStateOff {
+		_, err = c.redfishPrimarySystem.Reset(schemas.OnResetType)
+		return
+	}
+
+	if force {
+		if _, err = c.redfishPrimarySystem.Reset(schemas.ForceRestartResetType); err == nil {
+			return nil
+		}
+
+		_, err = c.redfishPrimarySystem.Reset(schemas.PowerCycleResetType)
+		return
+	}
+
+	if _, err = c.redfishPrimarySystem.Reset(schemas.GracefulRestartResetType); err == nil {
+		return nil
+	}
+
+	_, err = c.redfishPrimarySystem.Reset(schemas.PowerCycleResetType)
 	return
 }
 
 func (c *HostManagementClient) ipmiResetPowerState(force bool) (err error) {
 	var action ipmi.ChassisControl
-	if force {
+	var state PowerState
+	if state, err = c.ipmiPowerState(); err != nil {
+		return
+	}
+
+	if state == PowerStateOff {
+		action = ipmi.ChassisControlPowerUp
+	} else if force {
 		action = ipmi.ChassisControlHardReset
 	} else {
 		action = ipmi.ChassisControlPowerCycle
@@ -277,20 +483,31 @@ func (c *HostManagementClient) ResetPowerState(force bool) (err error) {
 // ---------- BOOT MANAGEMENT ----------
 
 func (c *HostManagementClient) redfishSetPXEBoot(bootMode BootMode) (err error) {
-	var bootType redfish.BootSourceOverrideMode
+	if err = c.ensureRedfishPrimarySystem(false); err != nil {
+		return
+	}
+
+	var bootType schemas.BootSourceOverrideMode
 	switch bootMode {
 	case BootModeUEFI:
-		bootType = redfish.UEFIBootSourceOverrideMode
+		bootType = schemas.UEFIBootSourceOverrideMode
 	case BootModeLegacy:
-		bootType = redfish.LegacyBootSourceOverrideMode
+		bootType = schemas.LegacyBootSourceOverrideMode
 	default:
 		err = ErrInvalidState
 		return
 	}
 
-	err = c.redfishPrimarySystem.SetBoot(redfish.Boot{
-		BootSourceOverrideTarget:  redfish.PxeBootSourceOverrideTarget,
-		BootSourceOverrideEnabled: redfish.OnceBootSourceOverrideEnabled,
+	// Best-effort clear of any stale/persistent override from earlier runs.
+	_ = c.redfishPrimarySystem.SetBoot(&schemas.Boot{
+		BootSourceOverrideTarget:  schemas.NoneBootSource,
+		BootSourceOverrideEnabled: schemas.DisabledBootSourceOverrideEnabled,
+		BootSourceOverrideMode:    bootType,
+	})
+
+	err = c.redfishPrimarySystem.SetBoot(&schemas.Boot{
+		BootSourceOverrideTarget:  schemas.PxeBootSource, //PxeBootSourceOverrideTarget,
+		BootSourceOverrideEnabled: schemas.OnceBootSourceOverrideEnabled,
 		BootSourceOverrideMode:    bootType,
 	})
 
@@ -309,6 +526,9 @@ func (c *HostManagementClient) ipmiSetPXEBoot(bootMode BootMode) (err error) {
 		err = ErrInvalidState
 		return
 	}
+
+	// Best-effort clear of any stale/persistent override from earlier runs.
+	_ = c.ipmiClient.SetBootDevice(bg, ipmi.BootDeviceSelectorNoOverride, bootType, false)
 
 	err = c.ipmiClient.SetBootDevice(bg, ipmi.BootDeviceSelectorForcePXE, bootType, false)
 	return
@@ -332,72 +552,150 @@ func (c *HostManagementClient) SetPXEBoot(bootMode BootMode) (err error) {
 	return
 }
 
-// ---------- DATA COLLECTION ----------
-
-func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
-	c.Host.Specs.Processor = HostCPUSpecs{
-		Sku:     c.redfishPrimarySystem.ProcessorSummary.Model,
-		Count:   c.redfishPrimarySystem.ProcessorSummary.Count,
-		Cores:   c.redfishPrimarySystem.ProcessorSummary.LogicalProcessorCount / c.redfishPrimarySystem.ProcessorSummary.Count,
-		Threads: c.redfishPrimarySystem.ProcessorSummary.LogicalProcessorCount,
-	}
-
-	var processorsList []*redfish.Processor
-	if processorsList, err = c.redfishPrimarySystem.Processors(); err != nil {
+func (c *HostManagementClient) redfishClearBootOverride() (err error) {
+	if err = c.ensureRedfishPrimarySystem(false); err != nil {
 		return
-	} else if len(processorsList) > 0 {
-		c.Host.Specs.Processor.Manufacturer = string(processorsList[0].Manufacturer)
-		c.Host.Specs.Processor.BaseSpeedMHz = int(processorsList[0].OperatingSpeedMHz)
-		c.Host.Specs.Processor.MaxSpeedMHz = int(processorsList[0].MaxSpeedMHz)
 	}
 
-	c.Host.Specs.Memory = HostMemorySpecs{
-		SizeGB: int(c.redfishPrimarySystem.MemorySummary.TotalSystemMemoryGiB),
+	err = c.redfishPrimarySystem.SetBoot(&schemas.Boot{
+		BootSourceOverrideTarget:  schemas.NoneBootSource,
+		BootSourceOverrideEnabled: schemas.DisabledBootSourceOverrideEnabled,
+	})
+
+	return
+}
+
+func (c *HostManagementClient) ipmiClearBootOverride() (err error) {
+	errLegacy := c.ipmiClient.SetBootDevice(bg, ipmi.BootDeviceSelectorNoOverride, ipmi.BIOSBootTypeLegacy, false)
+	errEFI := c.ipmiClient.SetBootDevice(bg, ipmi.BootDeviceSelectorNoOverride, ipmi.BIOSBootTypeEFI, false)
+	if errLegacy == nil || errEFI == nil {
+		return nil
 	}
 
-	var memoryList []*redfish.Memory
-	if memoryList, err = c.redfishPrimarySystem.Memory(); err != nil {
+	return errLegacy
+}
+
+func (c *HostManagementClient) ClearBootOverride() (err error) {
+	if !c.connected {
+		err = ErrNotConnected
 		return
-	} else {
-		c.Host.Specs.Memory.NumDIMMs = len(memoryList)
-		if len(memoryList) > 0 {
-			c.Host.Specs.Memory.SpeedMHz = int(memoryList[0].OperatingSpeedMhz)
-		}
 	}
 
-	c.Host.Model = c.redfishPrimarySystem.Model
-
-	services, _ := c.redfishPrimarySystem.Storage()
-
-	for _, service := range services {
-		volumes, _ := service.Volumes()
-		for _, volume := range volumes {
-			c.Host.Specs.Storage = append(c.Host.Specs.Storage, HostStorageSpecs{
-				CapacityGB: int(volume.CapacityBytes / (1024 * 1024 * 1024)),
-				MediaType:  string(volume.VolumeType),
-			})
-		}
-	}
-
-	if interfaces, err := c.redfishPrimarySystem.EthernetInterfaces(); err != nil {
-		return err
-	} else {
-		for _, iface := range interfaces {
-			c.Host.NetworkInterfaces = append(c.Host.NetworkInterfaces, HostNetworkInterface{
-				Name: func() string {
-					if iface.ID != "" {
-						return iface.ID
-					}
-
-					return iface.Name
-				}(),
-				MACAddress: iface.MACAddress,
-				SpeedMbps:  iface.SpeedMbps,
-			})
-		}
+	switch c.Host.ManagementType {
+	case ManagementTypeRedfish:
+		err = c.redfishClearBootOverride()
+	case ManagementTypeIPMI:
+		err = c.ipmiClearBootOverride()
+	default:
+		err = ErrBadManagementType
 	}
 
 	return
+}
+
+// ---------- DATA COLLECTION ----------
+
+func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
+	if c == nil || c.Host == nil {
+		return fmt.Errorf("nil host management context")
+	}
+
+	if err = c.ensureRedfishPrimarySystem(true); err != nil {
+		return
+	}
+
+	system := c.redfishPrimarySystem
+	if system == nil {
+		return ErrNoSystemFound
+	}
+
+	c.Host.Specs = HostSpecs{}
+	c.Host.NetworkInterfaces = nil
+
+	c.Host.Specs.Processor.Sku = strings.TrimSpace(system.ProcessorSummary.Model)
+
+	for vID, vName := range VendorNames {
+		if strings.Contains(strings.ToLower(system.Manufacturer), strings.ToLower(vName)) {
+			c.Host.Vendor = vID
+		}
+	}
+
+	count := numberAnyToInt(system.ProcessorSummary.Count)
+	logicalCount := numberAnyToInt(system.ProcessorSummary.LogicalProcessorCount)
+	if count > 0 {
+		c.Host.Specs.Processor.Count = count
+	}
+	if logicalCount > 0 {
+		c.Host.Specs.Processor.Threads = logicalCount
+	}
+	if count > 0 && logicalCount > 0 {
+		c.Host.Specs.Processor.Cores = logicalCount / count
+	}
+
+	if processorsList, procErr := system.Processors(); procErr == nil && len(processorsList) > 0 && processorsList[0] != nil {
+		c.Host.Specs.Processor.Manufacturer = string(processorsList[0].Manufacturer)
+		c.Host.Specs.Processor.BaseSpeedMHz = numberAnyToInt(processorsList[0].OperatingSpeedMHz)
+		c.Host.Specs.Processor.MaxSpeedMHz = numberAnyToInt(processorsList[0].MaxSpeedMHz)
+	}
+
+	c.Host.Specs.Memory.SizeGB = numberAnyToInt(system.MemorySummary.TotalSystemMemoryGiB)
+
+	if memoryList, memErr := system.Memory(); memErr == nil {
+		c.Host.Specs.Memory.NumDIMMs = len(memoryList)
+		for _, memory := range memoryList {
+			if memory == nil {
+				continue
+			}
+
+			if speed := numberAnyToInt(memory.OperatingSpeedMhz); speed > 0 {
+				c.Host.Specs.Memory.SpeedMHz = speed
+				break
+			}
+		}
+	}
+
+	c.Host.Model = firstNonEmpty(system.Model, c.Host.Model)
+
+	if services, storErr := system.Storage(); storErr == nil {
+		for _, service := range services {
+			if service == nil {
+				continue
+			}
+
+			volumes, volErr := service.Volumes()
+			if volErr != nil {
+				continue
+			}
+
+			for _, volume := range volumes {
+				if volume == nil {
+					continue
+				}
+
+				capacityBytes := numberAnyToInt64(volume.CapacityBytes)
+				c.Host.Specs.Storage = append(c.Host.Specs.Storage, HostStorageSpecs{
+					CapacityGB: int(capacityBytes / (1024 * 1024 * 1024)),
+					MediaType:  string(volume.VolumeType),
+				})
+			}
+		}
+	}
+
+	if interfaces, ifErr := system.EthernetInterfaces(); ifErr == nil {
+		for _, iface := range interfaces {
+			if iface == nil {
+				continue
+			}
+
+			c.Host.NetworkInterfaces = append(c.Host.NetworkInterfaces, HostNetworkInterface{
+				Name:       firstNonEmpty(iface.ID, iface.Name),
+				MACAddress: iface.MACAddress,
+				SpeedMbps:  numberAnyToInt(iface.SpeedMbps),
+			})
+		}
+	}
+
+	return nil
 }
 
 func (c *HostManagementClient) UpdateSystemInfo() (err error) {

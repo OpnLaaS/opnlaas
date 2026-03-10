@@ -1,4 +1,4 @@
-<div class="py-4 md:py-8 w-full mx-4">
+<div class="w-full px-4 py-4 md:px-6 md:py-8">
     {{if .IsAdmin}}
     <div id="newHost" class="mb-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -88,9 +88,14 @@
                 <label for="iso-input" class="font-bold text-xl">Choose File:</label>
                 <input name="iso-input" type="file" accept=".iso"
                     class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3 mx-4" required /> <br>
+                <div id="iso-selection-status" class="hidden text-sm text-font-secondary mt-2 leading-normal"></div>
                 <div class="flex items-center gap-3 mt-3">
                     <button type="submit" id="submitISOBtn"
-                        class="p-2 focus-ring border border-background-muted rounded-lg py-2 px-3">Upload</button>
+                        class="focus-ring inline-flex h-10 items-center justify-center border border-background-muted rounded-lg px-3 py-0 leading-none">
+                        <div id="iso-upload-spinner"
+                            class="hidden mr-2 w-4 h-4 shrink-0 border-2 border-font-secondary/50 border-t-transparent rounded-full animate-spin"></div>
+                        <div id="submitISOLabel" class="m-0 p-0 text-base leading-none">Upload</div>
+                    </button>
                     <button type="button" id="cancelISOBtn"
                         class="text-gray-600 hover:underline focus:outline-none">Cancel</button>
                 </div>
@@ -109,13 +114,13 @@
         <template id="host-item-template">
             <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm">
                 <!-- Header -->
-                <div class="flex items-start justify-between px-6 py-4 gap-4">
+                <div class="flex items-center justify-between px-5 py-3 gap-3">
                     <div class="min-w-0">
-                        <div class="truncate font-semibold text-base" data-field="name"></div>
-                        <div class="text-sm text-font-secondary mt-0.5" data-field="form_factor"></div>
+                        <div class="truncate font-semibold text-[15px] leading-5" data-field="name"></div>
+                        <div class="text-xs text-font-secondary mt-0.5 leading-4" data-field="form_factor"></div>
                     </div>
-                    <div class="flex items-center space-x-3 ">
-                        <div class="power-stack mb-6">
+                    <div class="flex items-center gap-2">
+                        <div class="power-stack">
                             <span class="power-pill" data-role="power-badge">
                                 <span class="power-dot"></span>
                                 <span data-field="power"></span>
@@ -158,6 +163,10 @@
                                     class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
                                     Force Restart
                                 </button>
+                                <button onclick="reprobeHostSystemInfo(this)"
+                                    class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                    Re-probe System Info
+                                </button>
                                 <div class="border-t border-background-muted"></div>
                                 <button onclick="unenrollHost(this)"
                                     class="block w-full text-left px-4 py-2 hover:bg-background-muted text-red-600">
@@ -167,7 +176,7 @@
                             </div>
                             {{end}}
                         </div>
-                        <button class="text-font-primary mb-2 hover:text-font-secondary hover:cursor-pointer"
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer"
                             onclick="toggleHostExpansionCard(this)" aria-label="Toggle details">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                 stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
@@ -301,26 +310,82 @@
         <div id="iso-list" class="w-full flex flex-col space-y-4"></div>
 
         <template id="iso-item-template">
-            <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm flex items-start justify-between px-6 py-4 gap-4 h-32">
-                <div class="min-w-0 mr-auto">
-                    <div class="truncate font-semibold text-base" data-field="name"></div>
-                    <div class="text-sm text-font-secondary mt-0.5" data-field="file-path"><em>Path:</em></div>
-                    <div class="text-sm text-font-secondary mt-0.5" data-field="file-size"><em>Size:</em></div>
+            <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm overflow-hidden">
+                <div class="flex items-start justify-between px-5 py-4 gap-3">
+                    <div class="min-w-0">
+                        <div class="truncate font-semibold text-base" data-field="name"></div>
+                        <div class="text-sm text-font-secondary mt-1" data-field="summary"></div>
+                    </div>
+
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer"
+                            onclick="toggleISOExpansionCard(this)" aria-label="Toggle ISO details">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="w-5 h-5 transition-transform duration-300">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer"
+                            onclick="removeISO(this)" aria-label="Remove ISO file">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5"
+                                stroke="currentColor" class="w-6 h-6 transition-transform duration-300">
+                                <g stroke-width="0"></g>
+                                <g stroke-linecap="round" stroke-linejoin="round"></g>
+                                <g>
+                                    <path
+                                        d="M4 6H20L18.4199 20.2209C18.3074 21.2337 17.4512 22 16.4321 22H7.56786C6.54876 22 5.69264 21.2337 5.5801 20.2209L4 6Z"
+                                        stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <path
+                                        d="M7.34491 3.14716C7.67506 2.44685 8.37973 2 9.15396 2H14.846C15.6203 2 16.3249 2.44685 16.6551 3.14716L18 6H6L7.34491 3.14716Z"
+                                        stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <path d="M2 6H22" stroke-linecap="round" stroke-linejoin="round"></path>
+                                </g>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Trashcan Button -->
-                <div class="flex h-full items-center">
-                    <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer" onclick="removeISO(this)" aria-label="Remove ISO file">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 transition-transform duration-300">
-                            <g stroke-width="0"></g>
-                            <g stroke-linecap="round" stroke-linejoin="round"></g>
-                            <g> 
-                                <path d="M4 6H20L18.4199 20.2209C18.3074 21.2337 17.4512 22 16.4321 22H7.56786C6.54876 22 5.69264 21.2337 5.5801 20.2209L4 6Z" stroke-linecap="round" stroke-linejoin="round"></path> 
-                                <path d="M7.34491 3.14716C7.67506 2.44685 8.37973 2 9.15396 2H14.846C15.6203 2 16.3249 2.44685 16.6551 3.14716L18 6H6L7.34491 3.14716Z" stroke-linecap="round" stroke-linejoin="round"></path> 
-                                <path d="M2 6H22" stroke-linecap="round" stroke-linejoin="round"></path> 
-                            </g>
-                        </svg>
-                    </button>
+                <div data-role="iso-details"
+                    class="transition-all duration-300 ease-in-out max-h-0 opacity-0 overflow-hidden">
+                    <div class="border-t border-background-muted px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <div class="text-font-secondary">Distro</div>
+                            <div class="break-words" data-field="distro-name"></div>
+                        </div>
+                        <div>
+                            <div class="text-font-secondary">Version</div>
+                            <div class="break-words" data-field="version"></div>
+                        </div>
+                        <div>
+                            <div class="text-font-secondary">Architecture</div>
+                            <div class="break-words" data-field="architecture"></div>
+                        </div>
+                        <div>
+                            <div class="text-font-secondary">Distro Type</div>
+                            <div class="break-words" data-field="distro-type"></div>
+                        </div>
+                        <div>
+                            <div class="text-font-secondary">Preconfigure</div>
+                            <div class="break-words" data-field="preconfigure-type"></div>
+                        </div>
+                        <div>
+                            <div class="text-font-secondary">Size</div>
+                            <div class="break-words" data-field="file-size"></div>
+                        </div>
+                        <div class="md:col-span-2">
+                            <div class="text-font-secondary">ISO Path</div>
+                            <div class="break-all" data-field="file-path"></div>
+                        </div>
+                        <div class="md:col-span-2">
+                            <div class="text-font-secondary">Kernel Path</div>
+                            <div class="break-all" data-field="kernel-path"></div>
+                        </div>
+                        <div class="md:col-span-2">
+                            <div class="text-font-secondary">Initrd Path</div>
+                            <div class="break-all" data-field="initrd-path"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </template>
