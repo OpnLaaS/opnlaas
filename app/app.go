@@ -71,8 +71,10 @@ func CreateApp() (app *fiber.App) {
 	// Hosts API
 	app.Get("/api/hosts", apiHostsAll)
 	app.Get("/api/hosts/:management_ip", apiHostByManagementIP)
+	app.Get("/api/operations/:operation_id", apiMustBeLoggedIn, apiAsyncOperationByID)
 	app.Post("/api/hosts", apiMustBeLoggedIn, apiMustBeAdmin, apiHostCreate)
 	app.Delete("/api/hosts/:management_ip", apiMustBeLoggedIn, apiMustBeAdmin, apiHostDelete)
+	app.Post("/api/hosts/:management_ip/reprobe-system-info", apiMustBeLoggedIn, apiMustBeAdmin, apiHostReprobeSystemInfo)
 	app.Post("/api/hosts/:management_ip/power/:action", apiMustBeLoggedIn, apiHostPowerControl)
 
 	// ISO Images API
@@ -94,6 +96,7 @@ func CreateApp() (app *fiber.App) {
 	app.Get("/api/bookings/cart/hosts/available", apiMustBeLoggedIn, apiBookingCartAvailableHosts)
 	app.Get("/api/bookings/:booking_id", apiMustBeLoggedIn, apiBookingByID)
 	app.Get("/api/bookings/:booking_id/provisioning", apiMustBeLoggedIn, apiBookingProvisioningStatus)
+	app.Post("/api/bookings/:booking_id/provisioning/cancel", apiMustBeLoggedIn, apiBookingProvisioningCancel)
 	app.Delete("/api/bookings/:booking_id", apiMustBeLoggedIn, apiBookingDestroy)
 	app.Post("/api/bookings/:booking_id/requests", apiMustBeLoggedIn, apiBookingCreateRequest)
 

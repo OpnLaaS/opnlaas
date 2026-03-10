@@ -15,7 +15,7 @@
     <script src="/static/dist/scripts/global.js" type="module" defer></script>
 </head>
 
-<body class="bg-background-primary antialiased overflow-x-hidden">
+<body class="min-h-screen h-[100dvh] flex flex-col bg-background-primary antialiased overflow-x-hidden">
     <a href="#main" class="skip-link bg-sky-600 text-white rounded">Skip to content</a>
 
     <header class="sticky top-0 z-40 bg-background-primary/95 border-b border-background-muted backdrop-blur">
@@ -73,18 +73,24 @@
     </header>
 
     {{if .Error}}
-    <div class="w-full max-w-2xl p-6 bg-background-secondary rounded-xl shadow-md mx-auto my-12">
-        <h2>A Critical Error Occurred:</h2>
-        <p class="bg-red-100 text-red-700 p-3 rounded">{{.Error}}</p>
-    </div>
+    <main id="main" class="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-0">
+        <div class="shell">
+            <div class="w-full max-w-2xl p-6 bg-background-secondary rounded-xl shadow-md mx-auto my-12">
+                <h2>A Critical Error Occurred:</h2>
+                <p class="bg-red-100 text-red-700 p-3 rounded">{{.Error}}</p>
+            </div>
+        </div>
+    </main>
     {{else}}
-    <main class="min-h-[87vh] shell">
-        {{embed}}
+    <main id="main" class="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-0">
+        <div class="shell">
+            {{embed}}
+        </div>
     </main>
     {{end}}
 
     <footer class="w-full border-t bg-background-primary border-background-muted">
-        <div class="py-4 shell footer">
+        <div class="py-4 shell footer flex flex-wrap items-center justify-between gap-3">
             <span class="mr-max">
                 <a href="https://github.com/opnlaas/opnlaas" target="_blank" class="hover:underline">Source Code (GitHub)</a>
             </span>

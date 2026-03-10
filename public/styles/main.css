@@ -18,6 +18,12 @@
     --color-font-primary: #030712;
     --color-font-secondary: #374151;
     --color-font-muted: #6b7280;
+
+    /* Terminal log palette */
+    --color-terminal-bg: #08121f;
+    --color-terminal-surface: #0f1f33;
+    --color-terminal-border: #1f3550;
+    --color-terminal-text: #dbeafe;
 }
 
 @layer components {
@@ -69,6 +75,11 @@
     .toast-card-error .toast-progress-bar {
         background: rgb(239 68 68);
     }
+
+    .toast-card-warning .toast-dot,
+    .toast-card-warning .toast-progress-bar {
+        background: rgb(245 158 11);
+    }
 }
 
 @layer theme {
@@ -88,6 +99,11 @@
             --color-font-primary: #f3f4f6;
             --color-font-secondary: #d1d5db;
             --color-font-muted: #6b7280;
+
+            --color-terminal-bg: #030b16;
+            --color-terminal-surface: #0b1729;
+            --color-terminal-border: #1b2f47;
+            --color-terminal-text: #e2e8f0;
         }
     }
 }
@@ -174,9 +190,9 @@
         @apply mt-1 block w-full border rounded-lg shadow-sm py-2.5 px-3 bg-background-primary placeholder-background-primary dark:bg-gray-800 border-background-muted;
     }
 
-    /* .shell is a wrapper that forces stuff to be max-width */
+    /* .shell is a wrapper that forces content to a common max-width */
     .shell {
-        @apply mx-auto max-w-5xl flex justify-between;
+        @apply mx-auto w-full max-w-5xl;
     }
 
     /* Table utility classes */
@@ -233,7 +249,7 @@
         @apply inline-flex items-center text-font-primary border border-background-muted rounded-md;
         --power-glow: rgba(34, 197, 94, 0.6);
         flex-wrap: wrap;
-        margin-top: 24px;
+        margin-top: 0;
         gap: 0.45rem;
         padding: 0.35rem 0.95rem;
         min-width: auto; /* Changed: Auto width on mobile */
@@ -306,6 +322,174 @@
         .power-updated-label {
             display: inline;
         }
+    }
+
+    .terminal-shell {
+        @apply border rounded-lg overflow-hidden;
+        border-color: var(--color-terminal-border);
+        background: color-mix(in oklab, var(--color-terminal-bg) 92%, black);
+    }
+
+    .terminal-progress-wrap {
+        @apply px-3 py-2 border-b;
+        border-color: var(--color-terminal-border);
+    }
+
+    .terminal-progress-meta {
+        @apply flex items-center justify-between gap-3 text-[11px] mb-1.5;
+        color: color-mix(in oklab, var(--color-terminal-text) 72%, #94a3b8);
+    }
+
+    .terminal-progress-track {
+        @apply h-1.5 rounded-full overflow-hidden;
+        background: color-mix(in oklab, var(--color-terminal-surface) 58%, #0f172a);
+    }
+
+    .terminal-title {
+        @apply uppercase tracking-wide;
+    }
+
+    .terminal-progress-fill {
+        @apply h-full transition-all duration-500 ease-out;
+        width: 0%;
+        background: linear-gradient(90deg, #38bdf8 0%, #22d3ee 65%, #34d399 100%);
+    }
+
+    .terminal-progress-fill[data-state="failed"],
+    .terminal-progress-fill[data-state="partial_failed"] {
+        background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
+    }
+
+    .terminal-progress-fill[data-state="destroyed"] {
+        background: linear-gradient(90deg, #64748b 0%, #94a3b8 100%);
+    }
+
+    .terminal-body {
+        @apply px-3 py-2;
+        font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: var(--color-terminal-text);
+        background: color-mix(in oklab, var(--color-terminal-bg) 95%, black);
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .terminal-line {
+        @apply py-1;
+        border-bottom: 1px solid color-mix(in oklab, var(--color-terminal-border) 52%, #1e293b);
+    }
+
+    .terminal-line:last-child {
+        border-bottom: none;
+    }
+
+    .terminal-line[data-level="info"] {
+        border-left: 2px solid #38bdf8;
+        padding-left: 0.5rem;
+    }
+
+    .terminal-line[data-level="warn"] {
+        border-left: 2px solid #f59e0b;
+        padding-left: 0.5rem;
+    }
+
+    .terminal-line[data-level="error"] {
+        border-left: 2px solid #f97316;
+        padding-left: 0.5rem;
+    }
+
+    .terminal-heading {
+        @apply text-[10px] font-semibold uppercase tracking-wide;
+        color: color-mix(in oklab, var(--color-terminal-text) 80%, #93c5fd);
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .terminal-message,
+    .terminal-message p,
+    .terminal-message span,
+    .terminal-message li,
+    .terminal-message pre,
+    .terminal-message code {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        font-size: 11px !important;
+        line-height: 1.35 !important;
+    }
+
+    .terminal-message p + p {
+        margin-top: 0.15rem !important;
+    }
+
+    .terminal-message,
+    .terminal-message * {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .terminal-message code {
+        @apply rounded px-0.5;
+        background: color-mix(in oklab, var(--color-terminal-surface) 38%, #020617);
+        color: #dbeafe;
+        white-space: pre-wrap;
+    }
+
+    .terminal-message pre {
+        @apply rounded-sm px-1.5 py-1 mt-1;
+        background: color-mix(in oklab, var(--color-terminal-surface) 24%, #020617);
+        border: 1px solid color-mix(in oklab, var(--color-terminal-border) 40%, #334155);
+        white-space: pre-wrap;
+        overflow-x: hidden;
+    }
+
+    .terminal-message pre code {
+        @apply p-0 rounded-none;
+        background: transparent;
+    }
+
+    .terminal-message .hljs-keyword,
+    .terminal-message .hljs-selector-tag {
+        color: #60a5fa;
+    }
+
+    .terminal-message .hljs-string,
+    .terminal-message .hljs-title,
+    .terminal-message .hljs-attr {
+        color: #34d399;
+    }
+
+    .terminal-message .hljs-number,
+    .terminal-message .hljs-literal {
+        color: #fbbf24;
+    }
+
+    .terminal-message .hljs-comment {
+        color: #94a3b8;
+    }
+
+    .terminal-filter-btn {
+        opacity: 0.8;
+    }
+
+    .terminal-filter-btn.is-active {
+        opacity: 1;
+    }
+
+    .terminal-filter-btn.is-active[data-level="info"] {
+        border-color: #38bdf8;
+        color: #bae6fd;
+        background: color-mix(in oklab, #38bdf8 16%, transparent);
+    }
+
+    .terminal-filter-btn.is-active[data-level="warn"] {
+        border-color: #f59e0b;
+        color: #fde68a;
+        background: color-mix(in oklab, #f59e0b 16%, transparent);
+    }
+
+    .terminal-filter-btn.is-active[data-level="error"] {
+        border-color: #f97316;
+        color: #fed7aa;
+        background: color-mix(in oklab, #f97316 14%, transparent);
     }
 
 

@@ -614,6 +614,12 @@ func (c *HostManagementClient) redfishUpdateSystemInfo() (err error) {
 
 	c.Host.Specs.Processor.Sku = strings.TrimSpace(system.ProcessorSummary.Model)
 
+	for vID, vName := range VendorNames {
+		if strings.Contains(strings.ToLower(system.Manufacturer), strings.ToLower(vName)) {
+			c.Host.Vendor = vID
+		}
+	}
+
 	count := numberAnyToInt(system.ProcessorSummary.Count)
 	logicalCount := numberAnyToInt(system.ProcessorSummary.LogicalProcessorCount)
 	if count > 0 {

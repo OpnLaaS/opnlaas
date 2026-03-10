@@ -1,4 +1,4 @@
-<div class="py-4 md:py-8 w-full mx-4">
+<div class="w-full px-4 py-4 md:px-6 md:py-8">
     {{if .IsAdmin}}
     <div id="newHost" class="mb-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -114,13 +114,13 @@
         <template id="host-item-template">
             <section class="bg-background-secondary rounded-xl border border-background-muted shadow-sm">
                 <!-- Header -->
-                <div class="flex items-start justify-between px-6 py-4 gap-4">
+                <div class="flex items-center justify-between px-5 py-3 gap-3">
                     <div class="min-w-0">
-                        <div class="truncate font-semibold text-base" data-field="name"></div>
-                        <div class="text-sm text-font-secondary mt-0.5" data-field="form_factor"></div>
+                        <div class="truncate font-semibold text-[15px] leading-5" data-field="name"></div>
+                        <div class="text-xs text-font-secondary mt-0.5 leading-4" data-field="form_factor"></div>
                     </div>
-                    <div class="flex items-center space-x-3 ">
-                        <div class="power-stack mb-6">
+                    <div class="flex items-center gap-2">
+                        <div class="power-stack">
                             <span class="power-pill" data-role="power-badge">
                                 <span class="power-dot"></span>
                                 <span data-field="power"></span>
@@ -163,6 +163,10 @@
                                     class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
                                     Force Restart
                                 </button>
+                                <button onclick="reprobeHostSystemInfo(this)"
+                                    class="power-action w-full text-left px-4 py-2 hover:bg-background-muted">
+                                    Re-probe System Info
+                                </button>
                                 <div class="border-t border-background-muted"></div>
                                 <button onclick="unenrollHost(this)"
                                     class="block w-full text-left px-4 py-2 hover:bg-background-muted text-red-600">
@@ -172,7 +176,7 @@
                             </div>
                             {{end}}
                         </div>
-                        <button class="text-font-primary mb-2 hover:text-font-secondary hover:cursor-pointer"
+                        <button class="text-font-primary hover:text-font-secondary hover:cursor-pointer"
                             onclick="toggleHostExpansionCard(this)" aria-label="Toggle details">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                 stroke="currentColor" class="w-5 h-5 transition-transform duration-300">

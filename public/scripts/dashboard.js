@@ -1,9 +1,18 @@
 import * as API from "./api/api.js";
 import { dateTimeFormat, reverseObject } from "./lib/util.js";
-import { dismissToasts, showErrorToast, showInfoToast } from "./lib/toast.js";
+import { dismissToasts, showErrorToast, showInfoToast, showSuccessToast, showWarningToast } from "./lib/toast.js";
+import MarkdownIt from "markdown-it";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import json from "highlight.js/lib/languages/json";
+import yaml from "highlight.js/lib/languages/yaml";
+import plaintext from "highlight.js/lib/languages/plaintext";
 
 const state = {
     bookingStatusNames: {},
+    bookingPermissionLevelNames: {},
+    vendorNames: {},
+    formFactorNames: {},
     powerActionNames: {},
     powerStateNames: {},
     isos: [],
@@ -12,16 +21,23 @@ const state = {
     bookings: [],
     provisioningByBooking: new Map(),
     bookingNetworkPrefill: null,
+    bookingDurationMaxDays: 32,
+    bookingDurationDefaultDays: 32,
+    bookingServerDNSName: "laas.cyber.lab",
     wizardStage: 1,
     hostConfigTargetIP: "",
     selectedProvisioningBookingID: 0,
     provisioningPollTimer: null,
+    provisioningForceScrollToBottom: false,
+    provisioningLevelFilters: new Set(["info", "warn", "error"]),
+    watchedProvisioningBookingIDs: new Set(),
+    watchedProvisioningLastStatus: new Map(),
+    provisioningWatchTimer: null,
 };
 
 const refs = {
     refreshBookingsBtn: document.getElementById("refreshBookingsBtn"),
     openDeployWizardBtn: document.getElementById("openDeployWizardBtn"),
-    openProvisioningLogBtn: document.getElementById("openProvisioningLogBtn"),
     bookingsEmpty: document.getElementById("bookingsEmpty"),
     bookingsList: document.getElementById("bookingsList"),
     bookingCardTemplate: document.getElementById("bookingCardTemplate"),
@@ -41,9 +57,11 @@ const refs = {
     wizardBookingName: document.getElementById("wizardBookingName"),
     wizardBookingDescription: document.getElementById("wizardBookingDescription"),
     wizardBookingDuration: document.getElementById("wizardBookingDuration"),
+    wizardBookingDurationValue: document.getElementById("wizardBookingDurationValue"),
+    wizardBookingDurationHint: document.getElementById("wizardBookingDurationHint"),
+    wizardBookingDNSName: document.getElementById("wizardBookingDNSName"),
     wizardBookingCIDR: document.getElementById("wizardBookingCIDR"),
     wizardBookingCIDRHint: document.getElementById("wizardBookingCIDRHint"),
-    wizardBootMode: document.getElementById("wizardBootMode"),
     wizardSelectedCount: document.getElementById("wizardSelectedCount"),
     wizardAvailableHostsEmpty: document.getElementById("wizardAvailableHostsEmpty"),
     wizardAvailableHostsList: document.getElementById("wizardAvailableHostsList"),
@@ -57,26 +75,59 @@ const refs = {
     hostConfigModal: document.getElementById("hostConfigModal"),
     hostConfigTargetLabel: document.getElementById("hostConfigTargetLabel"),
     hostCfgISO: document.getElementById("hostCfgISO"),
+    hostCfgBootMode: document.getElementById("hostCfgBootMode"),
+    hostCfgHostname: document.getElementById("hostCfgHostname"),
+    hostCfgHostnamePreview: document.getElementById("hostCfgHostnamePreview"),
     hostCfgTimezone: document.getElementById("hostCfgTimezone"),
     hostCfgLocale: document.getElementById("hostCfgLocale"),
     hostCfgKeyboard: document.getElementById("hostCfgKeyboard"),
     hostCfgMirror: document.getElementById("hostCfgMirror"),
     hostCfgPackages: document.getElementById("hostCfgPackages"),
-    hostCfgAssignedIP: document.getElementById("hostCfgAssignedIP"),
-    hostCfgAssignedIPHint: document.getElementById("hostCfgAssignedIPHint"),
     hostCfgLateScript: document.getElementById("hostCfgLateScript"),
     hostCfgSaveBtn: document.getElementById("hostCfgSaveBtn"),
     provisioningLogModal: document.getElementById("provisioningLogModal"),
-    provisioningBookingSelect: document.getElementById("provisioningBookingSelect"),
+    provisioningBookingLabel: document.getElementById("provisioningBookingLabel"),
+    provisioningCancelBtn: document.getElementById("provisioningCancelBtn"),
     provisioningRefreshBtn: document.getElementById("provisioningRefreshBtn"),
     provisioningSummary: document.getElementById("provisioningSummary"),
+    provisioningProgressLabel: document.getElementById("provisioningProgressLabel"),
+    provisioningProgressBar: document.getElementById("provisioningProgressBar"),
     provisioningHostsEmpty: document.getElementById("provisioningHostsEmpty"),
     provisioningHostsList: document.getElementById("provisioningHostsList"),
     provisioningHostRowTemplate: document.getElementById("provisioningHostRowTemplate"),
     provisioningEventsEmpty: document.getElementById("provisioningEventsEmpty"),
     provisioningEventsList: document.getElementById("provisioningEventsList"),
     provisioningEventRowTemplate: document.getElementById("provisioningEventRowTemplate"),
+    provisioningLevelButtons: Array.from(document.querySelectorAll('[data-action="toggle-provisioning-level"]')),
 };
+
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("shell", bash);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("yaml", yaml);
+hljs.registerLanguage("plaintext", plaintext);
+
+const provisioningMarkdown = new MarkdownIt({
+    html: false,
+    linkify: false,
+    breaks: true,
+    highlight(source, language) {
+        const lang = `${language || ""}`.trim().toLowerCase();
+        const escaped = provisioningMarkdown.utils.escapeHtml(source);
+        if (!source) {
+            return "";
+        }
+
+        try {
+            if (lang && hljs.getLanguage(lang)) {
+                return `<pre><code class="hljs language-${lang}">${hljs.highlight(source, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
+            }
+            return `<pre><code class="hljs">${hljs.highlightAuto(source, ["bash", "json", "yaml", "plaintext"]).value}</code></pre>`;
+        } catch (_) {
+            return `<pre><code class="hljs">${escaped}</code></pre>`;
+        }
+    },
+});
 
 function messageFromResponse(response, fallback) {
     return response?.body?.message || fallback;
@@ -100,6 +151,170 @@ function hideInfo() {
     dismissToasts("info");
 }
 
+function showSuccess(message) {
+    dismissToasts("success");
+    showSuccessToast(message);
+}
+
+function showWarning(message) {
+    dismissToasts("warning");
+    showWarningToast(message);
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function normalizeOperationStatus(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    if (normalized === "success" || normalized === "warning" || normalized === "error") return normalized;
+    if (normalized === "failed") return "error";
+    if (normalized === "warn") return "warning";
+    return normalized || "running";
+}
+
+function operationStatusTerminal(status) {
+    const normalized = normalizeOperationStatus(status);
+    return normalized === "success" || normalized === "warning" || normalized === "error";
+}
+
+function provisioningStatusTerminal(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    return normalized === "completed"
+        || normalized === "partial_failed"
+        || normalized === "failed"
+        || normalized === "canceled"
+        || normalized === "destroyed";
+}
+
+function watchProvisioningCompletion(bookingID, initialStatus = "") {
+    const id = Number(bookingID || 0);
+    if (!id) return;
+
+    const normalized = `${initialStatus || ""}`.trim().toLowerCase();
+    if (provisioningStatusTerminal(normalized)) return;
+
+    state.watchedProvisioningBookingIDs.add(id);
+    if (normalized) {
+        state.watchedProvisioningLastStatus.set(id, normalized);
+    }
+}
+
+function stopProvisioningCompletionWatcher() {
+    if (state.provisioningWatchTimer) {
+        window.clearInterval(state.provisioningWatchTimer);
+        state.provisioningWatchTimer = null;
+    }
+}
+
+function provisioningCompletionMessage(bookingID, status) {
+    const booking = state.bookings.find((entry) => Number(entry?.booking?.id || 0) === Number(bookingID || 0))?.booking;
+    const bookingLabel = booking?.name ? `Booking #${bookingID} ${booking.name}` : `Booking #${bookingID}`;
+    const normalized = `${status || ""}`.trim().toLowerCase();
+
+    if (normalized === "completed") return { tone: "success", message: `${bookingLabel} provisioning completed.` };
+    if (normalized === "partial_failed") return { tone: "warning", message: `${bookingLabel} provisioning completed with host-level failures.` };
+    if (normalized === "failed") return { tone: "error", message: `${bookingLabel} provisioning failed.` };
+    if (normalized === "canceled") return { tone: "warning", message: `${bookingLabel} provisioning was canceled.` };
+    if (normalized === "destroyed") return { tone: "warning", message: `${bookingLabel} was destroyed.` };
+    return { tone: "info", message: `${bookingLabel} provisioning status: ${normalized || "unknown"}.` };
+}
+
+async function pollProvisioningWatchList() {
+    const watchIDs = Array.from(state.watchedProvisioningBookingIDs);
+    for (const bookingID of watchIDs) {
+        const response = await API.getBookingProvisioningStatus(bookingID);
+        if (response.status_code === 404) {
+            state.watchedProvisioningBookingIDs.delete(bookingID);
+            state.watchedProvisioningLastStatus.delete(bookingID);
+            continue;
+        }
+        if (response.status_code !== 200) {
+            continue;
+        }
+
+        const snapshot = response.body || {};
+        state.provisioningByBooking.set(bookingID, snapshot);
+
+        const currentStatus = `${snapshot?.status || ""}`.trim().toLowerCase();
+        const previousStatus = `${state.watchedProvisioningLastStatus.get(bookingID) || ""}`.trim().toLowerCase();
+        if (currentStatus) {
+            state.watchedProvisioningLastStatus.set(bookingID, currentStatus);
+        }
+
+        if (!provisioningStatusTerminal(currentStatus)) {
+            continue;
+        }
+
+        const shouldToast = !provisioningStatusTerminal(previousStatus) || previousStatus !== currentStatus;
+        if (shouldToast) {
+            const completion = provisioningCompletionMessage(bookingID, currentStatus);
+            if (completion.tone === "success") {
+                showSuccess(completion.message);
+            } else if (completion.tone === "warning") {
+                showWarning(completion.message);
+            } else if (completion.tone === "error") {
+                showError(completion.message);
+            } else {
+                showInfo(completion.message);
+            }
+        }
+
+        state.watchedProvisioningBookingIDs.delete(bookingID);
+        state.watchedProvisioningLastStatus.delete(bookingID);
+        await refreshBookingByID(bookingID);
+    }
+}
+
+function startProvisioningCompletionWatcher() {
+    if (state.provisioningWatchTimer) return;
+    state.provisioningWatchTimer = window.setInterval(async () => {
+        await pollProvisioningWatchList();
+    }, 5000);
+}
+
+async function waitForOperationTerminal(operationID, timeoutMs = 180000, intervalMs = 1500) {
+    const startedAt = Date.now();
+    while ((Date.now() - startedAt) < timeoutMs) {
+        const response = await API.getOperationByID(operationID);
+        if (response.status_code === 404) {
+            await sleep(intervalMs);
+            continue;
+        }
+        if (response.status_code !== 200) {
+            throw new Error(messageFromResponse(response, `Failed to load operation ${operationID}`));
+        }
+
+        const operation = response.body || {};
+        if (operationStatusTerminal(operation.status)) {
+            return operation;
+        }
+        await sleep(intervalMs);
+    }
+
+    throw new Error("Timed out waiting for operation completion.");
+}
+
+async function monitorDashboardHostPowerOperation(operationID, bookingID, managementIP) {
+    try {
+        const operation = await waitForOperationTerminal(operationID);
+        const status = normalizeOperationStatus(operation?.status);
+        const message = operation?.message || `Power action finished for ${managementIP}`;
+
+        if (status === "success") {
+            showSuccess(message);
+        } else if (status === "warning") {
+            showWarning(message);
+        } else {
+            showError(message);
+        }
+    } catch (err) {
+        showError(err?.message || `Failed to track power action for ${managementIP}.`);
+    } finally {
+        await refreshBookingByID(bookingID);
+    }
+}
+
 function formatTime(value) {
     if (!value) return "N/A";
     const parsed = new Date(value);
@@ -107,14 +322,142 @@ function formatTime(value) {
     return dateTimeFormat.format(parsed);
 }
 
+function normalizeProvisioningLevel(level) {
+    const normalized = `${level || ""}`.trim().toLowerCase();
+    if (normalized === "warn" || normalized === "warning") return "warn";
+    if (normalized === "error") return "error";
+    return "info";
+}
+
+function updateProvisioningFilterButtons() {
+    for (const button of refs.provisioningLevelButtons) {
+        if (!(button instanceof HTMLButtonElement)) continue;
+        const level = normalizeProvisioningLevel(button.dataset.level);
+        const active = state.provisioningLevelFilters.has(level);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+        button.classList.toggle("is-active", active);
+        button.classList.toggle("text-font-secondary", !active);
+    }
+}
+
+function toggleProvisioningFilterLevel(level) {
+    const normalized = normalizeProvisioningLevel(level);
+    if (state.provisioningLevelFilters.has(normalized) && state.provisioningLevelFilters.size > 1) {
+        state.provisioningLevelFilters.delete(normalized);
+    } else {
+        state.provisioningLevelFilters.add(normalized);
+    }
+}
+
+function provisioningStagePercent(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    const map = {
+        queued: 4,
+        reserved: 8,
+        running: 18,
+        configuring_pxe: 28,
+        setting_boot: 38,
+        restarting: 48,
+        waiting_power: 60,
+        awaiting_install: 76,
+        installing: 88,
+        completed: 100,
+        failed: 100,
+        partial_failed: 100,
+        canceled: 100,
+        destroyed: 100,
+    };
+    return map[normalized] ?? 12;
+}
+
+function summarizeProvisioningProgress(provisioning) {
+    if (!provisioning) {
+        return { percent: 0, text: "Progress unavailable" };
+    }
+
+    const hosts = Array.isArray(provisioning.hosts) ? provisioning.hosts : [];
+    const total = hosts.length;
+    const completed = hosts.filter((host) => `${host?.status || ""}`.trim().toLowerCase() === "completed").length;
+    const failed = hosts.filter((host) => `${host?.status || ""}`.trim().toLowerCase() === "failed").length;
+
+    let stage = `${provisioning.status || "queued"}`;
+    let percent = provisioningStagePercent(stage);
+
+    let latestHost = null;
+    for (const host of hosts) {
+        const currentTime = new Date(host?.updated_at || 0).getTime();
+        const latestTime = new Date(latestHost?.updated_at || 0).getTime();
+        if (!latestHost || currentTime > latestTime) {
+            latestHost = host;
+        }
+    }
+
+    if (latestHost?.status) {
+        stage = `${latestHost.status}`;
+        percent = Math.max(percent, provisioningStagePercent(stage));
+    }
+
+    const hostSummary = total > 0 ? `${completed}/${total} done` : "no hosts";
+    const failSummary = failed > 0 ? ` | ${failed} failed` : "";
+    return {
+        percent: Math.max(0, Math.min(100, Math.round(percent))),
+        text: `${hostSummary}${failSummary} | stage: ${stage}`,
+    };
+}
+
 function bookingStatusLabel(value) {
     const reverse = reverseObject(state.bookingStatusNames || {});
     return reverse[value] || `Status ${value}`;
 }
 
+function bookingPermissionLabel(value) {
+    const reverse = reverseObject(state.bookingPermissionLevelNames || {});
+    return reverse[value] || `Permission ${value}`;
+}
+
+function vendorLabel(value) {
+    const reverse = reverseObject(state.vendorNames || {});
+    return reverse[value] || `${value ?? "Vendor?"}`;
+}
+
+function formFactorLabel(value) {
+    const reverse = reverseObject(state.formFactorNames || {});
+    return reverse[value] || `${value ?? "Form?"}`;
+}
+
 function powerStateLabel(value) {
     const reverse = reverseObject(state.powerStateNames || {});
     return reverse[value] || "Unknown";
+}
+
+function provisioningStatusLabel(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    const map = {
+        queued: "queued",
+        running: "running",
+        awaiting_install: "awaiting install",
+        completed: "done",
+        failed: "failed",
+        partial_failed: "partial failure",
+        canceled: "canceled",
+        destroyed: "destroyed",
+    };
+    return map[normalized] || (normalized || "unknown");
+}
+
+function provisioningStatusCancelable(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    return normalized === "queued" || normalized === "running" || normalized === "awaiting_install";
+}
+
+function bookingStateSummary(bookingView) {
+    const booking = bookingView?.booking || {};
+    const bookingState = bookingStatusLabel(booking.status);
+    const provisioning = bookingView?.provisioning;
+    if (!provisioning?.status) {
+        return bookingState;
+    }
+    return `${bookingState} / Provisioning ${provisioningStatusLabel(provisioning.status)}`;
 }
 
 function parseCSV(raw) {
@@ -124,47 +467,47 @@ function parseCSV(raw) {
         .filter((part) => part.length > 0);
 }
 
-function ipToInt(ip) {
-    const parts = `${ip || ""}`.trim().split(".");
-    if (parts.length !== 4) return null;
-    const octets = parts.map((p) => Number(p));
-    if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
-    return ((octets[0] << 24) >>> 0) + ((octets[1] << 16) >>> 0) + ((octets[2] << 8) >>> 0) + (octets[3] >>> 0);
+const HOSTNAME_WORDS = [
+    "amber", "atlas", "beacon", "binary", "bolt", "comet", "copper", "core", "delta", "echo",
+    "ember", "falcon", "flare", "flux", "forge", "frost", "gale", "glint", "graph", "haven",
+    "helix", "horizon", "ion", "jade", "jet", "jolt", "lattice", "lumen", "lynx", "matrix",
+    "merit", "mint", "mosaic", "nexus", "nova", "onyx", "orbit", "origin", "oxide", "patch",
+    "phoenix", "pixel", "plasma", "pulse", "quartz", "radar", "rivet", "rocket", "sage", "saturn",
+    "signal", "slate", "solstice", "spark", "spire", "stride", "summit", "switch", "talon", "topaz",
+    "torch", "tracer", "vector", "verge", "vertex", "viper", "vista", "vivid", "warp", "zephyr",
+];
+
+function randomHostnameWord() {
+    if (!HOSTNAME_WORDS.length) {
+        return "node";
+    }
+    const idx = Math.floor(Math.random() * HOSTNAME_WORDS.length);
+    return HOSTNAME_WORDS[idx];
 }
 
-function intToIP(value) {
-    return [
-        (value >>> 24) & 255,
-        (value >>> 16) & 255,
-        (value >>> 8) & 255,
-        value & 255,
-    ].join(".");
+function sanitizeHostnameLabel(value) {
+    const lowered = `${value || ""}`.trim().toLowerCase();
+    if (!lowered) return "";
+
+    const withoutApostrophes = lowered.replace(/['’]/g, "");
+    const normalized = withoutApostrophes
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    return normalized.slice(0, 48).replace(/^-+|-+$/g, "");
 }
 
-function parseCIDR(cidr) {
-    const [ip, prefixRaw] = `${cidr || ""}`.trim().split("/");
-    const prefix = Number(prefixRaw);
-    const ipInt = ipToInt(ip);
-    if (ipInt === null || !Number.isInteger(prefix) || prefix < 1 || prefix > 30) return null;
-
-    const hostBits = 32 - prefix;
-    const blockSize = 2 ** hostBits;
-    const networkInt = Math.floor(ipInt / blockSize) * blockSize;
-    const broadcastInt = networkInt + blockSize - 1;
-    return { prefix, networkInt, broadcastInt, blockSize };
+function dnsLabelFromBookingName(name) {
+    const normalized = `${name || ""}`.trim().toLowerCase()
+        .replace(/['’]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    const fallback = normalized || "booking";
+    return fallback.slice(0, 48).replace(/^-+|-+$/g, "") || "booking";
 }
 
-function normalizeIP(ip) {
-    const value = ipToInt(ip);
-    if (value === null) return "";
-    return intToIP(value);
-}
-
-function cidrContainsIP(cidrInfo, ip) {
-    if (!cidrInfo) return false;
-    const value = ipToInt(ip);
-    if (value === null) return false;
-    return value >= cidrInfo.networkInt && value <= cidrInfo.broadcastInt;
+function bookingDescriptionLength() {
+    return `${refs.wizardBookingDescription?.value || ""}`.trim().length;
 }
 
 function templatePackagesSummary(templateData) {
@@ -212,6 +555,42 @@ function updateWizardStageUI() {
     refs.wizardSubmitBtn.classList.toggle("hidden", stage !== 3);
 }
 
+function applyDurationDefaults() {
+    const maxDays = Math.max(1, Number(state.bookingDurationMaxDays || 32));
+    const defaultDays = Math.min(maxDays, Math.max(1, Number(state.bookingDurationDefaultDays || 32)));
+
+    refs.wizardBookingDuration.max = `${maxDays}`;
+    if (!refs.wizardBookingDuration.value) {
+        refs.wizardBookingDuration.value = `${defaultDays}`;
+    }
+
+    const parsed = Number(refs.wizardBookingDuration.value || defaultDays);
+    const clamped = Math.min(maxDays, Math.max(1, Number.isFinite(parsed) ? parsed : defaultDays));
+    refs.wizardBookingDuration.value = `${clamped}`;
+
+    if (refs.wizardBookingDurationValue) {
+        refs.wizardBookingDurationValue.textContent = `${clamped}`;
+    }
+    if (refs.wizardBookingDurationHint) {
+        refs.wizardBookingDurationHint.textContent = `1-${maxDays} days`;
+    }
+}
+
+function updateWizardGeneratedDNS() {
+    if (!refs.wizardBookingDNSName) return;
+    refs.wizardBookingDNSName.value = dnsLabelFromBookingName(refs.wizardBookingName.value);
+    updateHostCfgHostnamePreview();
+}
+
+function updateHostCfgHostnamePreview() {
+    if (!refs.hostCfgHostnamePreview) return;
+    const label = sanitizeHostnameLabel(refs.hostCfgHostname?.value || "");
+    const bookingDNS = `${refs.wizardBookingDNSName?.value || dnsLabelFromBookingName(refs.wizardBookingName?.value || "") || "booking"}`.trim() || "booking";
+    const serverDNS = `${state.bookingServerDNSName || "laas.cyber.lab"}`.trim().replace(/\.+$/g, "") || "laas.cyber.lab";
+    const shownLabel = label || "<label>";
+    refs.hostCfgHostnamePreview.textContent = `${shownLabel}.${bookingDNS}.${serverDNS}`;
+}
+
 function buildISOOptions(selectEl, selectedISO = "") {
     selectEl.textContent = "";
     const defaultOption = document.createElement("option");
@@ -231,12 +610,18 @@ function buildISOOptions(selectEl, selectedISO = "") {
 }
 
 async function loadEnums() {
-    const [bookingStatusesRes, powerActionsRes, powerStatesRes] = await Promise.all([
+    const [bookingStatusesRes, bookingPermissionsRes, vendorsRes, formFactorsRes, powerActionsRes, powerStatesRes] = await Promise.all([
         API.getBookingStatuses(),
+        API.getBookingPermissionLevels(),
+        API.getVendors(),
+        API.getFormFactors(),
         API.getPowerActions(),
         API.getPowerStates(),
     ]);
     state.bookingStatusNames = bookingStatusesRes?.status_code === 200 ? bookingStatusesRes.body : {};
+    state.bookingPermissionLevelNames = bookingPermissionsRes?.status_code === 200 ? bookingPermissionsRes.body : {};
+    state.vendorNames = vendorsRes?.status_code === 200 ? vendorsRes.body : {};
+    state.formFactorNames = formFactorsRes?.status_code === 200 ? formFactorsRes.body : {};
     state.powerActionNames = powerActionsRes?.status_code === 200 ? powerActionsRes.body : {};
     state.powerStateNames = powerStatesRes?.status_code === 200 ? powerStatesRes.body : {};
 }
@@ -256,6 +641,10 @@ async function loadBookingNetworkPrefill() {
         throw new Error(messageFromResponse(response, "Failed to load booking network defaults"));
     }
     state.bookingNetworkPrefill = response.body || null;
+    state.bookingDurationMaxDays = Number(response.body?.max_duration_days || 32);
+    state.bookingDurationDefaultDays = Number(response.body?.default_duration_days || 32);
+    state.bookingServerDNSName = `${response.body?.server_dns_name || "laas.cyber.lab"}`.trim().replace(/\.+$/g, "") || "laas.cyber.lab";
+    applyDurationDefaults();
 }
 
 async function loadAvailableHosts() {
@@ -308,11 +697,52 @@ async function runHostPowerAction(bookingID, managementIP, powerAction, buttonEl
             showError(messageFromResponse(response, `Power action failed for host ${managementIP}`));
             return;
         }
-        showInfo(`Power action queued for ${managementIP}`);
+        const operationID = `${response?.body?.operation?.id || ""}`.trim();
+        if (operationID) {
+            showInfo(messageFromResponse(response, `Power action queued for ${managementIP}`));
+            void monitorDashboardHostPowerOperation(operationID, bookingID, managementIP);
+            return;
+        }
+
+        showSuccess(messageFromResponse(response, `Power action completed for ${managementIP}`));
         await refreshBookingByID(bookingID);
     } finally {
         buttonEl.disabled = false;
         buttonEl.textContent = previous;
+    }
+}
+
+async function cancelBookingProvisioning(bookingID, buttonEl = null) {
+    const previous = buttonEl?.textContent || "";
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = "Canceling...";
+    }
+
+    hideError();
+    hideInfo();
+    try {
+        const response = await API.cancelBookingProvisioning(bookingID);
+        if (response.status_code !== 200) {
+            showError(messageFromResponse(response, `Failed to cancel provisioning for booking ${bookingID}`));
+            return;
+        }
+
+        const provisioning = response.body?.provisioning;
+        if (provisioning?.booking_id) {
+            state.provisioningByBooking.set(provisioning.booking_id, provisioning);
+            watchProvisioningCompletion(provisioning.booking_id, provisioning.status || "queued");
+        }
+        showInfo(`Provisioning canceled for booking ${bookingID}`);
+        await refreshBookingByID(bookingID);
+        if (Number(state.selectedProvisioningBookingID || 0) === Number(bookingID)) {
+            await refreshProvisioningForSelectedBooking();
+        }
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = previous;
+        }
     }
 }
 
@@ -367,12 +797,29 @@ function renderBookings() {
         card.dataset.bookingId = `${booking.id}`;
 
         frag.querySelector('[data-field="name"]').textContent = booking.name || `Booking ${booking.id}`;
-        frag.querySelector('[data-field="meta"]').textContent = `#${booking.id} | ${bookingStatusLabel(booking.status)} | Permission ${bookingView.permission_level}`;
+        frag.querySelector('[data-field="meta"]').textContent = `#${booking.id} | ${bookingStateSummary(bookingView)} | ${bookingPermissionLabel(bookingView.permission_level)}`;
         frag.querySelector('[data-field="window"]').textContent = `Start: ${formatTime(booking.start_time)} | End: ${formatTime(booking.end_time)}`;
         frag.querySelector('[data-field="given-user"]').textContent = bookingView.credentials?.given_user_username || "N/A";
         frag.querySelector('[data-field="given-pass"]').textContent = bookingView.credentials?.given_user_password || "N/A";
         frag.querySelector('[data-field="managed-user"]').textContent = bookingView.credentials?.managed_user_username || "N/A";
         frag.querySelector('[data-field="managed-pass"]').textContent = bookingView.credentials?.managed_user_password || "N/A";
+
+        const logsBtn = frag.querySelector('[data-action="open-provisioning-log"]');
+        logsBtn?.addEventListener("click", async () => {
+            await openProvisioningLogModal(booking.id);
+        });
+
+        const cancelProvisioningBtn = frag.querySelector('[data-action="cancel-provisioning"]');
+        const canCancelProvisioning = !!bookingView?.provisioning?.cancelable || provisioningStatusCancelable(bookingView?.provisioning?.status);
+        cancelProvisioningBtn.classList.toggle("hidden", !canCancelProvisioning);
+        if (canCancelProvisioning) {
+            cancelProvisioningBtn.addEventListener("click", async () => {
+                if (!window.confirm(`Cancel provisioning for booking ${booking.id}?`)) {
+                    return;
+                }
+                await cancelBookingProvisioning(booking.id, cancelProvisioningBtn);
+            });
+        }
 
         const destroyBtn = frag.querySelector('[data-action="destroy"]');
         destroyBtn.addEventListener("click", async () => {
@@ -406,10 +853,11 @@ function renderBookings() {
 
 function wizardHostSummary(host) {
     const iso = host.iso_selection || "PXE default";
+    const bootMode = host.boot_mode || "UEFI";
+    const hostname = host.hostname || "auto";
     const timezone = host.template_data?.["template.timezone"] || "default";
     const locale = host.template_data?.["template.locale"] || "default";
-    const assignedIP = host.assigned_ipv4 || "auto";
-    return `ISO: ${iso} | IP: ${assignedIP} | TZ: ${timezone} | Locale: ${locale} | Packages: ${templatePackagesSummary(host.template_data)}`;
+    return `ISO: ${iso} | Boot: ${bootMode} | Host: ${hostname} | IP: auto (sequential) | TZ: ${timezone} | Locale: ${locale} | Packages: ${templatePackagesSummary(host.template_data)}`;
 }
 
 function renderWizardHosts() {
@@ -426,7 +874,7 @@ function renderWizardHosts() {
         availableCount += 1;
         const frag = refs.wizardHostCardTemplate.content.cloneNode(true);
         frag.querySelector('[data-field="management_ip"]').textContent = host.management_ip;
-        frag.querySelector('[data-field="details"]').textContent = `${host.vendor ?? "Vendor?"} | ${host.model || "Model?"} | ${host.form_factor ?? "Form?"}`;
+        frag.querySelector('[data-field="details"]').textContent = `${vendorLabel(host.vendor)} | ${host.model || "Model?"} | ${formFactorLabel(host.form_factor)}`;
         frag.querySelector('[data-action="add-host"]').addEventListener("click", () => {
             openHostConfigModal(host.management_ip);
         });
@@ -459,14 +907,13 @@ function renderWizardHosts() {
 function renderWizardReview() {
     const name = refs.wizardBookingName.value.trim();
     const description = refs.wizardBookingDescription.value.trim() || "N/A";
-    const duration = refs.wizardBookingDuration.value || "1";
-    const bootMode = refs.wizardBootMode.value || "UEFI";
+    const duration = refs.wizardBookingDuration.value || `${state.bookingDurationDefaultDays || 32}`;
     refs.wizardReviewMeta.innerHTML = `
         <div><span class="text-font-secondary">Name:</span> ${name || "(missing)"}</div>
+        <div><span class="text-font-secondary">DNS:</span> ${refs.wizardBookingDNSName.value || "booking"}</div>
         <div><span class="text-font-secondary">Description:</span> ${description}</div>
         <div><span class="text-font-secondary">Duration:</span> ${duration} day(s)</div>
         <div><span class="text-font-secondary">Subnet:</span> ${refs.wizardBookingCIDR.value.trim() || "N/A"}</div>
-        <div><span class="text-font-secondary">Boot Mode:</span> ${bootMode}</div>
     `;
 
     const selectedHosts = cartHostsArray();
@@ -485,10 +932,6 @@ function renderBookingCIDRHint(message, isError = false) {
     refs.wizardBookingCIDRHint.textContent = message || "";
     refs.wizardBookingCIDRHint.classList.toggle("text-red-300", !!isError);
     refs.wizardBookingCIDRHint.classList.toggle("text-font-secondary", !isError);
-}
-
-function currentCIDRInfo() {
-    return parseCIDR(refs.wizardBookingCIDR?.value || "");
 }
 
 async function ensureCartNetworkAssigned(showErrorOnFailure = false) {
@@ -519,97 +962,6 @@ async function ensureCartNetworkAssigned(showErrorOnFailure = false) {
     return true;
 }
 
-function gatewayOffsetForCIDR(cidrInfo) {
-    const gateway = normalizeIP(state.cart?.gateway_ipv4 || "");
-    if (!gateway || !cidrInfo) return null;
-    if (!cidrContainsIP(cidrInfo, gateway)) return null;
-
-    const gatewayInt = ipToInt(gateway);
-    if (gatewayInt === null) return null;
-    return gatewayInt - cidrInfo.networkInt;
-}
-
-function assignedOffsetFromIP(cidrInfo, ip) {
-    const normalized = normalizeIP(ip);
-    if (!normalized || !cidrInfo) return null;
-
-    const value = ipToInt(normalized);
-    if (value === null) return null;
-    return value - cidrInfo.networkInt;
-}
-
-function suggestHostAssignedOffset(managementIP) {
-    const cidrInfo = currentCIDRInfo();
-    if (!cidrInfo) return "";
-
-    const used = new Set();
-    for (const host of cartHostsArray()) {
-        if (!host || host.management_ip === managementIP || !host.assigned_ipv4) continue;
-        const offset = assignedOffsetFromIP(cidrInfo, host.assigned_ipv4);
-        if (offset !== null) used.add(offset);
-    }
-
-    const gatewayOffset = gatewayOffsetForCIDR(cidrInfo);
-    if (gatewayOffset !== null) used.add(gatewayOffset);
-
-    const startOffset = Number(state.bookingNetworkPrefill?.host_start_offset || 10);
-    for (let offset = Math.max(2, startOffset); offset < cidrInfo.blockSize - 1; offset += 1) {
-        if (!used.has(offset)) return `${offset}`;
-    }
-
-    return "";
-}
-
-function validateAssignedHostBits(rawBits, managementIP) {
-    const parsed = Number(rawBits);
-    if (!Number.isInteger(parsed)) {
-        return { ok: false, message: "Host bits must be a whole number.", bits: null };
-    }
-
-    const cidrInfo = currentCIDRInfo();
-    if (!cidrInfo) {
-        return { ok: false, message: "Booking subnet is not assigned yet.", bits: null };
-    }
-
-    if (parsed <= 0 || parsed >= cidrInfo.blockSize) {
-        return { ok: false, message: `Host bits must be between 1 and ${cidrInfo.blockSize - 2}.`, bits: null };
-    }
-    if (parsed === 0 || parsed === cidrInfo.blockSize - 1) {
-        return { ok: false, message: "Host bits cannot be network or broadcast.", bits: null };
-    }
-
-    const gatewayOffset = gatewayOffsetForCIDR(cidrInfo);
-    if (gatewayOffset !== null && parsed === gatewayOffset) {
-        return { ok: false, message: "Host bits conflict with booking gateway.", bits: null };
-    }
-
-    const candidateIP = intToIP(cidrInfo.networkInt + parsed);
-    for (const host of cartHostsArray()) {
-        if (!host || host.management_ip === managementIP || !host.assigned_ipv4) continue;
-        if (normalizeIP(host.assigned_ipv4) === candidateIP) {
-            return { ok: false, message: `Host bits ${parsed} already used by ${host.management_ip}.`, bits: null };
-        }
-    }
-
-    return { ok: true, bits: parsed, ip: candidateIP, message: `Maps to ${candidateIP} in ${refs.wizardBookingCIDR.value.trim()}.` };
-}
-
-function updateHostAssignedIPHint() {
-    const bits = refs.hostCfgAssignedIP.value.trim();
-    if (!bits) {
-        refs.hostCfgAssignedIPHint.textContent = "Leave empty to auto-assign next available host bits.";
-        refs.hostCfgAssignedIPHint.classList.remove("text-red-300");
-        refs.hostCfgSaveBtn.disabled = false;
-        return { ok: true, bits: null, ip: "" };
-    }
-
-    const validation = validateAssignedHostBits(bits, state.hostConfigTargetIP);
-    refs.hostCfgAssignedIPHint.textContent = validation.message || "";
-    refs.hostCfgAssignedIPHint.classList.toggle("text-red-300", !validation.ok);
-    refs.hostCfgSaveBtn.disabled = !validation.ok;
-    return validation;
-}
-
 async function refreshWizardData() {
     await Promise.all([loadAvailableHosts(), loadCart()]);
     if (state.cart?.network_cidr) {
@@ -625,14 +977,17 @@ async function refreshWizardData() {
 }
 
 function clearHostConfigInputs() {
+    refs.hostCfgBootMode.value = "UEFI";
+    if (refs.hostCfgHostname) {
+        refs.hostCfgHostname.value = randomHostnameWord();
+    }
     refs.hostCfgTimezone.value = "";
     refs.hostCfgLocale.value = "";
     refs.hostCfgKeyboard.value = "";
     refs.hostCfgMirror.value = "";
     refs.hostCfgPackages.value = "";
-    refs.hostCfgAssignedIP.value = "";
-    refs.hostCfgAssignedIPHint.textContent = "";
     refs.hostCfgLateScript.value = "";
+    updateHostCfgHostnamePreview();
 }
 
 function templateDataFromHostConfigInputs() {
@@ -660,6 +1015,13 @@ function openHostConfigModal(managementIP) {
     refs.hostConfigTargetLabel.textContent = managementIP;
     buildISOOptions(refs.hostCfgISO, host?.iso_selection || "");
     clearHostConfigInputs();
+    refs.hostCfgBootMode.value = host?.boot_mode || "UEFI";
+    if (refs.hostCfgHostname) {
+        const rawHostname = `${host?.hostname || ""}`.trim();
+        const hostLabel = sanitizeHostnameLabel(rawHostname.split(".")[0] || rawHostname);
+        refs.hostCfgHostname.value = hostLabel || randomHostnameWord();
+    }
+    updateHostCfgHostnamePreview();
 
     if (host?.template_data) {
         refs.hostCfgTimezone.value = host.template_data["template.timezone"] || "";
@@ -669,15 +1031,6 @@ function openHostConfigModal(managementIP) {
         refs.hostCfgPackages.value = host.template_data["template.packages"] || "";
         refs.hostCfgLateScript.value = host.template_data["template.late_script"] || "";
     }
-
-    if (host?.assigned_ipv4) {
-        const cidrInfo = currentCIDRInfo();
-        const offset = assignedOffsetFromIP(cidrInfo, host.assigned_ipv4);
-        refs.hostCfgAssignedIP.value = offset !== null ? `${offset}` : "";
-    } else {
-        refs.hostCfgAssignedIP.value = suggestHostAssignedOffset(managementIP);
-    }
-    updateHostAssignedIPHint();
 
     setModalOpen(refs.hostConfigModal, true);
 }
@@ -691,19 +1044,18 @@ async function saveHostConfig() {
     const ip = state.hostConfigTargetIP;
     if (!ip) return;
 
-    const networkOk = await ensureCartNetworkAssigned(true);
-    if (!networkOk) return;
-
-    const assignedValidation = updateHostAssignedIPHint();
-    if (!assignedValidation.ok) {
-        showError(assignedValidation.message || "Assigned host bits are invalid.");
-        return;
+    const normalizedHostname = sanitizeHostnameLabel(refs.hostCfgHostname?.value || "");
+    const hostnameLabel = normalizedHostname || randomHostnameWord();
+    if (refs.hostCfgHostname) {
+        refs.hostCfgHostname.value = hostnameLabel;
     }
+    updateHostCfgHostnamePreview();
 
     const payload = {
         management_ip: ip,
         iso_selection: refs.hostCfgISO.value || "",
-        assigned_host_bits: assignedValidation.bits,
+        boot_mode: refs.hostCfgBootMode.value || "UEFI",
+        hostname: hostnameLabel,
         template_data: templateDataFromHostConfigInputs(),
     };
 
@@ -732,6 +1084,9 @@ async function openDeployWizard() {
         showError(err?.message || "Failed to load booking network defaults.");
         return;
     }
+    refs.wizardBookingDuration.value = `${state.bookingDurationDefaultDays || 32}`;
+    applyDurationDefaults();
+    updateWizardGeneratedDNS();
     const networkOk = await ensureCartNetworkAssigned(true);
     if (!networkOk) {
         return;
@@ -757,6 +1112,10 @@ async function wizardNext() {
         const name = refs.wizardBookingName.value.trim();
         if (!name) {
             showError("Booking name is required before continuing.");
+            return;
+        }
+        if (bookingDescriptionLength() < 128) {
+            showError("Description must be at least 128 characters before continuing.");
             return;
         }
 
@@ -790,6 +1149,10 @@ async function submitWizardDeployment() {
         showError("Booking name is required.");
         return;
     }
+    if (bookingDescriptionLength() < 128) {
+        showError("Description must be at least 128 characters.");
+        return;
+    }
 
     if (cartHostsArray().length === 0) {
         showError("Add at least one host before submitting.");
@@ -804,8 +1167,7 @@ async function submitWizardDeployment() {
     const payload = {
         name,
         description: refs.wizardBookingDescription.value.trim(),
-        duration_days: Number(refs.wizardBookingDuration.value || "1"),
-        boot_mode: refs.wizardBootMode.value || "UEFI",
+        duration_days: Number(refs.wizardBookingDuration.value || `${state.bookingDurationDefaultDays || 32}`),
         force_restart: true,
     };
 
@@ -825,9 +1187,10 @@ async function submitWizardDeployment() {
         closeDeployWizard();
         refs.wizardBookingName.value = "";
         refs.wizardBookingDescription.value = "";
-        refs.wizardBookingDuration.value = "1";
+        refs.wizardBookingDuration.value = `${state.bookingDurationDefaultDays || 32}`;
+        applyDurationDefaults();
+        updateWizardGeneratedDNS();
         refs.wizardBookingCIDR.value = "";
-        refs.wizardBootMode.value = "UEFI";
 
         showInfo("Deployment submitted. Opening provisioning log.");
         await refreshAll();
@@ -849,44 +1212,71 @@ function stopProvisioningPolling() {
 function renderProvisioningModal() {
     const bookingID = state.selectedProvisioningBookingID;
     const provisioning = state.provisioningByBooking.get(bookingID);
+    const activeFilterList = ["info", "warn", "error"].filter((level) => state.provisioningLevelFilters.has(level)).join(",");
+    const progress = summarizeProvisioningProgress(provisioning);
     refs.provisioningSummary.textContent = provisioning
-        ? `${provisioning.status} | Updated ${formatTime(provisioning.updated_at)}`
+        ? `${provisioning.status} | Updated ${formatTime(provisioning.updated_at)} | filters: ${activeFilterList}`
         : "No active provisioning state for this booking.";
+    if (refs.provisioningProgressLabel) {
+        refs.provisioningProgressLabel.textContent = progress.text;
+    }
+    if (refs.provisioningProgressBar) {
+        refs.provisioningProgressBar.style.width = `${progress.percent}%`;
+        refs.provisioningProgressBar.dataset.state = `${provisioning?.status || ""}`.trim().toLowerCase();
+    }
+    if (refs.provisioningCancelBtn) {
+        const canCancel = provisioningStatusCancelable(provisioning?.status);
+        refs.provisioningCancelBtn.classList.toggle("hidden", !canCancel);
+        refs.provisioningCancelBtn.disabled = !canCancel;
+    }
+    updateProvisioningFilterButtons();
 
     refs.provisioningHostsList.textContent = "";
     const hosts = provisioning?.hosts || [];
     refs.provisioningHostsEmpty.classList.toggle("hidden", hosts.length > 0);
     for (const host of hosts) {
         const frag = refs.provisioningHostRowTemplate.content.cloneNode(true);
-        frag.querySelector('[data-field="management_ip"]').textContent = host.management_ip;
+        const model = `${host.model || ""}`.trim();
+        const hostname = `${host.hostname || ""}`.trim();
+        const hostTarget = model && hostname
+            ? `${model} -> ${hostname}`
+            : (hostname || model || `Host ${host.management_ip || ""}`.trim());
+        frag.querySelector('[data-field="target"]').textContent = hostTarget || "Host";
         frag.querySelector('[data-field="status"]').textContent = `${host.status} | ${host.message}`;
         refs.provisioningHostsList.appendChild(frag);
     }
 
+    const shouldStickToBottom = state.provisioningForceScrollToBottom || (() => {
+        const el = refs.provisioningEventsList;
+        if (!el) return true;
+        const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+        return distance <= 40;
+    })();
+
     refs.provisioningEventsList.textContent = "";
     const events = provisioning?.events || [];
-    refs.provisioningEventsEmpty.classList.toggle("hidden", events.length > 0);
-    for (const event of events.slice().reverse()) {
+    const filteredEvents = events.filter((event) => state.provisioningLevelFilters.has(normalizeProvisioningLevel(event?.level)));
+    refs.provisioningEventsEmpty.textContent = events.length === 0
+        ? "No events yet."
+        : "No events match current level filters.";
+    refs.provisioningEventsEmpty.classList.toggle("hidden", filteredEvents.length > 0);
+
+    for (const event of filteredEvents) {
         const frag = refs.provisioningEventRowTemplate.content.cloneNode(true);
-        frag.querySelector('[data-field="heading"]').textContent = `[${event.level}] ${formatTime(event.at)}`;
-        frag.querySelector('[data-field="message"]').textContent = event.message;
+        const level = normalizeProvisioningLevel(event.level);
+        const row = frag.querySelector('[data-field="row"]');
+        if (row) row.dataset.level = level;
+        frag.querySelector('[data-field="heading"]').textContent = `${formatTime(event.at)} [${level.toUpperCase()}]`;
+        const messageEl = frag.querySelector('[data-field="message"]');
+        if (messageEl) {
+            messageEl.innerHTML = provisioningMarkdown.render(event.message || "");
+        }
         refs.provisioningEventsList.appendChild(frag);
     }
-}
 
-function populateProvisioningBookingSelect() {
-    refs.provisioningBookingSelect.textContent = "";
-    for (const bookingView of state.bookings) {
-        const booking = bookingView.booking;
-        if (!booking) continue;
-        const option = document.createElement("option");
-        option.value = `${booking.id}`;
-        option.textContent = `#${booking.id} ${booking.name}`;
-        refs.provisioningBookingSelect.appendChild(option);
-    }
-
-    if (state.selectedProvisioningBookingID) {
-        refs.provisioningBookingSelect.value = `${state.selectedProvisioningBookingID}`;
+    if (shouldStickToBottom) {
+        refs.provisioningEventsList.scrollTop = refs.provisioningEventsList.scrollHeight;
+        state.provisioningForceScrollToBottom = false;
     }
 }
 
@@ -917,13 +1307,26 @@ async function openProvisioningLogModal(bookingID = 0) {
     hideError();
     hideInfo();
 
-    if (!state.bookings.length) {
-        showError("No bookings available to inspect provisioning logs.");
+    const selectedBookingID = Number(bookingID || 0);
+    if (!selectedBookingID) {
+        showError("Provisioning logs must be opened from a specific booking.");
         return;
     }
 
-    state.selectedProvisioningBookingID = bookingID || state.bookings[0]?.booking?.id || 0;
-    populateProvisioningBookingSelect();
+    const bookingView = state.bookings.find((entry) => entry?.booking?.id === selectedBookingID);
+    const booking = bookingView?.booking;
+    if (!booking) {
+        showError(`Booking ${selectedBookingID} is no longer available.`);
+        return;
+    }
+
+    watchProvisioningCompletion(selectedBookingID, bookingView?.provisioning?.status || "");
+
+    state.selectedProvisioningBookingID = selectedBookingID;
+    state.provisioningForceScrollToBottom = true;
+    if (refs.provisioningBookingLabel) {
+        refs.provisioningBookingLabel.textContent = `Booking #${booking.id} ${booking.name || ""}`.trim();
+    }
     setModalOpen(refs.provisioningLogModal, true);
     await refreshProvisioningForSelectedBooking();
 
@@ -952,7 +1355,6 @@ async function refreshAll() {
     renderBookings();
     renderWizardHosts();
     renderWizardReview();
-    populateProvisioningBookingSelect();
 }
 
 function wireGlobalCloseActions() {
@@ -986,12 +1388,22 @@ function wireEvents() {
         await openDeployWizard();
     });
 
-    refs.openProvisioningLogBtn?.addEventListener("click", async () => {
-        await openProvisioningLogModal();
-    });
-
     refs.wizardRefreshHostsBtn?.addEventListener("click", async () => {
         await refreshWizardData();
+    });
+
+    refs.wizardBookingName?.addEventListener("input", () => {
+        updateWizardGeneratedDNS();
+        renderWizardReview();
+    });
+
+    refs.wizardBookingDuration?.addEventListener("input", () => {
+        applyDurationDefaults();
+        renderWizardReview();
+    });
+
+    refs.wizardBookingDescription?.addEventListener("input", () => {
+        renderWizardReview();
     });
 
     refs.wizardBackBtn?.addEventListener("click", () => {
@@ -1010,18 +1422,28 @@ function wireEvents() {
         await saveHostConfig();
     });
 
-    refs.hostCfgAssignedIP?.addEventListener("input", () => {
-        updateHostAssignedIPHint();
+    refs.hostCfgHostname?.addEventListener("input", () => {
+        updateHostCfgHostnamePreview();
     });
 
     refs.provisioningRefreshBtn?.addEventListener("click", async () => {
         await refreshProvisioningForSelectedBooking();
     });
-
-    refs.provisioningBookingSelect?.addEventListener("change", async () => {
-        state.selectedProvisioningBookingID = Number(refs.provisioningBookingSelect.value || "0");
-        await refreshProvisioningForSelectedBooking();
+    refs.provisioningCancelBtn?.addEventListener("click", async () => {
+        const bookingID = Number(state.selectedProvisioningBookingID || 0);
+        if (!bookingID) return;
+        if (!window.confirm(`Cancel provisioning for booking ${bookingID}?`)) {
+            return;
+        }
+        await cancelBookingProvisioning(bookingID, refs.provisioningCancelBtn);
     });
+
+    for (const button of refs.provisioningLevelButtons) {
+        button.addEventListener("click", () => {
+            toggleProvisioningFilterLevel(button.dataset.level);
+            renderProvisioningModal();
+        });
+    }
 
     wireGlobalCloseActions();
 }
@@ -1030,9 +1452,17 @@ async function init() {
     try {
         await loadEnums();
         await loadISOImages();
+        applyDurationDefaults();
+        updateWizardGeneratedDNS();
         await refreshAll();
+        startProvisioningCompletionWatcher();
+        updateProvisioningFilterButtons();
         updateWizardStageUI();
         wireEvents();
+        window.addEventListener("beforeunload", () => {
+            stopProvisioningCompletionWatcher();
+            stopProvisioningPolling();
+        });
     } catch (err) {
         console.error(err);
         showError(err?.message || "Failed to initialize dashboard.");

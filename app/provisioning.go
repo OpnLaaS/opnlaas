@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -23,7 +25,14 @@ const (
 	provisioningStatusCompleted       = "completed"
 	provisioningStatusFailed          = "failed"
 	provisioningStatusPartialFailed   = "partial_failed"
+	provisioningStatusCanceled        = "canceled"
 	provisioningStatusDestroyed       = "destroyed"
+)
+
+var (
+	errProvisioningCanceled      = errors.New("provisioning canceled")
+	errProvisioningNotFound      = errors.New("provisioning state not found")
+	errProvisioningNotCancelable = errors.New("provisioning is not active")
 )
 
 type bookingDeployBasicConfig struct {
@@ -84,6 +93,8 @@ type apiProvisioningEvent struct {
 
 type apiProvisioningHostState struct {
 	ManagementIP    string    `json:"management_ip"`
+	Model           string    `json:"model"`
+	Hostname        string    `json:"hostname"`
 	ISOSelection    string    `json:"iso_selection"`
 	Status          string    `json:"status"`
 	Message         string    `json:"message"`
@@ -126,9 +137,145 @@ func (s *apiProvisioningStatus) clone() (out *apiProvisioningStatus) {
 	return
 }
 
+func dbProvisioningStatusFromAPI(s *apiProvisioningStatus) *db.BookingProvisioningStatus {
+	if s == nil {
+		return nil
+	}
+
+	record := &db.BookingProvisioningStatus{
+		BookingID: s.BookingID,
+		Owner:     s.Owner,
+		Status:    s.Status,
+		StartedAt: s.StartedAt,
+		UpdatedAt: s.UpdatedAt,
+		Credentials: db.BookingProvisioningCredentials{
+			GivenUserUsername:   s.Credentials.GivenUserUsername,
+			GivenUserPassword:   s.Credentials.GivenUserPassword,
+			ManagedUserUsername: s.Credentials.ManagedUserUsername,
+			ManagedUserPassword: s.Credentials.ManagedUserPassword,
+		},
+	}
+
+	if s.FinishedAt != nil {
+		record.HasFinished = true
+		record.FinishedAt = *s.FinishedAt
+	}
+
+	for _, host := range s.Hosts {
+		if host == nil {
+			continue
+		}
+
+		record.Hosts = append(record.Hosts, db.BookingProvisioningHostState{
+			ManagementIP:    host.ManagementIP,
+			Model:           host.Model,
+			Hostname:        host.Hostname,
+			ISOSelection:    host.ISOSelection,
+			Status:          host.Status,
+			Message:         host.Message,
+			UpdatedAt:       host.UpdatedAt,
+			CompletionToken: host.CompletionToken,
+		})
+	}
+
+	for _, event := range s.Events {
+		record.Events = append(record.Events, db.BookingProvisioningEvent{
+			At:      event.At,
+			Level:   event.Level,
+			Message: event.Message,
+		})
+	}
+
+	return record
+}
+
+func apiProvisioningStatusFromDB(record *db.BookingProvisioningStatus) *apiProvisioningStatus {
+	if record == nil {
+		return nil
+	}
+
+	status := &apiProvisioningStatus{
+		BookingID: record.BookingID,
+		Owner:     record.Owner,
+		Status:    record.Status,
+		StartedAt: record.StartedAt,
+		UpdatedAt: record.UpdatedAt,
+		Credentials: apiProvisioningCredentials{
+			GivenUserUsername:   record.Credentials.GivenUserUsername,
+			GivenUserPassword:   record.Credentials.GivenUserPassword,
+			ManagedUserUsername: record.Credentials.ManagedUserUsername,
+			ManagedUserPassword: record.Credentials.ManagedUserPassword,
+		},
+	}
+
+	if record.HasFinished {
+		finished := record.FinishedAt
+		status.FinishedAt = &finished
+	}
+
+	for _, host := range record.Hosts {
+		copyHost := host
+		status.Hosts = append(status.Hosts, &apiProvisioningHostState{
+			ManagementIP:    copyHost.ManagementIP,
+			Model:           copyHost.Model,
+			Hostname:        copyHost.Hostname,
+			ISOSelection:    copyHost.ISOSelection,
+			Status:          copyHost.Status,
+			Message:         copyHost.Message,
+			UpdatedAt:       copyHost.UpdatedAt,
+			CompletionToken: copyHost.CompletionToken,
+		})
+	}
+
+	for _, event := range record.Events {
+		status.Events = append(status.Events, apiProvisioningEvent{
+			At:      event.At,
+			Level:   event.Level,
+			Message: event.Message,
+		})
+	}
+
+	return status
+}
+
+func persistProvisioningJobLocked(job *apiProvisioningStatus) {
+	if job == nil {
+		return
+	}
+
+	if err := db.UpsertBookingProvisioningStatus(dbProvisioningStatusFromAPI(job)); err != nil {
+		appLog.Warningf("[PROV] booking=%d failed to persist provisioning state: %v\n", job.BookingID, err)
+	}
+}
+
+func hydrateProvisioningJobLocked(bookingID int) (*apiProvisioningStatus, bool) {
+	job, ok := provisioningJobs[bookingID]
+	if ok && job != nil {
+		return job, true
+	}
+
+	record, err := db.BookingProvisioningStatusByBookingID(bookingID)
+	if err != nil {
+		appLog.Warningf("[PROV] booking=%d failed to load provisioning state from db: %v\n", bookingID, err)
+		return nil, false
+	}
+	if record == nil {
+		return nil, false
+	}
+
+	job = apiProvisioningStatusFromDB(record)
+	if job == nil {
+		return nil, false
+	}
+
+	provisioningJobs[bookingID] = job
+	return job, true
+}
+
 var (
-	provisioningLock sync.RWMutex
-	provisioningJobs = map[int]*apiProvisioningStatus{}
+	provisioningLock        sync.RWMutex
+	provisioningJobs        = map[int]*apiProvisioningStatus{}
+	provisioningCancelFuncs = map[int]context.CancelFunc{}
 )
 
 func init() {
@@ -142,6 +289,48 @@ func provisioningCredentialsFromConfig() (creds apiProvisioningCredentials) {
 		ManagedUserUsername: config.Config.Preconfigure.ManagedUser.Username,
 		ManagedUserPassword: config.Config.Preconfigure.ManagedUser.Password,
 	}
+	return
+}
+
+func provisioningStatusIsTerminal(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case provisioningStatusCompleted, provisioningStatusFailed, provisioningStatusPartialFailed, provisioningStatusCanceled, provisioningStatusDestroyed:
+		return true
+	default:
+		return false
+	}
+}
+
+func provisioningStatusIsCancelable(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case provisioningStatusQueued, provisioningStatusRunning, provisioningStatusAwaitingInstall:
+		return true
+	default:
+		return false
+	}
+}
+
+func provisioningHostStatusIsTerminal(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed", "failed", "canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+func setProvisioningCancelFuncLocked(bookingID int, cancel context.CancelFunc) {
+	if cancel == nil {
+		delete(provisioningCancelFuncs, bookingID)
+		return
+	}
+
+	provisioningCancelFuncs[bookingID] = cancel
+}
+
+func consumeProvisioningCancelFuncLocked(bookingID int) (cancel context.CancelFunc) {
+	cancel = provisioningCancelFuncs[bookingID]
+	delete(provisioningCancelFuncs, bookingID)
 	return
 }
 
@@ -159,11 +348,30 @@ func createProvisioningJob(bookingID int, owner string, hosts []db.BookingReques
 	}
 
 	for _, host := range hosts {
+		model := ""
+		if dbHost, hostErr := db.Hosts.Select(host.ManagementIP); hostErr != nil {
+			appLog.Warningf("[PROV] booking=%d host=%s failed to load host model: %v\n", bookingID, host.ManagementIP, hostErr)
+		} else if dbHost != nil {
+			model = strings.TrimSpace(dbHost.Model)
+		}
+
+		hostname := strings.TrimSpace(host.Hostname)
+		reservedMessage := "Host reserved for booking"
+		if model != "" && hostname != "" {
+			reservedMessage = fmt.Sprintf("%s -> %s reserved for booking", model, hostname)
+		} else if hostname != "" {
+			reservedMessage = fmt.Sprintf("Host %s reserved for booking", hostname)
+		} else if model != "" {
+			reservedMessage = fmt.Sprintf("%s reserved for booking", model)
+		}
+
 		job.Hosts = append(job.Hosts, &apiProvisioningHostState{
 			ManagementIP:    host.ManagementIP,
+			Model:           model,
+			Hostname:        hostname,
 			ISOSelection:    host.ISOSelection,
 			Status:          "reserved",
-			Message:         "Host reserved for booking",
+			Message:         reservedMessage,
 			UpdatedAt:       now,
 			CompletionToken: newProvisioningCompletionToken(),
 		})
@@ -177,15 +385,16 @@ func createProvisioningJob(bookingID int, owner string, hosts []db.BookingReques
 
 	provisioningLock.Lock()
 	provisioningJobs[bookingID] = job
+	persistProvisioningJobLocked(job)
 	provisioningLock.Unlock()
 
 	return job.clone()
 }
 
 func provisioningSnapshot(bookingID int) (snapshot *apiProvisioningStatus, exists bool) {
-	provisioningLock.RLock()
-	job, ok := provisioningJobs[bookingID]
-	provisioningLock.RUnlock()
+	provisioningLock.Lock()
+	job, ok := hydrateProvisioningJobLocked(bookingID)
+	provisioningLock.Unlock()
 	if !ok || job == nil {
 		return nil, false
 	}
@@ -197,24 +406,34 @@ func provisioningSetStatus(bookingID int, status string) {
 	provisioningLock.Lock()
 	defer provisioningLock.Unlock()
 
-	job, ok := provisioningJobs[bookingID]
+	job, ok := hydrateProvisioningJobLocked(bookingID)
 	if !ok || job == nil {
+		return
+	}
+
+	current := strings.ToLower(strings.TrimSpace(job.Status))
+	target := strings.ToLower(strings.TrimSpace(status))
+	if current == provisioningStatusDestroyed && target != provisioningStatusDestroyed {
+		return
+	}
+	if provisioningStatusIsTerminal(current) && target != current && target != provisioningStatusDestroyed {
 		return
 	}
 
 	now := time.Now()
 	job.Status = status
 	job.UpdatedAt = now
-	if status == provisioningStatusCompleted || status == provisioningStatusFailed || status == provisioningStatusPartialFailed || status == provisioningStatusDestroyed {
+	if provisioningStatusIsTerminal(status) {
 		job.FinishedAt = &now
 	}
+	persistProvisioningJobLocked(job)
 }
 
 func provisioningAppendEvent(bookingID int, level string, message string) {
 	provisioningLock.Lock()
 	defer provisioningLock.Unlock()
 
-	job, ok := provisioningJobs[bookingID]
+	job, ok := hydrateProvisioningJobLocked(bookingID)
 	if !ok || job == nil {
 		return
 	}
@@ -235,14 +454,19 @@ func provisioningAppendEvent(bookingID int, level string, message string) {
 	default:
 		appLog.Basicf("[PROV] booking=%d %s\n", bookingID, message)
 	}
+
+	persistProvisioningJobLocked(job)
 }
 
 func provisioningUpdateHost(bookingID int, managementIP string, status string, message string) {
 	provisioningLock.Lock()
 	defer provisioningLock.Unlock()
 
-	job, ok := provisioningJobs[bookingID]
+	job, ok := hydrateProvisioningJobLocked(bookingID)
 	if !ok || job == nil {
+		return
+	}
+	if job.Status == provisioningStatusCanceled || job.Status == provisioningStatusDestroyed {
 		return
 	}
 
@@ -256,13 +480,63 @@ func provisioningUpdateHost(bookingID int, managementIP string, status string, m
 		host.Message = message
 		host.UpdatedAt = now
 		job.UpdatedAt = now
+		persistProvisioningJobLocked(job)
 		return
 	}
+}
+
+func cancelProvisioning(bookingID int, requestedBy string) (snapshot *apiProvisioningStatus, err error) {
+	requestedBy = strings.TrimSpace(requestedBy)
+	if requestedBy == "" {
+		requestedBy = "unknown"
+	}
+
+	provisioningLock.Lock()
+	defer provisioningLock.Unlock()
+
+	job, ok := hydrateProvisioningJobLocked(bookingID)
+	if !ok || job == nil {
+		return nil, errProvisioningNotFound
+	}
+
+	if !provisioningStatusIsCancelable(job.Status) {
+		return nil, fmt.Errorf("%w: %s", errProvisioningNotCancelable, job.Status)
+	}
+
+	now := time.Now()
+	job.Status = provisioningStatusCanceled
+	job.UpdatedAt = now
+	job.FinishedAt = &now
+	for _, host := range job.Hosts {
+		if host == nil || provisioningHostStatusIsTerminal(host.Status) {
+			continue
+		}
+
+		host.Status = "canceled"
+		host.Message = fmt.Sprintf("Provisioning canceled by %s", requestedBy)
+		host.UpdatedAt = now
+	}
+
+	job.Events = append(job.Events, apiProvisioningEvent{
+		At:      now,
+		Level:   "warn",
+		Message: fmt.Sprintf("Provisioning canceled by %s", requestedBy),
+	})
+
+	if cancel := consumeProvisioningCancelFuncLocked(bookingID); cancel != nil {
+		cancel()
+	}
+
+	persistProvisioningJobLocked(job)
+	return job.clone(), nil
 }
 
 func provisioningDeleteJob(bookingID int) {
 	provisioningLock.Lock()
 	defer provisioningLock.Unlock()
+	if cancel := consumeProvisioningCancelFuncLocked(bookingID); cancel != nil {
+		cancel()
+	}
 	delete(provisioningJobs, bookingID)
 }
 
@@ -276,10 +550,10 @@ func newProvisioningCompletionToken() (token string) {
 }
 
 func provisioningHostCompletionToken(bookingID int, managementIP string) (token string) {
-	provisioningLock.RLock()
-	defer provisioningLock.RUnlock()
+	provisioningLock.Lock()
+	defer provisioningLock.Unlock()
 
-	job, ok := provisioningJobs[bookingID]
+	job, ok := hydrateProvisioningJobLocked(bookingID)
 	if !ok || job == nil {
 		return ""
 	}
@@ -365,9 +639,12 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 	provisioningLock.Lock()
 	defer provisioningLock.Unlock()
 
-	job, ok := provisioningJobs[event.BookingID]
+	job, ok := hydrateProvisioningJobLocked(event.BookingID)
 	if !ok || job == nil {
 		return fmt.Errorf("booking provisioning state not found")
+	}
+	if job.Status == provisioningStatusCanceled || job.Status == provisioningStatusDestroyed {
+		return nil
 	}
 
 	var hostState *apiProvisioningHostState
@@ -448,6 +725,7 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 	})
 
 	if !stageTerminal && !stageFailure && !stageCompletionPreparation {
+		persistProvisioningJobLocked(job)
 		if stageDetail != "" {
 			appLog.Basicf(
 				"[PROV] booking=%d Host %s reported installer progress callback (stage=%s remote=%s detail=%q)\n",
@@ -574,15 +852,30 @@ func handleProvisioningInstallCallback(event pxe.ProvisioningInstallCallback) (e
 	if !anyInProgress {
 		appLog.Basicf("[PROV] booking=%d Install completion state is terminal: %s\n", event.BookingID, job.Status)
 	}
+	persistProvisioningJobLocked(job)
 
 	return nil
 }
 
-func startProvisioningWorkflow(bookingID int, owner string, hosts []db.BookingRequestHost, basicConfig bookingDeployBasicConfig, bootMode db.BootMode, forceRestart bool) {
-	go runProvisioningWorkflow(bookingID, owner, hosts, basicConfig, bootMode, forceRestart)
+func startProvisioningWorkflow(bookingID int, owner string, hosts []db.BookingRequestHost, basicConfig bookingDeployBasicConfig, forceRestart bool) {
+	ctx, cancel := context.WithCancel(context.Background())
+	provisioningLock.Lock()
+	setProvisioningCancelFuncLocked(bookingID, cancel)
+	provisioningLock.Unlock()
+	go runProvisioningWorkflow(ctx, bookingID, owner, hosts, basicConfig, forceRestart)
 }
 
-func runProvisioningWorkflow(bookingID int, owner string, hosts []db.BookingRequestHost, basicConfig bookingDeployBasicConfig, bootMode db.BootMode, forceRestart bool) {
+func runProvisioningWorkflow(ctx context.Context, bookingID int, owner string, hosts []db.BookingRequestHost, basicConfig bookingDeployBasicConfig, forceRestart bool) {
+	defer func() {
+		provisioningLock.Lock()
+		consumeProvisioningCancelFuncLocked(bookingID)
+		provisioningLock.Unlock()
+	}()
+
+	if err := provisioningContextErr(ctx); err != nil {
+		return
+	}
+
 	globalTemplateData := basicConfig.toTemplateData()
 
 	provisioningSetStatus(bookingID, provisioningStatusRunning)
@@ -596,11 +889,15 @@ func runProvisioningWorkflow(bookingID int, owner string, hosts []db.BookingRequ
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results <- runProvisioningHost(bookingID, hostRequest, globalTemplateData, bootMode, forceRestart)
+			results <- runProvisioningHost(ctx, bookingID, hostRequest, globalTemplateData, forceRestart)
 		}()
 	}
 	wg.Wait()
 	close(results)
+
+	if err := provisioningContextErr(ctx); err != nil {
+		return
+	}
 
 	failures := 0
 	for success := range results {
@@ -622,7 +919,29 @@ func runProvisioningWorkflow(bookingID int, owner string, hosts []db.BookingRequ
 	}
 }
 
+func provisioningContextErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return errProvisioningCanceled
+	default:
+		return nil
+	}
+}
+
+func provisioningDoneChan(ctx context.Context) <-chan struct{} {
+	if ctx == nil {
+		return nil
+	}
+
+	return ctx.Done()
+}
+
 func retryProvisioningAction(
+	ctx context.Context,
 	attempts int,
 	initialDelay time.Duration,
 	action func() error,
@@ -637,8 +956,15 @@ func retryProvisioningAction(
 
 	delay := initialDelay
 	for attempt := 1; attempt <= attempts; attempt++ {
+		if err = provisioningContextErr(ctx); err != nil {
+			return err
+		}
+
 		if err = action(); err == nil {
 			return nil
+		}
+		if errors.Is(err, context.Canceled) {
+			return errProvisioningCanceled
 		}
 
 		if attempt >= attempts {
@@ -649,7 +975,15 @@ func retryProvisioningAction(
 			onRetry(attempt, err, delay)
 		}
 
-		time.Sleep(delay)
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-provisioningDoneChan(ctx):
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return errProvisioningCanceled
+		}
 		if delay < 30*time.Second {
 			delay *= 2
 		}
@@ -659,13 +993,29 @@ func retryProvisioningAction(
 }
 
 func runProvisioningHost(
+	ctx context.Context,
 	bookingID int,
 	hostRequest db.BookingRequestHost,
 	globalTemplateData map[string]string,
-	bootMode db.BootMode,
 	forceRestart bool,
 ) (success bool) {
 	ip := hostRequest.ManagementIP
+	hostname := strings.TrimSpace(hostRequest.Hostname)
+	hostDisplay := hostname
+	if hostDisplay == "" {
+		hostDisplay = ip
+	}
+
+	if err := provisioningContextErr(ctx); err != nil {
+		provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled before host workflow started")
+		return false
+	}
+
+	bootMode := db.BootModeUEFI
+	switch strings.ToLower(strings.TrimSpace(hostRequest.BootMode)) {
+	case "legacy":
+		bootMode = db.BootModeLegacy
+	}
 
 	provisioningUpdateHost(bookingID, ip, "configuring_pxe", "Applying PXE host profile")
 	provisioningAppendEvent(bookingID, "info", fmt.Sprintf("Applying PXE override for host %s", ip))
@@ -675,12 +1025,15 @@ func runProvisioningHost(
 		templateData = map[string]string{}
 	}
 	templateData["template.boot.mode"] = bootMode.String()
+	if hostname != "" {
+		templateData["template.identifiers.hostname"] = hostname
+	}
 	templateData = provisioningInjectCompletionTemplateData(templateData, bookingID, ip)
 	assignedIP := strings.TrimSpace(hostRequest.AssignedIPv4)
 	provisioningAppendEvent(
 		bookingID,
 		"info",
-		fmt.Sprintf("Host %s deployment config iso=%q assigned_ip=%q template_keys=%d", ip, hostRequest.ISOSelection, assignedIP, len(templateData)),
+		fmt.Sprintf("Host %s deployment config target=%s iso=%q assigned_ip=%q template_keys=%d", ip, hostDisplay, hostRequest.ISOSelection, assignedIP, len(templateData)),
 	)
 
 	host, err := db.Hosts.Select(ip)
@@ -719,6 +1072,7 @@ func runProvisioningHost(
 	if host.Management == nil {
 		var management *db.HostManagementClient
 		if err = retryProvisioningAction(
+			ctx,
 			5,
 			2*time.Second,
 			func() error {
@@ -746,6 +1100,10 @@ func runProvisioningHost(
 				)
 			},
 		); err != nil {
+			if errors.Is(err, errProvisioningCanceled) {
+				provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled while creating management client")
+				return false
+			}
 			provisioningUpdateHost(bookingID, ip, "failed", fmt.Sprintf("Failed to create management client: %v", err))
 			provisioningAppendEvent(bookingID, "error", fmt.Sprintf("Host %s management client creation failed: %v", ip, err))
 			return false
@@ -770,10 +1128,16 @@ func runProvisioningHost(
 
 	successfulCycle := false
 	for attempt := 1; attempt <= 2; attempt++ {
+		if err = provisioningContextErr(ctx); err != nil {
+			provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled during PXE handoff")
+			return false
+		}
+
 		provisioningUpdateHost(bookingID, ip, "setting_boot", fmt.Sprintf("Attempt %d/2: setting one-time PXE boot", attempt))
 		provisioningAppendEvent(bookingID, "info", fmt.Sprintf("Host %s attempt %d/2 setting one-time PXE boot", ip, attempt))
 
 		if err = retryProvisioningAction(
+			ctx,
 			3,
 			2*time.Second,
 			func() error {
@@ -794,6 +1158,10 @@ func runProvisioningHost(
 				)
 			},
 		); err != nil {
+			if errors.Is(err, errProvisioningCanceled) {
+				provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled while setting PXE boot")
+				return false
+			}
 			provisioningAppendEvent(bookingID, "error", fmt.Sprintf("Host %s attempt %d/2 set PXE boot failed: %v", ip, attempt, err))
 			continue
 		}
@@ -801,6 +1169,7 @@ func runProvisioningHost(
 		provisioningUpdateHost(bookingID, ip, "restarting", fmt.Sprintf("Attempt %d/2: restarting host into PXE", attempt))
 		provisioningAppendEvent(bookingID, "info", fmt.Sprintf("Host %s attempt %d/2 restarting (force=%t)", ip, attempt, forceRestart))
 		if err = retryProvisioningAction(
+			ctx,
 			3,
 			2*time.Second,
 			func() error {
@@ -821,22 +1190,38 @@ func runProvisioningHost(
 				)
 			},
 		); err != nil {
+			if errors.Is(err, errProvisioningCanceled) {
+				provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled while restarting host")
+				return false
+			}
 			provisioningAppendEvent(bookingID, "error", fmt.Sprintf("Host %s attempt %d/2 restart failed: %v", ip, attempt, err))
 			continue
 		}
 
 		// Restart does not always expose an OFF transition; log best effort and continue.
-		if err = waitForPowerStateWithLogs(bookingID, ip, host.Management, db.PowerStateOff, 90*time.Second); err != nil {
+		if err = waitForPowerStateWithLogs(ctx, bookingID, ip, host.Management, db.PowerStateOff, 90*time.Second); err != nil {
+			if errors.Is(err, errProvisioningCanceled) {
+				provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled while waiting for power cycle")
+				return false
+			}
 			provisioningAppendEvent(bookingID, "warn", fmt.Sprintf("Host %s attempt %d/2 did not report OFF: %v", ip, attempt, err))
 		}
 
 		provisioningUpdateHost(bookingID, ip, "waiting_power", fmt.Sprintf("Attempt %d/2: waiting for host power on", attempt))
-		if err = waitForPowerStateWithLogs(bookingID, ip, host.Management, db.PowerStateOn, 12*time.Minute); err != nil {
+		if err = waitForPowerStateWithLogs(ctx, bookingID, ip, host.Management, db.PowerStateOn, 12*time.Minute); err != nil {
+			if errors.Is(err, errProvisioningCanceled) {
+				provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled while waiting for host power on")
+				return false
+			}
 			provisioningAppendEvent(bookingID, "warn", fmt.Sprintf("Host %s attempt %d/2 did not reach ON: %v", ip, attempt, err))
 			continue
 		}
 
-		if rebootDetected, monitorErr := detectEarlyRebootAfterPowerOn(bookingID, ip, host.Management, 2*time.Minute); monitorErr != nil {
+		if rebootDetected, monitorErr := detectEarlyRebootAfterPowerOn(ctx, bookingID, ip, host.Management, 2*time.Minute); monitorErr != nil {
+			if errors.Is(monitorErr, errProvisioningCanceled) {
+				provisioningUpdateHost(bookingID, ip, "canceled", "Provisioning canceled while monitoring reboot state")
+				return false
+			}
 			provisioningAppendEvent(bookingID, "warn", fmt.Sprintf("Host %s reboot-monitor warning: %v", ip, monitorErr))
 		} else if rebootDetected && attempt < 2 {
 			provisioningAppendEvent(bookingID, "warn", fmt.Sprintf("Host %s rebooted again shortly after power-on; retrying PXE handoff", ip))
@@ -869,6 +1254,7 @@ func runProvisioningHost(
 }
 
 func waitForPowerStateWithLogs(
+	ctx context.Context,
 	bookingID int,
 	managementIP string,
 	management *db.HostManagementClient,
@@ -885,10 +1271,22 @@ func waitForPowerStateWithLogs(
 	lastProgressLog := time.Time{}
 
 	for time.Now().Before(deadline) {
+		if err = provisioningContextErr(ctx); err != nil {
+			return err
+		}
+
 		state, readErr := management.PowerState(true)
 		if readErr != nil {
 			provisioningAppendEvent(bookingID, "warn", fmt.Sprintf("Host %s power poll error: %v", managementIP, readErr))
-			time.Sleep(5 * time.Second)
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case <-timer.C:
+			case <-provisioningDoneChan(ctx):
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return errProvisioningCanceled
+			}
 			continue
 		}
 
@@ -911,7 +1309,15 @@ func waitForPowerStateWithLogs(
 			lastProgressLog = time.Now()
 		}
 
-		time.Sleep(5 * time.Second)
+		timer := time.NewTimer(5 * time.Second)
+		select {
+		case <-timer.C:
+		case <-provisioningDoneChan(ctx):
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return errProvisioningCanceled
+		}
 	}
 
 	err = fmt.Errorf("timeout after %s waiting for %s", timeout.Round(time.Second), desired.String())
@@ -919,6 +1325,7 @@ func waitForPowerStateWithLogs(
 }
 
 func detectEarlyRebootAfterPowerOn(
+	ctx context.Context,
 	bookingID int,
 	managementIP string,
 	management *db.HostManagementClient,
@@ -931,10 +1338,22 @@ func detectEarlyRebootAfterPowerOn(
 	deadline := time.Now().Add(window)
 	sawOff := false
 	for time.Now().Before(deadline) {
+		if err = provisioningContextErr(ctx); err != nil {
+			return false, err
+		}
+
 		state, stateErr := management.PowerState(true)
 		if stateErr != nil {
 			provisioningAppendEvent(bookingID, "warn", fmt.Sprintf("Host %s reboot monitor poll error: %v", managementIP, stateErr))
-			time.Sleep(5 * time.Second)
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case <-timer.C:
+			case <-provisioningDoneChan(ctx):
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return false, errProvisioningCanceled
+			}
 			continue
 		}
 
@@ -948,7 +1367,15 @@ func detectEarlyRebootAfterPowerOn(
 			return true, nil
 		}
 
-		time.Sleep(10 * time.Second)
+		timer := time.NewTimer(10 * time.Second)
+		select {
+		case <-timer.C:
+		case <-provisioningDoneChan(ctx):
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return false, errProvisioningCanceled
+		}
 	}
 
 	return false, nil

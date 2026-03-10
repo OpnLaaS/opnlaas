@@ -282,6 +282,28 @@ func BookingByID(bookingID int) (record *Booking, err error) {
 	return
 }
 
+// BookingByDNSName fetches a booking by its DNS name.
+func BookingByDNSName(dnsName string) (record *Booking, err error) {
+	dnsName = strings.TrimSpace(dnsName)
+	if dnsName == "" {
+		return nil, nil
+	}
+
+	var matches []*Booking
+	matches, err = bookings.SelectAllWithFilter(
+		gomysql.NewFilter().KeyCmp(bookings.FieldBySQLName("dns_name"), gomysql.OpEqual, dnsName),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(matches) == 0 {
+		return nil, nil
+	}
+
+	record = matches[0]
+	return
+}
+
 // BookingList returns all bookings.
 func BookingList() (records []*Booking, err error) {
 	records, err = bookings.SelectAll()
@@ -387,6 +409,14 @@ func DeleteBookingCascade(bookingID int) (err error) {
 			}
 
 			if err = bookingVMs.Delete(vm.ProxmoxID); err != nil {
+				return err
+			}
+		}
+
+		if provisioning, provErr := bookingProvisioningStatuses.Select(bookingID); provErr != nil {
+			return provErr
+		} else if provisioning != nil {
+			if err = bookingProvisioningStatuses.Delete(bookingID); err != nil {
 				return err
 			}
 		}
@@ -897,6 +927,11 @@ func AddHostToCart(owner string, host BookingRequestHost) (err error) {
 			err = fmt.Errorf("iso %s not found", host.ISOSelection)
 			return
 		}
+	}
+
+	host.BootMode = strings.TrimSpace(host.BootMode)
+	if host.BootMode == "" {
+		host.BootMode = BootModeUEFI.String()
 	}
 
 	host.AssignedIPv4 = strings.TrimSpace(host.AssignedIPv4)

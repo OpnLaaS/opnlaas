@@ -148,7 +148,9 @@ type (
 	BookingRequestHost struct {
 		ManagementIP string            `json:"management_ip"`
 		ISOSelection string            `json:"iso_selection"`
+		BootMode     string            `json:"boot_mode,omitempty"`
 		AssignedIPv4 string            `json:"assigned_ipv4,omitempty"`
+		Hostname     string            `json:"hostname,omitempty"`
 		TemplateData map[string]string `json:"template_data,omitempty"`
 	}
 
@@ -196,6 +198,43 @@ type (
 		OwnedBookingCTIDs      []int         `gomysql:"owned_booking_ctids" json:"owned_booking_ctids"`
 		OwnedBookingVMIDs      []int         `gomysql:"owned_booking_vmids" json:"owned_booking_vmids"`
 		Requests               []int         `gomysql:"requests" json:"requests"`
+	}
+
+	BookingProvisioningCredentials struct {
+		GivenUserUsername   string `json:"given_user_username"`
+		GivenUserPassword   string `json:"given_user_password"`
+		ManagedUserUsername string `json:"managed_user_username"`
+		ManagedUserPassword string `json:"managed_user_password"`
+	}
+
+	BookingProvisioningEvent struct {
+		At      time.Time `json:"at"`
+		Level   string    `json:"level"`
+		Message string    `json:"message"`
+	}
+
+	BookingProvisioningHostState struct {
+		ManagementIP    string    `json:"management_ip"`
+		Model           string    `json:"model"`
+		Hostname        string    `json:"hostname"`
+		ISOSelection    string    `json:"iso_selection"`
+		Status          string    `json:"status"`
+		Message         string    `json:"message"`
+		UpdatedAt       time.Time `json:"updated_at"`
+		CompletionToken string    `json:"completion_token"`
+	}
+
+	BookingProvisioningStatus struct {
+		BookingID   int                            `gomysql:"booking_id,primary,unique" json:"booking_id"`
+		Owner       string                         `gomysql:"owner" json:"owner"`
+		Status      string                         `gomysql:"status" json:"status"`
+		StartedAt   time.Time                      `gomysql:"started_at" json:"started_at"`
+		UpdatedAt   time.Time                      `gomysql:"updated_at" json:"updated_at"`
+		FinishedAt  time.Time                      `gomysql:"finished_at" json:"finished_at"`
+		HasFinished bool                           `gomysql:"has_finished" json:"has_finished"`
+		Hosts       []BookingProvisioningHostState `gomysql:"hosts" json:"hosts"`
+		Events      []BookingProvisioningEvent     `gomysql:"events" json:"events"`
+		Credentials BookingProvisioningCredentials `gomysql:"credentials" json:"credentials"`
 	}
 )
 

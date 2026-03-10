@@ -12,3 +12,4 @@ export * from "./api_bookings.js";
 export * from "./api_enums.js";
 export * from "./api_hosts.js";
 export * from "./api_isos.js";
+export * from "./api_operations.js";

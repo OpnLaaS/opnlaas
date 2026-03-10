@@ -162,3 +162,7 @@ export function showSuccessToast(message, options = {}) {
 export function showInfoToast(message, options = {}) {
     return showToast(message, { ...options, tone: "info" });
 }
+
+export function showWarningToast(message, options = {}) {
+    return showToast(message, { ...options, tone: "warning", duration_ms: options.duration_ms ?? 7000 });
+}

@@ -23,6 +23,7 @@ require (
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.0 // indirect
+	github.com/TwiN/go-away v1.8.1 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

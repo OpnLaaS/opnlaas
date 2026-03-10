@@ -291,7 +291,6 @@ func validateAndAssignHostIPs(
 	cidr netip.Prefix,
 	gateway netip.Addr,
 	hosts []db.BookingRequestHost,
-	startOffset int,
 ) (updated []db.BookingRequestHost, err error) {
 	updated = make([]db.BookingRequestHost, 0, len(hosts))
 	if len(hosts) == 0 {
@@ -305,49 +304,13 @@ func validateAndAssignHostIPs(
 
 	netUint, _ := ipv4ToUint32(network)
 	used := map[string]string{}
-
-	for _, host := range hosts {
-		assigned := strings.TrimSpace(host.AssignedIPv4)
-		if assigned == "" {
-			continue
-		}
-
-		addr, addrErr := parseIPv4Address(assigned)
-		if addrErr != nil {
-			return nil, fmt.Errorf("host %s has invalid assigned ip %q", host.ManagementIP, assigned)
-		}
-
-		if !cidr.Contains(addr) {
-			return nil, fmt.Errorf("host %s assigned ip %s is outside subnet %s", host.ManagementIP, addr.String(), cidr.String())
-		}
-		if addr == network || addr == broadcast {
-			return nil, fmt.Errorf("host %s assigned ip %s cannot be network or broadcast address", host.ManagementIP, addr.String())
-		}
-		if addr == gateway {
-			return nil, fmt.Errorf("host %s assigned ip %s conflicts with gateway", host.ManagementIP, addr.String())
-		}
-
-		key := addr.String()
-		if existingHost, exists := used[key]; exists && existingHost != host.ManagementIP {
-			return nil, fmt.Errorf("duplicate assigned ip %s for hosts %s and %s", key, existingHost, host.ManagementIP)
-		}
-
-		used[key] = host.ManagementIP
-	}
-
 	hostSize := subnetBlockSize(cidr.Bits())
 	maxOffset := int(hostSize) - 2
-	nextOffset := startOffset
-	if nextOffset < 2 {
-		nextOffset = 2
-	}
+	nextOffset := 1
 
 	gatewayUint, _ := ipv4ToUint32(gateway)
 	for _, host := range hosts {
-		if strings.TrimSpace(host.AssignedIPv4) != "" {
-			updated = append(updated, host)
-			continue
-		}
+		host.AssignedIPv4 = ""
 
 		for {
 			if nextOffset > maxOffset {
@@ -361,6 +324,10 @@ func validateAndAssignHostIPs(
 			}
 
 			candidateAddr, _ := uint32ToIPv4(candidateUint)
+			if candidateAddr == network || candidateAddr == broadcast {
+				continue
+			}
+
 			candidate := candidateAddr.String()
 			if _, exists := used[candidate]; exists {
 				continue

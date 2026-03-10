@@ -24,3 +24,10 @@ export async function deleteHostByManagementIp(management_ip) {
 export async function postHostPowerControl(management_ip, power_action) {
     return await apiPostJSON(known_uri.hosts_hostPowerAction(management_ip, power_action));
 }
+
+export async function postHostReprobeSystemInfo(management_ip) {
+    return await apiPostJSON(
+        known_uri.hosts_hostReprobeSystemInfo(management_ip),
+        JSON.stringify({}),
+    );
+}

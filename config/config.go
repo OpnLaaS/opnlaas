@@ -112,6 +112,12 @@ type Configuration struct {
 		DisableOtherNICs  bool     `toml:"disable_other_nics" default:"true"`                                // Disable non-primary interfaces after install
 	} `toml:"booking_networking"` // Booking network allocation and host static-IP defaults
 
+	Booking struct {
+		DefaultDurationDays int    `toml:"default_duration_days" default:"32" validate:"required,min=1,max=365"` // Default booking duration in days for new deployments
+		MaxDurationDays     int    `toml:"max_duration_days" default:"32" validate:"required,min=1,max=365"`     // Maximum booking duration in days allowed for new deployments
+		ServerDNSName       string `toml:"server_dns_name" default:"laas.cyber.lab" validate:"required"`         // Server DNS suffix used when generating hostnames (e.g. "laas-dev.cyber.lab")
+	} `toml:"booking"` // Booking lifecycle defaults and limits
+
 	Preconfigure struct {
 		Locale          string   `toml:"locale" default:"en_US" validate:"required"`                                // System locale (e.g. "en_US")
 		Timezone        string   `toml:"timezone" default:"UTC" validate:"required"`                                // System timezone (e.g. "UTC")
@@ -171,6 +177,11 @@ func loadConfig(path string) (err error) {
 	// Validate required fields
 	if err = validator.New(validator.WithRequiredStructEnabled()).Struct(Config); err != nil {
 		err = fmt.Errorf("validate config: %w", err)
+		return
+	}
+
+	if Config.Booking.DefaultDurationDays > Config.Booking.MaxDurationDays {
+		err = fmt.Errorf("validate config: booking.default_duration_days (%d) must be <= booking.max_duration_days (%d)", Config.Booking.DefaultDurationDays, Config.Booking.MaxDurationDays)
 	}
 
 	return

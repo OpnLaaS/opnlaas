@@ -12,6 +12,13 @@ export async function getBookingProvisioningStatus(bookingId) {
     return await apiGet(known_uri.bookings_provisioningByID(bookingId));
 }
 
+export async function cancelBookingProvisioning(bookingId) {
+    return await apiPostJSON(
+        known_uri.bookings_provisioningCancelByID(bookingId),
+        JSON.stringify({}),
+    );
+}
+
 export async function deleteBookingByID(bookingId) {
     return await apiDelete(known_uri.bookings_bookingByID(bookingId));
 }

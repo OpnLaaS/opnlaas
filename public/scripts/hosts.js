@@ -4,7 +4,7 @@
 
 import { dateTimeFormat, validateIP, reverseObject } from "./lib/util.js";
 import * as API from "./api/api.js";
-import { showErrorToast, showSuccessToast } from "./lib/toast.js";
+import { showErrorToast, showInfoToast, showSuccessToast, showWarningToast } from "./lib/toast.js";
 
 /**
  * Variable declaration for DOM elements
@@ -174,6 +174,67 @@ function setPowerButtonLoading(button, isLoading, txt) {
     }
 }
 
+function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function normalizeOperationStatus(status) {
+    const normalized = `${status || ""}`.trim().toLowerCase();
+    if (normalized === "success" || normalized === "warning" || normalized === "error") {
+        return normalized;
+    }
+    if (normalized === "failed") return "error";
+    if (normalized === "warn") return "warning";
+    return normalized || "running";
+}
+
+function operationTerminal(status) {
+    const normalized = normalizeOperationStatus(status);
+    return normalized === "success" || normalized === "warning" || normalized === "error";
+}
+
+async function waitForOperationTerminal(operationID, timeoutMs = 180000, intervalMs = 1500) {
+    const startedAt = Date.now();
+    while ((Date.now() - startedAt) < timeoutMs) {
+        const response = await API.getOperationByID(operationID);
+        if (response.status_code === 404) {
+            await sleep(intervalMs);
+            continue;
+        }
+        if (response.status_code !== 200) {
+            const message = response?.body?.message || `Failed to load operation ${operationID}`;
+            throw new Error(message);
+        }
+
+        const operation = response.body || {};
+        if (operationTerminal(operation.status)) {
+            return operation;
+        }
+        await sleep(intervalMs);
+    }
+
+    throw new Error("Timed out waiting for power action to finish.");
+}
+
+async function monitorHostPowerOperation(operationID, deviceAddress) {
+    try {
+        const operation = await waitForOperationTerminal(operationID);
+        const status = normalizeOperationStatus(operation.status);
+        const message = operation?.message || `Power action finished for ${deviceAddress}`;
+        if (status === "success") {
+            showSuccessToast(message);
+        } else if (status === "warning") {
+            showWarningToast(message);
+        } else {
+            showErrorToast(message);
+        }
+    } catch (err) {
+        showErrorToast(err?.message || `Failed to track power action for ${deviceAddress}.`);
+    } finally {
+        await renderHosts();
+    }
+}
+
 async function powerControl(button) {
     const btnText = (button.dataset.originalLabel || button.textContent || "").trim();
     const ipNode = getDeviceIP(button);
@@ -198,7 +259,7 @@ async function powerControl(button) {
         const response = await API.postHostPowerControl(deviceAddress, powerAction);
 
         const message = response?.body?.message;
-        const isOK = response.status_code === 200;
+        const isOK = response.status_code === 200 || response.status_code === 202;
         if (!isOK) {
             const fallback = message || "Failed to change power state.";
             if (errorBox) {
@@ -209,7 +270,15 @@ async function powerControl(button) {
             }
             return;
         } else {
-            // body.power_state is new
+            const operationID = `${response?.body?.operation?.id || ""}`.trim();
+            if (operationID) {
+                showInfoToast(message || `${btnText} queued for ${deviceAddress}`);
+                closeAllMenus();
+                void monitorHostPowerOperation(operationID, deviceAddress);
+                return;
+            }
+
+            // Backward compatibility path: treat 200 synchronous responses as immediate completion.
             const newPowerState = resolveEnum(reverseObject((await API.getPowerStates()).body), response.body.power_state);
             const hostSection = button.closest("section");
             const powerNode = hostSection?.querySelector('[data-field="power"]');
@@ -222,7 +291,7 @@ async function powerControl(button) {
                 const node = hostSection?.querySelector(`[data-field="${selector}"]`);
                 if (node) node.textContent = `As of ${formattedTime}`;
             });
-            showSuccessToast(`${btnText} queued for ${deviceAddress}`);
+            showSuccessToast(message || `${btnText} completed for ${deviceAddress}`);
         }
 
         closeAllMenus();
@@ -233,6 +302,54 @@ async function powerControl(button) {
             errorBox.classList.remove("hidden");
         } else {
             showErrorToast("Failed to change power state.");
+        }
+    } finally {
+        menuButtons.forEach((btn) => {
+            btn.disabled = false;
+        });
+        setPowerButtonLoading(button, false);
+    }
+}
+
+async function reprobeHostSystemInfo(button) {
+    const ipNode = getDeviceIP(button);
+    if (!ipNode) return;
+    const deviceAddress = ipNode.textContent;
+
+    const menu = button.closest(".power-menu");
+    const menuButtons = menu ? Array.from(menu.querySelectorAll("button")) : [];
+    const errorBox = menu?.querySelector('[data-role="power-error"]');
+    if (errorBox) {
+        errorBox.textContent = "";
+        errorBox.classList.add("hidden");
+    }
+
+    try {
+        menuButtons.forEach((btn) => btn.disabled = true);
+        setPowerButtonLoading(button, true, "Re-probing...");
+
+        const response = await API.postHostReprobeSystemInfo(deviceAddress);
+        if (response.status_code !== 200) {
+            const message = response?.body?.message || "Failed to re-probe host system info.";
+            if (errorBox) {
+                errorBox.textContent = message;
+                errorBox.classList.remove("hidden");
+            } else {
+                showErrorToast(message);
+            }
+            return;
+        }
+
+        showSuccessToast(`Re-probed system info for ${deviceAddress}`);
+        closeAllMenus();
+        await renderHosts();
+    } catch (err) {
+        console.error(err);
+        if (errorBox) {
+            errorBox.textContent = "Failed to re-probe host system info.";
+            errorBox.classList.remove("hidden");
+        } else {
+            showErrorToast("Failed to re-probe host system info.");
         }
     } finally {
         menuButtons.forEach((btn) => {
@@ -279,6 +396,7 @@ async function unenrollHost(button) {
 }
 
 window.powerControl = powerControl;
+window.reprobeHostSystemInfo = reprobeHostSystemInfo;
 window.unenrollHost = unenrollHost;
 
 /**
@@ -672,7 +790,19 @@ async function renderHosts() {
 
             // header
             frag.querySelector('[data-field="name"]').textContent = host.model;
-            frag.querySelector('[data-field="form_factor"]').textContent = resolveEnum(formFactors, host.form_factor);
+            const formFactorLabel = resolveEnum(formFactors, host.form_factor);
+            const formFactorNormalized = String(formFactorLabel || "").trim().toLowerCase();
+            const vendorLabel = resolveEnum(vendorNames, host.vendor);
+            const vendorSummary = vendorLabel && vendorLabel !== "—" ? vendorLabel : "Vendor unknown";
+            const bookingSummary = host.is_booked
+                ? (Number(host.active_booking_id) > 0 ? `Booked (#${host.active_booking_id})` : "Booked")
+                : "Available";
+            const summaryParts = [];
+            if (formFactorLabel && formFactorLabel !== "—" && formFactorNormalized !== "other") {
+                summaryParts.push(formFactorLabel);
+            }
+            summaryParts.push(vendorSummary, bookingSummary);
+            frag.querySelector('[data-field="form_factor"]').textContent = summaryParts.join(" • ");
             const powerLabel = resolveEnum(powerStates, host.last_known_power_state);
             const powerNode = frag.querySelector('[data-field="power"]');
             powerNode.textContent = powerLabel;
@@ -690,7 +820,7 @@ async function renderHosts() {
             // chips (system facts)
             frag.querySelector('[data-field="ip"]').textContent = host.management_ip;
             frag.querySelector('[data-field="mgmt_type"]').textContent = resolveEnum(mgmtTypes, host.management_type);
-            frag.querySelector('[data-field="vendor"]').textContent = resolveEnum(vendorNames, host.vendor);
+            frag.querySelector('[data-field="vendor"]').textContent = vendorSummary;
 
             // memory
             const mem = host.specs?.memory || {};

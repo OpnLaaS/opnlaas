@@ -1,4 +1,4 @@
-<div class="py-4 md:py-8 w-full mx-4 space-y-5">
+<div class="w-full space-y-5 px-4 py-4 md:px-6 md:py-8">
     <section class="rounded-2xl border border-background-muted bg-background-secondary p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -9,10 +9,6 @@
                 <button id="openDeployWizardBtn"
                     class="rounded-lg border border-background-muted bg-background-primary px-4 py-2 text-sm hover:bg-background-muted transition-colors hover:cursor-pointer">
                     New Deployment
-                </button>
-                <button id="openProvisioningLogBtn"
-                    class="rounded-lg border border-background-muted px-4 py-2 text-sm hover:bg-background-muted transition-colors hover:cursor-pointer">
-                    Provisioning Logs
                 </button>
                 <button id="refreshBookingsBtn"
                     class="rounded-lg border border-background-muted px-4 py-2 text-sm hover:bg-background-muted transition-colors hover:cursor-pointer">
@@ -60,12 +56,20 @@
                                 placeholder="Network Validation Pool A" />
                         </label>
                         <label class="text-sm">
-                            <div class="mb-1 text-font-secondary">Duration (days)</div>
-                            <input id="wizardBookingDuration" type="number" min="1" max="90"
-                                class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2"
-                                value="1" />
+                            <div class="mb-1 text-font-secondary">Duration (<span id="wizardBookingDurationValue">32</span> days)</div>
+                            <input id="wizardBookingDuration" type="range" min="1" max="32" step="1"
+                                class="w-full accent-accent-primary"
+                                value="32" />
+                            <div id="wizardBookingDurationHint" class="mt-1 text-xs text-font-secondary">1-32 days</div>
                         </label>
                     </div>
+                    <label class="text-sm block md:max-w-md">
+                        <div class="mb-1 text-font-secondary">DNS Name (Auto-generated)</div>
+                        <input id="wizardBookingDNSName"
+                            readonly
+                            class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2 font-mono text-font-secondary"
+                            placeholder="network-validation-pool-a" />
+                    </label>
                     <label class="text-sm block md:max-w-md">
                         <div class="mb-1 text-font-secondary">Booking Subnet (Auto-assigned)</div>
                         <input id="wizardBookingCIDR"
@@ -77,15 +81,10 @@
                     <label class="text-sm block">
                         <div class="mb-1 text-font-secondary">Description</div>
                         <textarea id="wizardBookingDescription" rows="4"
+                            required minlength="128"
                             class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2"
                             placeholder="What this environment is for"></textarea>
-                    </label>
-                    <label class="text-sm block md:max-w-xs">
-                        <div class="mb-1 text-font-secondary">Boot Mode</div>
-                        <select id="wizardBootMode" class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2">
-                            <option value="UEFI">UEFI</option>
-                            <option value="Legacy">Legacy</option>
-                        </select>
+                        <div class="mt-1 text-xs text-font-secondary">Required, minimum 128 characters.</div>
                     </label>
                 </section>
 
@@ -165,6 +164,24 @@
                 </label>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <label class="text-sm">
+                        <div class="mb-1 text-font-secondary">Boot Mode</div>
+                        <select id="hostCfgBootMode" class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2">
+                            <option value="UEFI">UEFI</option>
+                            <option value="Legacy">Legacy</option>
+                        </select>
+                    </label>
+                    <label class="text-sm">
+                        <div class="mb-1 text-font-secondary">Hostname Label</div>
+                        <input id="hostCfgHostname"
+                            class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2"
+                            placeholder="amber" />
+                        <div id="hostCfgHostnamePreview" class="mt-1 text-xs text-font-secondary font-mono break-all">
+                            Hostname: &lt;label&gt;.&lt;booking-dns&gt;.&lt;server-dns&gt;
+                        </div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="text-sm">
                         <div class="mb-1 text-font-secondary">Timezone (optional)</div>
                         <input id="hostCfgTimezone" class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2" placeholder="UTC" />
                     </label>
@@ -186,15 +203,6 @@
                 <label class="text-sm block">
                     <div class="mb-1 text-font-secondary">Packages (comma separated, optional)</div>
                     <input id="hostCfgPackages" class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2" placeholder="curl,vim,tmux" />
-                </label>
-                <label class="text-sm block">
-                    <div class="mb-1 text-font-secondary">Assigned Host Bits (Offset in booking subnet)</div>
-                    <input id="hostCfgAssignedIP"
-                        type="number"
-                        min="1"
-                        class="w-full rounded-lg border border-background-muted bg-background-secondary px-3 py-2 font-mono"
-                        placeholder="10" />
-                    <div id="hostCfgAssignedIPHint" class="mt-1 text-xs text-font-secondary"></div>
                 </label>
                 <label class="text-sm block">
                     <div class="mb-1 text-font-secondary">Late Stage Script (optional)</div>
@@ -225,8 +233,11 @@
                     <p class="m-0 mt-1 text-xs text-font-secondary">Live events for submitted deployments.</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <select id="provisioningBookingSelect"
-                        class="rounded-lg border border-background-muted bg-background-secondary px-3 py-2 text-sm"></select>
+                    <span id="provisioningBookingLabel" class="text-xs text-font-secondary"></span>
+                    <button id="provisioningCancelBtn"
+                        class="hidden rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 hover:cursor-pointer">
+                        Cancel Provisioning
+                    </button>
                     <button id="provisioningRefreshBtn"
                         class="rounded-lg border border-background-muted px-3 py-2 text-sm hover:bg-background-muted hover:cursor-pointer">
                         Refresh
@@ -244,10 +255,37 @@
                     <div id="provisioningHostsList" class="space-y-2"></div>
                 </div>
                 <div class="rounded-xl border border-background-muted p-3">
-                    <h5 class="m-0 text-sm mb-2">Event Stream</h5>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <h5 class="m-0 text-sm">Terminal Log</h5>
+                        <div class="flex items-center gap-1 text-[11px]">
+                            <button type="button" data-action="toggle-provisioning-level" data-level="info"
+                                class="terminal-filter-btn rounded-md border border-background-muted px-2 py-1 hover:bg-background-muted hover:cursor-pointer">
+                                info
+                            </button>
+                            <button type="button" data-action="toggle-provisioning-level" data-level="warn"
+                                class="terminal-filter-btn rounded-md border border-background-muted px-2 py-1 hover:bg-background-muted hover:cursor-pointer">
+                                warn
+                            </button>
+                            <button type="button" data-action="toggle-provisioning-level" data-level="error"
+                                class="terminal-filter-btn rounded-md border border-background-muted px-2 py-1 hover:bg-background-muted hover:cursor-pointer">
+                                error
+                            </button>
+                        </div>
+                    </div>
                     <div id="provisioningSummary" class="text-xs text-font-secondary mb-2"></div>
-                    <div id="provisioningEventsEmpty" class="text-xs text-font-secondary">No events yet.</div>
-                    <div id="provisioningEventsList" class="space-y-2 max-h-[420px] overflow-y-auto pr-1"></div>
+                    <div class="terminal-shell">
+                        <div class="terminal-progress-wrap">
+                            <div class="terminal-progress-meta">
+                                <span id="provisioningProgressLabel">Progress unavailable</span>
+                                <span class="terminal-title">provisioning.log</span>
+                            </div>
+                            <div class="terminal-progress-track">
+                                <div id="provisioningProgressBar" class="terminal-progress-fill" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div id="provisioningEventsEmpty" class="text-xs text-font-secondary px-3 py-2">No events yet.</div>
+                        <div id="provisioningEventsList" class="terminal-body max-h-[420px] overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -262,6 +300,14 @@
                     <div class="mt-1 text-xs text-font-secondary" data-field="window"></div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button data-action="open-provisioning-log"
+                        class="rounded-lg border border-background-muted px-3 py-1.5 text-xs hover:bg-background-muted hover:cursor-pointer">
+                        Logs
+                    </button>
+                    <button data-action="cancel-provisioning"
+                        class="hidden rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 hover:cursor-pointer">
+                        Cancel
+                    </button>
                     <button data-action="destroy"
                         class="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 hover:cursor-pointer">
                         Destroy
@@ -324,7 +370,7 @@
             <div class="flex items-center justify-between gap-2">
                 <div>
                     <div class="font-medium text-sm" data-field="management_ip"></div>
-                    <div class="text-xs text-font-secondary" data-field="summary"></div>
+                    <div class="text-xs text-font-secondary break-words" data-field="summary"></div>
                 </div>
                 <div class="flex items-center gap-1">
                     <button data-action="edit-host"
@@ -342,15 +388,15 @@
 
     <template id="provisioningHostRowTemplate">
         <article class="rounded-lg border border-background-muted p-2 text-xs">
-            <div class="font-medium" data-field="management_ip"></div>
-            <div class="text-font-secondary mt-1" data-field="status"></div>
+            <div class="font-medium break-words" data-field="target"></div>
+            <div class="text-font-secondary mt-1 break-words" data-field="status"></div>
         </article>
     </template>
 
     <template id="provisioningEventRowTemplate">
-        <article class="rounded-lg border border-background-muted p-2 text-xs">
-            <div class="font-medium" data-field="heading"></div>
-            <div class="mt-1 text-font-secondary" data-field="message"></div>
+        <article class="terminal-line rounded-md" data-field="row">
+            <div class="terminal-heading" data-field="heading"></div>
+            <div class="terminal-message mt-1" data-field="message"></div>
         </article>
     </template>
 </div>

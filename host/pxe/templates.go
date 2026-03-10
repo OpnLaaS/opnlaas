@@ -370,6 +370,10 @@ func (s *Service) applyTemplateDataOverrides(ctx *TemplateContext) {
 		ctx.Templates.Kickstart.PostScript = appendTemplateScript(ctx.Templates.Kickstart.PostScript, script)
 	}
 
+	if v := strings.TrimSpace(data["template.identifiers.hostname"]); v != "" {
+		ctx.Identifiers.Hostname = v
+	}
+
 	if v := strings.TrimSpace(data["template.provisioning.booking_id"]); v != "" {
 		ctx.Provisioning.BookingID = v
 	}
